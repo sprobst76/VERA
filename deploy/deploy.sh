@@ -40,7 +40,7 @@ else
     error "Projekt-Verzeichnis nicht gefunden. Bitte erst 'install' ausführen."
 fi
 
-COMPOSE="docker compose -f $COMPOSE_FILE"
+COMPOSE="docker compose -p vera -f $COMPOSE_FILE"
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
