@@ -116,13 +116,13 @@ cmd_install() {
 }
 
 cmd_update() {
-    info "VERA Update..."
+    info "VERA Update (Pull pre-built images from GHCR)..."
 
-    git pull
+    git pull --ff-only
     info "Repository aktualisiert."
 
-    info "Baue neue Images..."
-    $COMPOSE build
+    info "Ziehe neue Images..."
+    $COMPOSE pull
 
     info "Starte Container neu..."
     $COMPOSE up -d
@@ -132,6 +132,12 @@ cmd_update() {
 
     info "Update abgeschlossen."
     cmd_status
+}
+
+cmd_build_local() {
+    info "Lokaler Build (ohne CI – für Notfälle)..."
+    docker compose -p vera -f deploy/docker-compose.build.yml build "$@"
+    info "Build abgeschlossen."
 }
 
 cmd_migrate() {
@@ -219,9 +225,10 @@ cmd_stop() {
 COMMAND="${1:-help}"
 
 case "$COMMAND" in
-    install)    cmd_install ;;
-    update)     cmd_update ;;
-    migrate)    cmd_migrate ;;
+    install)      cmd_install ;;
+    update)       cmd_update ;;
+    build-local)  cmd_build_local "${@:2}" ;;
+    migrate)      cmd_migrate ;;
     seed-demo)  cmd_seed_demo ;;
     superadmin) cmd_superadmin ;;
     status)     cmd_status ;;
