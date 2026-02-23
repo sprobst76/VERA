@@ -29,13 +29,10 @@ function hasDemoCookie(): boolean {
 export function DemoBar() {
   const { login, user } = useAuthStore();
   const router = useRouter();
-  // Dev (kein DEMO_SLUG): immer sichtbar. Prod: nur wenn Cookie gesetzt.
-  const [visible, setVisible] = useState(!DEMO_SLUG);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (DEMO_SLUG) {
-      setVisible(hasDemoCookie());
-    }
+    setVisible(hasDemoCookie());
   }, []);
 
   if (!visible) return null;
