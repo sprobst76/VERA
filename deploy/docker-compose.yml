@@ -100,8 +100,13 @@ services:
       - "traefik.http.routers.vera-web.entrypoints=websecure"
       - "traefik.http.routers.vera-web.tls.certresolver=cloudflare"
       - "traefik.http.routers.vera-web.priority=10"
-      - "traefik.http.routers.vera-web.middlewares=vera-security@docker"
+      - "traefik.http.routers.vera-web.middlewares=vera-web-security@docker"
       - "traefik.http.services.vera-web.loadbalancer.server.port=3000"
+      # Security headers (eigenständig definiert, nicht von vera-api abhängig)
+      - "traefik.http.middlewares.vera-web-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.vera-web-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.vera-web-security.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.vera-web-security.headers.frameDeny=true"
     networks:
       - default
       - ai-lab
