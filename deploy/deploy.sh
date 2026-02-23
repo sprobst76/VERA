@@ -17,7 +17,7 @@ set -euo pipefail
 
 DEPLOY_DIR="/srv/vera"
 COMPOSE_FILE="deploy/docker-compose.yml"
-REPO_URL="git@github.com:DEIN_GITHUB_USER/VERA.git"   # <-- anpassen
+REPO_URL="git@github.com:sprobst76/VERA.git"
 
 # Farben
 GREEN='\033[0;32m'
