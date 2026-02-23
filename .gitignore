@@ -1,0 +1,43 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Media/uploads
+backend/media/
+
+# Alembic
+# (versions are tracked intentionally)
+
+# SQLite dev DB
+backend/*.db
+
+# Deploy data (postgres + backups)
+deploy/data/
+
+# Misc
+.DS_Store
+Thumbs.db

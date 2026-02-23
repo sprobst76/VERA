@@ -1,0 +1,26 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# System deps: libpq-dev für asyncpg-Kompilierung, curl für Health-Check
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev curl gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python-Abhängigkeiten zuerst (Layer-Cache)
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# App-Code
+COPY backend/ .
+
+# Non-root User
+RUN useradd -r -u 1000 -m appuser \
+    && mkdir -p /app/backups \
+    && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+# 2 Workers für Produktion; kein --reload
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
