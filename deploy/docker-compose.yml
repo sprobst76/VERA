@@ -58,7 +58,7 @@ services:
     labels:
       - "traefik.enable=true"
       # API + calendar + health – höhere Priorität als Frontend
-      - "traefik.http.routers.vera-api.rule=Host(`vera.lab.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/calendar`) || PathPrefix(`/health`))"
+      - "traefik.http.routers.vera-api.rule=Host(`vera.lab.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/calendar/`) || PathPrefix(`/health`))"
       - "traefik.http.routers.vera-api.entrypoints=websecure"
       - "traefik.http.routers.vera-api.tls.certresolver=cloudflare"
       - "traefik.http.routers.vera-api.priority=20"
