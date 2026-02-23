@@ -108,6 +108,7 @@ services:
 
 networks:
   ai-lab:
-    external: true   # Geteiltes Traefik-Netzwerk (existiert bereits auf dem Server)
+    external: true
+    name: ai-lab_ai-lab   # Docker Compose project prefix
   default:
     driver: bridge
