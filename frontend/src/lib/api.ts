@@ -152,3 +152,43 @@ export const payrollApi = {
   update: (id: string, data: { status?: string; notes?: string }) =>
     api.put(`/payroll/${id}`, data),
 };
+
+// Holiday Profiles (Ferienprofile)
+export const holidayProfilesApi = {
+  list: () => api.get("/holiday-profiles"),
+  create: (data: Record<string, unknown>) => api.post("/holiday-profiles", data),
+  get: (id: string) => api.get(`/holiday-profiles/${id}`),
+  update: (id: string, data: Record<string, unknown>) =>
+    api.put(`/holiday-profiles/${id}`, data),
+  delete: (id: string) => api.delete(`/holiday-profiles/${id}`),
+  addPeriod: (profileId: string, data: Record<string, unknown>) =>
+    api.post(`/holiday-profiles/${profileId}/periods`, data),
+  updatePeriod: (profileId: string, periodId: string, data: Record<string, unknown>) =>
+    api.put(`/holiday-profiles/${profileId}/periods/${periodId}`, data),
+  deletePeriod: (profileId: string, periodId: string) =>
+    api.delete(`/holiday-profiles/${profileId}/periods/${periodId}`),
+  addCustomDay: (profileId: string, data: Record<string, unknown>) =>
+    api.post(`/holiday-profiles/${profileId}/custom-days`, data),
+  deleteCustomDay: (profileId: string, dayId: string) =>
+    api.delete(`/holiday-profiles/${profileId}/custom-days/${dayId}`),
+};
+
+// Recurring Shifts (Regeltermine)
+export const recurringShiftsApi = {
+  list: () => api.get("/recurring-shifts"),
+  preview: (data: Record<string, unknown>) =>
+    api.post("/recurring-shifts/preview", data),
+  create: (data: Record<string, unknown>) =>
+    api.post("/recurring-shifts", data),
+  update: (id: string, data: Record<string, unknown>) =>
+    api.put(`/recurring-shifts/${id}`, data),
+  updateFrom: (id: string, data: Record<string, unknown>) =>
+    api.post(`/recurring-shifts/${id}/update-from`, data),
+  delete: (id: string) => api.delete(`/recurring-shifts/${id}`),
+};
+
+// Calendar vacation data
+export const calendarDataApi = {
+  vacationData: (from: string, to: string) =>
+    api.get("/calendar/vacation-data", { params: { from, to } }),
+};

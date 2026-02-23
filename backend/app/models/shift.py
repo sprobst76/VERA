@@ -81,9 +81,19 @@ class Shift(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # Recurring shift link
+    recurring_shift_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("recurring_shifts.id", ondelete="SET NULL"), nullable=True
+    )
+    is_override: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Relationships
     employee: Mapped["Employee | None"] = relationship(back_populates="shifts")
     template: Mapped["ShiftTemplate | None"] = relationship(back_populates="shifts")
+    recurring_shift: Mapped["RecurringShift | None"] = relationship(  # type: ignore[name-defined]
+        back_populates="generated_shifts",
+        foreign_keys=[recurring_shift_id],
+    )
 
     @property
     def duration_hours(self) -> float:

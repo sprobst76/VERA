@@ -12,8 +12,10 @@ from app.api.v1.shifts import shifts_router, templates_router
 from app.api.v1.absences import employee_absences_router, care_absences_router
 from app.api.v1.payroll import router as payroll_router
 from app.api.v1.users import router as users_router
-from app.api.v1.calendar import router as calendar_router
+from app.api.v1.calendar import router as calendar_router, vacation_router
 from app.api.v1.superadmin import router as superadmin_router
+from app.api.v1.holiday_profiles import router as holiday_profiles_router
+from app.api.v1.recurring_shifts import router as recurring_shifts_router
 
 
 @asynccontextmanager
@@ -52,6 +54,9 @@ app.include_router(care_absences_router, prefix=API_PREFIX)
 app.include_router(payroll_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(superadmin_router, prefix=API_PREFIX)
+app.include_router(holiday_profiles_router, prefix=API_PREFIX)
+app.include_router(recurring_shifts_router, prefix=API_PREFIX)
+app.include_router(vacation_router, prefix=API_PREFIX)
 app.include_router(calendar_router)  # public, no auth prefix
 
 

@@ -1,24 +1,30 @@
 """
-iCal Feed – öffentlicher Endpunkt, kein JWT nötig (Token = Auth).
+Calendar endpoints:
 
-GET /calendar/{token}.ics
-  - Employee-Token  → eigene Dienste
-  - Admin/Manager-Token → alle Dienste des Tenants
+GET /calendar/{token}.ics            – public iCal feed (no JWT)
+GET /api/v1/calendar/vacation-data   – vacation/holiday data for calendar display (JWT required)
 """
 from datetime import datetime, timezone, timedelta, date, time as dtime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from icalendar import Calendar, Event, vText
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.employee import Employee
+from app.models.holiday_profile import HolidayProfile, VacationPeriod, CustomHoliday
 from app.models.shift import Shift, ShiftTemplate
 from app.models.user import User
+from app.api.deps import CurrentUser, DB
+from app.utils.german_holidays import get_bw_holidays
 
+# Public router (mounted without /api/v1 prefix in main.py)
 router = APIRouter(tags=["calendar"])
+
+# Authenticated router (mounted with /api/v1 prefix)
+vacation_router = APIRouter(prefix="/calendar", tags=["calendar"])
 
 TZ = ZoneInfo("Europe/Berlin")
 
@@ -48,7 +54,6 @@ def _build_calendar(shifts: list, emp_map: dict, cal_name: str) -> bytes:
     cal.add("x-published-ttl", "PT1H")
 
     for shift in shifts:
-        # Skip cancelled shifts
         if shift.status in ("cancelled", "cancelled_absence"):
             continue
 
@@ -58,22 +63,18 @@ def _build_calendar(shifts: list, emp_map: dict, cal_name: str) -> bytes:
 
         start_dt = _dt(shift.date, shift.start_time)
         end_dt = _dt(shift.date, shift.end_time)
-        # Handle overnight shifts
         if end_dt <= start_dt:
             end_dt += timedelta(days=1)
 
         ev.add("dtstart", start_dt)
         ev.add("dtend", end_dt)
 
-        # Summary: template name or fallback
         template_name = shift.template.name if shift.template else "Dienst"
         ev.add("summary", vText(template_name))
 
-        # Location
         if shift.location:
             ev.add("location", vText(shift.location))
 
-        # Description
         lines = []
         emp = emp_map.get(shift.employee_id)
         if emp:
@@ -87,10 +88,7 @@ def _build_calendar(shifts: list, emp_map: dict, cal_name: str) -> bytes:
             lines.append(f"Notiz: {shift.notes}")
         ev.add("description", vText("\n".join(lines)))
 
-        # Status mapping
         ev.add("status", "CONFIRMED" if shift.status in ("confirmed", "completed") else "TENTATIVE")
-
-        # Last modified
         ev.add("last-modified", datetime.now(timezone.utc))
 
         cal.add_component(ev)
@@ -106,14 +104,12 @@ async def get_ical_feed(token: str):
     """
     async with AsyncSessionLocal() as db:
 
-        # ── Try Employee token first ──────────────────────────────────────────
         emp_result = await db.execute(
             select(Employee).where(Employee.ical_token == token)
         )
         employee = emp_result.scalar_one_or_none()
 
         if employee:
-            # Load own shifts with templates eager-loaded
             shifts_result = await db.execute(
                 select(Shift).where(
                     Shift.employee_id == employee.id,
@@ -122,7 +118,6 @@ async def get_ical_feed(token: str):
             )
             shifts = shifts_result.scalars().all()
 
-            # Load templates for all shifts
             for shift in shifts:
                 if shift.template_id:
                     tpl_result = await db.execute(
@@ -144,14 +139,12 @@ async def get_ical_feed(token: str):
                 },
             )
 
-        # ── Try User (admin/manager) token ────────────────────────────────────
         user_result = await db.execute(
             select(User).where(User.ical_token == token)
         )
         user = user_result.scalar_one_or_none()
 
         if user and user.role in ("admin", "manager") and user.is_active:
-            # All shifts for this tenant
             shifts_result = await db.execute(
                 select(Shift).where(
                     Shift.tenant_id == user.tenant_id,
@@ -159,7 +152,6 @@ async def get_ical_feed(token: str):
             )
             shifts = shifts_result.scalars().all()
 
-            # Load templates
             for shift in shifts:
                 if shift.template_id:
                     tpl_result = await db.execute(
@@ -169,7 +161,6 @@ async def get_ical_feed(token: str):
                 else:
                     shift.template = None
 
-            # Build employee map for descriptions
             emps_result = await db.execute(
                 select(Employee).where(Employee.tenant_id == user.tenant_id)
             )
@@ -188,3 +179,76 @@ async def get_ical_feed(token: str):
             )
 
     raise HTTPException(status_code=404, detail="Kalender nicht gefunden")
+
+
+# ── Vacation/Holiday data for calendar display ────────────────────────────────
+
+@vacation_router.get("/vacation-data")
+async def get_vacation_data(
+    from_date: date = Query(..., alias="from"),
+    to_date: date = Query(..., alias="to"),
+    current_user: CurrentUser = None,
+    db: DB = None,
+):
+    """
+    Returns vacation periods, custom holidays, and public holidays
+    for the active holiday profile of the current tenant.
+    Used by the calendar page to render background events.
+    """
+    hp_result = await db.execute(
+        select(HolidayProfile).where(
+            HolidayProfile.tenant_id == current_user.tenant_id,
+            HolidayProfile.is_active == True,
+        )
+    )
+    profile = hp_result.scalar_one_or_none()
+
+    vacation_periods = []
+    custom_holidays = []
+
+    if profile:
+        vp_result = await db.execute(
+            select(VacationPeriod).where(
+                VacationPeriod.profile_id == profile.id,
+                VacationPeriod.end_date >= from_date,
+                VacationPeriod.start_date <= to_date,
+            ).order_by(VacationPeriod.start_date)
+        )
+        for vp in vp_result.scalars().all():
+            vacation_periods.append({
+                "id": str(vp.id),
+                "name": vp.name,
+                "start_date": vp.start_date.isoformat(),
+                "end_date": vp.end_date.isoformat(),
+                "color": vp.color,
+            })
+
+        ch_result = await db.execute(
+            select(CustomHoliday).where(
+                CustomHoliday.profile_id == profile.id,
+                CustomHoliday.date >= from_date,
+                CustomHoliday.date <= to_date,
+            ).order_by(CustomHoliday.date)
+        )
+        for ch in ch_result.scalars().all():
+            custom_holidays.append({
+                "id": str(ch.id),
+                "date": ch.date.isoformat(),
+                "name": ch.name,
+                "color": ch.color,
+            })
+
+    public_holidays = []
+    for year in range(from_date.year, to_date.year + 1):
+        for d, name in get_bw_holidays(year).items():
+            if from_date <= d <= to_date:
+                public_holidays.append({
+                    "date": d.isoformat(),
+                    "name": name,
+                })
+
+    return {
+        "vacation_periods": vacation_periods,
+        "custom_holidays": custom_holidays,
+        "public_holidays": public_holidays,
+    }

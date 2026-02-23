@@ -3,9 +3,9 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
-import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns";
+import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, eachDayOfInterval } from "date-fns";
 import { de } from "date-fns/locale";
-import { shiftsApi, templatesApi, employeesApi } from "@/lib/api";
+import { shiftsApi, templatesApi, employeesApi, calendarDataApi, recurringShiftsApi } from "@/lib/api";
 import { ChevronLeft, ChevronRight, AlertCircle, Plus } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { CreateShiftModal } from "@/components/shared/CreateShiftModal";
@@ -25,14 +25,6 @@ const VIEWS: { key: View; label: string }[] = [
   { key: "day",   label: "Tag" },
 ];
 
-const STATUS_OPACITY: Record<string, string> = {
-  completed:          "opacity-60",
-  cancelled:          "opacity-30 line-through",
-  cancelled_absence:  "opacity-30 line-through",
-  planned:            "opacity-100",
-  confirmed:          "opacity-100",
-};
-
 export default function CalendarPage() {
   const { user } = useAuthStore();
   const isPrivileged = user?.role === "admin" || user?.role === "manager";
@@ -44,7 +36,6 @@ export default function CalendarPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createDate, setCreateDate] = useState("");
 
-  // Datumsbereich für API-Anfrage
   const rangeStart = format(subMonths(startOfMonth(currentDate), 0), "yyyy-MM-dd");
   const rangeEnd   = format(endOfMonth(addMonths(currentDate, 0)), "yyyy-MM-dd");
 
@@ -61,6 +52,18 @@ export default function CalendarPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: () => employeesApi.list().then(r => r.data),
+  });
+
+  const { data: vacationData } = useQuery({
+    queryKey: ["vacation-data", rangeStart, rangeEnd],
+    queryFn: () => calendarDataApi.vacationData(rangeStart, rangeEnd).then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: recurringShifts = [] } = useQuery({
+    queryKey: ["recurring-shifts"],
+    queryFn: () => recurringShiftsApi.list().then(r => r.data),
+    enabled: isPrivileged,
   });
 
   // Lookup-Maps
@@ -83,6 +86,77 @@ export default function CalendarPage() {
     };
   }), [shifts, templateMap, employeeMap]);
 
+  // Background events: vacation periods, public holidays, custom holidays, recurring shift Schienen
+  const backgroundEvents = useMemo(() => {
+    const bgs: any[] = [];
+
+    if (vacationData) {
+      // Vacation periods
+      for (const vp of vacationData.vacation_periods ?? []) {
+        bgs.push({
+          title: vp.name,
+          start: parseISO(vp.start_date),
+          end: new Date(parseISO(vp.end_date).getTime() + 86400000), // inclusive end
+          allDay: true,
+          resource: { type: "vacation", color: vp.color, name: vp.name },
+        });
+      }
+
+      // Public holidays
+      for (const ph of vacationData.public_holidays ?? []) {
+        bgs.push({
+          title: ph.name,
+          start: parseISO(ph.date),
+          end: new Date(parseISO(ph.date).getTime() + 86400000),
+          allDay: true,
+          resource: { type: "public_holiday", color: "#f38ba8", name: ph.name },
+        });
+      }
+
+      // Custom holidays (bewegliche Ferientage)
+      for (const ch of vacationData.custom_holidays ?? []) {
+        bgs.push({
+          title: ch.name,
+          start: parseISO(ch.date),
+          end: new Date(parseISO(ch.date).getTime() + 86400000),
+          allDay: true,
+          resource: { type: "custom_holiday", color: ch.color, name: ch.name },
+        });
+      }
+    }
+
+    // Recurring shift Schienen (colored time bands in week/day view)
+    if (view !== "month") {
+      const rangeStartDate = parseISO(rangeStart);
+      const rangeEndDate = parseISO(rangeEnd);
+      for (const rs of recurringShifts as any[]) {
+        const tpl = templateMap[rs.template_id];
+        const color = tpl?.color ?? "rgb(var(--ctp-blue))";
+        // Generate one background event per matching weekday in range
+        const allDays = eachDayOfInterval({ start: rangeStartDate, end: rangeEndDate });
+        for (const d of allDays) {
+          if (getDay(d) === (rs.weekday + 1) % 7) { // convert Mon=0 to JS day (Sun=0)
+            const [sh, sm] = rs.start_time.slice(0, 5).split(":").map(Number);
+            const [eh, em] = rs.end_time.slice(0, 5).split(":").map(Number);
+            const startDt = new Date(d);
+            startDt.setHours(sh, sm, 0, 0);
+            const endDt = new Date(d);
+            endDt.setHours(eh, em, 0, 0);
+            bgs.push({
+              title: rs.label || rs.weekday_name,
+              start: startDt,
+              end: endDt,
+              allDay: false,
+              resource: { type: "recurring_shift", color, name: rs.label || rs.weekday_name },
+            });
+          }
+        }
+      }
+    }
+
+    return bgs;
+  }, [vacationData, recurringShifts, templateMap, rangeStart, rangeEnd, view]);
+
   // Farbe je Template, grau für offene Dienste
   const eventPropGetter = useCallback((event: any) => {
     const { shift, template } = event.resource;
@@ -101,6 +175,39 @@ export default function CalendarPage() {
     };
   }, []);
 
+  // Background event styling
+  const backgroundEventPropGetter = useCallback((event: any) => {
+    const { color, type } = event.resource;
+    const opacity = type === "recurring_shift" ? 0.2 : 0.18;
+    return {
+      style: {
+        backgroundColor: color,
+        opacity,
+        border: "none",
+        borderRadius: "0",
+        cursor: "default",
+      },
+    };
+  }, []);
+
+  // Day column tinting for public holidays
+  const dayPropGetter = useCallback((date: Date) => {
+    const ds = format(date, "yyyy-MM-dd");
+    const isPublicHoliday = (vacationData?.public_holidays ?? []).some(
+      (ph: any) => ph.date === ds
+    );
+    const isVacation = (vacationData?.vacation_periods ?? []).some(
+      (vp: any) => ds >= vp.start_date && ds <= vp.end_date
+    );
+    const isCustom = (vacationData?.custom_holidays ?? []).some(
+      (ch: any) => ch.date === ds
+    );
+    if (isPublicHoliday) return { style: { backgroundColor: "rgba(243, 139, 168, 0.07)" } };
+    if (isVacation) return { style: { backgroundColor: "rgba(166, 227, 161, 0.06)" } };
+    if (isCustom) return { style: { backgroundColor: "rgba(250, 179, 135, 0.07)" } };
+    return {};
+  }, [vacationData]);
+
   const handleNavigate = (dir: "prev" | "next" | "today") => {
     if (dir === "today") { setCurrentDate(new Date()); return; }
     const delta = view === "month" ? 1 : view === "week" ? 7 : 1;
@@ -114,8 +221,8 @@ export default function CalendarPage() {
     });
   };
 
-  // Legende
-  const legend = templates.map((t: any) => ({ name: t.name, color: t.color }));
+  // Legend items
+  const legend = templates.map((t: any) => ({ name: t.name, color: t.color, type: "template" }));
 
   return (
     <div className="space-y-4 h-full">
@@ -132,15 +239,9 @@ export default function CalendarPage() {
 
         {/* Navigation */}
         <div className="flex items-center gap-1 bg-card rounded-lg border border-border p-1">
-          <button onClick={() => handleNavigate("prev")} className="p-2.5 hover:bg-accent rounded">
-            <ChevronLeft size={16} />
-          </button>
-          <button onClick={() => handleNavigate("today")} className="px-3 py-2 text-sm hover:bg-accent rounded font-medium">
-            Heute
-          </button>
-          <button onClick={() => handleNavigate("next")} className="p-2.5 hover:bg-accent rounded">
-            <ChevronRight size={16} />
-          </button>
+          <button onClick={() => handleNavigate("prev")} className="p-2.5 hover:bg-accent rounded"><ChevronLeft size={16} /></button>
+          <button onClick={() => handleNavigate("today")} className="px-3 py-2 text-sm hover:bg-accent rounded font-medium">Heute</button>
+          <button onClick={() => handleNavigate("next")} className="p-2.5 hover:bg-accent rounded"><ChevronRight size={16} /></button>
         </div>
 
         {/* Ansicht */}
@@ -148,9 +249,7 @@ export default function CalendarPage() {
           {VIEWS.map(v => (
             <button key={v.key} onClick={() => setView(v.key)}
               className={`px-3 py-2 text-sm rounded font-medium transition-colors ${
-                view === v.key
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-accent"
+                view === v.key ? "bg-primary text-primary-foreground" : "hover:bg-accent"
               }`}>
               {v.label}
             </button>
@@ -170,6 +269,24 @@ export default function CalendarPage() {
           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "rgb(var(--ctp-red))" }} />
           Offener Dienst
         </span>
+        {(vacationData?.vacation_periods ?? []).length > 0 && (
+          <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "#a6e3a1" }} />
+            Schulferien
+          </span>
+        )}
+        {(vacationData?.public_holidays ?? []).length > 0 && (
+          <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "#f38ba8" }} />
+            Feiertag
+          </span>
+        )}
+        {(vacationData?.custom_holidays ?? []).length > 0 && (
+          <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "#fab387" }} />
+            Beweglicher Tag
+          </span>
+        )}
       </div>
 
       {/* Kalender */}
@@ -177,11 +294,14 @@ export default function CalendarPage() {
         <Calendar
           localizer={localizer}
           events={events}
+          backgroundEvents={backgroundEvents}
           view={view}
           date={currentDate}
           onNavigate={setCurrentDate}
           onView={setView}
           eventPropGetter={eventPropGetter}
+          backgroundEventPropGetter={backgroundEventPropGetter as any}
+          dayPropGetter={dayPropGetter}
           onSelectEvent={(e: any) => setSelectedShift(e.resource)}
           onSelectSlot={isPrivileged ? (slot: any) => {
             setCreateDate(format(slot.start, "yyyy-MM-dd"));
@@ -197,8 +317,7 @@ export default function CalendarPage() {
         />
       </div>
 
-      {/* Detail-Overlay */}
-      {/* Create Shift Modal */}
+      {/* Modals */}
       {showCreate && (
         <CreateShiftModal
           templates={templates as any[]}
