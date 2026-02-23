@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import DB, ManagerOrAdmin
 from app.models.holiday_profile import HolidayProfile, VacationPeriod, CustomHoliday
@@ -88,18 +89,17 @@ async def create_profile(data: HolidayProfileCreate, current_user: ManagerOrAdmi
             db.add(vp)
 
     await db.commit()
-    await db.refresh(profile)
 
-    # Reload with relationships
+    # Reload with relationships eagerly
     result = await db.execute(
-        select(HolidayProfile).where(HolidayProfile.id == profile.id)
+        select(HolidayProfile)
+        .options(
+            selectinload(HolidayProfile.vacation_periods),
+            selectinload(HolidayProfile.custom_holidays),
+        )
+        .where(HolidayProfile.id == profile.id)
     )
-    profile = result.scalar_one()
-    vp_result = await db.execute(select(VacationPeriod).where(VacationPeriod.profile_id == profile.id).order_by(VacationPeriod.start_date))
-    ch_result = await db.execute(select(CustomHoliday).where(CustomHoliday.profile_id == profile.id).order_by(CustomHoliday.date))
-    profile.vacation_periods = vp_result.scalars().all()
-    profile.custom_holidays = ch_result.scalars().all()
-    return profile
+    return result.scalar_one()
 
 
 @router.get("/{profile_id}", response_model=HolidayProfileOut)
@@ -114,11 +114,16 @@ async def get_profile(profile_id: uuid.UUID, current_user: ManagerOrAdmin, db: D
     if not profile:
         raise HTTPException(status_code=404, detail="Profil nicht gefunden")
 
-    vp_result = await db.execute(select(VacationPeriod).where(VacationPeriod.profile_id == profile.id).order_by(VacationPeriod.start_date))
-    ch_result = await db.execute(select(CustomHoliday).where(CustomHoliday.profile_id == profile.id).order_by(CustomHoliday.date))
-    profile.vacation_periods = vp_result.scalars().all()
-    profile.custom_holidays = ch_result.scalars().all()
-    return profile
+    # Reload with eager relationships
+    result2 = await db.execute(
+        select(HolidayProfile)
+        .options(
+            selectinload(HolidayProfile.vacation_periods),
+            selectinload(HolidayProfile.custom_holidays),
+        )
+        .where(HolidayProfile.id == profile_id)
+    )
+    return result2.scalar_one()
 
 
 @router.put("/{profile_id}", response_model=HolidayProfileOut)
@@ -149,13 +154,17 @@ async def update_profile(profile_id: uuid.UUID, data: HolidayProfileUpdate, curr
         setattr(profile, field, value)
 
     await db.commit()
-    await db.refresh(profile)
 
-    vp_result = await db.execute(select(VacationPeriod).where(VacationPeriod.profile_id == profile.id).order_by(VacationPeriod.start_date))
-    ch_result = await db.execute(select(CustomHoliday).where(CustomHoliday.profile_id == profile.id).order_by(CustomHoliday.date))
-    profile.vacation_periods = vp_result.scalars().all()
-    profile.custom_holidays = ch_result.scalars().all()
-    return profile
+    # Reload with eager relationships
+    result2 = await db.execute(
+        select(HolidayProfile)
+        .options(
+            selectinload(HolidayProfile.vacation_periods),
+            selectinload(HolidayProfile.custom_holidays),
+        )
+        .where(HolidayProfile.id == profile_id)
+    )
+    return result2.scalar_one()
 
 
 @router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)

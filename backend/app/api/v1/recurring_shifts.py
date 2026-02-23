@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import DB, ManagerOrAdmin
 from app.models.holiday_profile import HolidayProfile, VacationPeriod, CustomHoliday
@@ -156,9 +157,9 @@ async def delete_recurring_shift(rs_id: uuid.UUID, current_user: ManagerOrAdmin,
     # Soft-delete
     rs.is_active = False
 
-    # Delete all future planned (non-confirmed) shifts
+    # Delete ALL planned (non-confirmed) shifts for this recurring shift
     from datetime import date
-    await delete_future_planned_shifts(rs.id, date.today(), current_user.tenant_id, db)
+    await delete_future_planned_shifts(rs.id, date.min, current_user.tenant_id, db)
 
     await db.commit()
 
@@ -205,13 +206,13 @@ async def _load_profile(
         if not profile:
             raise HTTPException(status_code=404, detail="Ferienprofil nicht gefunden")
 
-    # Load relationships
-    vp_result = await db.execute(
-        select(VacationPeriod).where(VacationPeriod.profile_id == profile.id)
+    # Load relationships eagerly
+    result2 = await db.execute(
+        select(HolidayProfile)
+        .options(
+            selectinload(HolidayProfile.vacation_periods),
+            selectinload(HolidayProfile.custom_holidays),
+        )
+        .where(HolidayProfile.id == profile.id)
     )
-    ch_result = await db.execute(
-        select(CustomHoliday).where(CustomHoliday.profile_id == profile.id)
-    )
-    profile.vacation_periods = vp_result.scalars().all()
-    profile.custom_holidays = ch_result.scalars().all()
-    return profile
+    return result2.scalar_one()
