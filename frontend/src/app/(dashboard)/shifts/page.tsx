@@ -640,7 +640,7 @@ export default function ShiftsPage() {
                               </span>
                               <span className="text-sm text-foreground truncate">{tpl?.name ?? "–"}</span>
                               {shift.recurring_shift_id && (
-                                <RepeatIcon size={11} className="text-muted-foreground shrink-0" title="Aus Regeltermin" />
+                                <span title="Aus Regeltermin"><RepeatIcon size={11} className="text-muted-foreground shrink-0" /></span>
                               )}
                               <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 hidden sm:inline"
                                 style={STATUS_STYLE[shift.status] ?? STATUS_STYLE.planned}>
