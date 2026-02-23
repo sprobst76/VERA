@@ -394,7 +394,7 @@ function EmployeeRow({
         <div className="font-medium text-foreground text-sm truncate">
           {employee ? `${employee.first_name} ${employee.last_name}` : entry.employee_id.slice(0, 8)}
         </div>
-        <div className="text-xs text-muted-foreground capitalize">{employee?.employment_type ?? "–"}</div>
+        <div className="text-xs text-muted-foreground capitalize">{employee?.contract_type ?? "–"}</div>
       </div>
 
       {/* Stunden */}
@@ -707,7 +707,7 @@ export default function PayrollPage() {
                   <div className="font-medium text-sm text-foreground">
                     {emp.first_name} {emp.last_name}
                   </div>
-                  <div className="text-xs text-muted-foreground capitalize">{emp.employment_type}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{emp.contract_type}</div>
                 </div>
                 <button
                   onClick={() => {
