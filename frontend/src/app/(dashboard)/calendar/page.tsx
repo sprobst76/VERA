@@ -300,7 +300,7 @@ export default function CalendarPage() {
           onNavigate={setCurrentDate}
           onView={setView}
           eventPropGetter={eventPropGetter}
-          backgroundEventPropGetter={backgroundEventPropGetter as any}
+          {...({ backgroundEventPropGetter } as any)}
           dayPropGetter={dayPropGetter}
           onSelectEvent={(e: any) => setSelectedShift(e.resource)}
           onSelectSlot={isPrivileged ? (slot: any) => {
