@@ -151,6 +151,8 @@ export const payrollApi = {
   get: (id: string) => api.get(`/payroll/${id}`),
   update: (id: string, data: { status?: string; notes?: string }) =>
     api.put(`/payroll/${id}`, data),
+  downloadPdf: (id: string) =>
+    api.get(`/payroll/${id}/pdf`, { responseType: "blob" }),
 };
 
 // Holiday Profiles (Ferienprofile)

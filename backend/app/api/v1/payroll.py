@@ -5,13 +5,16 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy import select, and_
 
 from app.api.deps import DB, ManagerOrAdmin, CurrentUser
 from app.models.employee import Employee
 from app.models.payroll import PayrollEntry
+from app.models.tenant import Tenant
 from app.schemas.payroll import PayrollEntryOut, PayrollCalculateRequest, PayrollUpdate
 from app.services.payroll_service import PayrollService
+from app.services.pdf_service import generate_payslip_pdf
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
 
@@ -197,3 +200,40 @@ async def update_payroll_entry(
     await db.commit()
     await db.refresh(entry)
     return entry
+
+
+@router.get("/{entry_id}/pdf")
+async def download_payroll_pdf(entry_id: uuid.UUID, current_user: ManagerOrAdmin, db: DB):
+    """Generiert den Lohnzettel als PDF und gibt ihn zum Download zurück."""
+    result = await db.execute(
+        select(PayrollEntry).where(
+            PayrollEntry.id == entry_id,
+            PayrollEntry.tenant_id == current_user.tenant_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Abrechnungseintrag nicht gefunden")
+
+    emp_result = await db.execute(select(Employee).where(Employee.id == entry.employee_id))
+    employee = emp_result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
+
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
+    tenant_name = tenant.name if tenant else "VERA"
+
+    pdf_bytes = generate_payslip_pdf(entry, employee, tenant_name)
+
+    month_str = entry.month.strftime("%Y-%m")
+    filename = f"vera-abrechnung-{employee.last_name.lower()}-{month_str}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache",
+        },
+    )

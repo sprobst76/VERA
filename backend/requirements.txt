@@ -26,5 +26,5 @@ httpx==0.28.0
 # python-telegram-bot==21.9
 # matrix-nio==0.25.2
 
-# PDF (Phase 2)
-# reportlab==4.2.5
+# PDF
+reportlab==4.2.5

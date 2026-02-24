@@ -15,6 +15,8 @@ import {
   RotateCcw,
   TrendingUp,
   Users,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { payrollApi, employeesApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -107,6 +109,26 @@ function DetailModal({
 }) {
   const qc = useQueryClient();
   const [notes, setNotes] = useState(entry.notes ?? "");
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  async function handleDownloadPdf() {
+    setPdfLoading(true);
+    try {
+      const response = await payrollApi.downloadPdf(entry.id);
+      const url = URL.createObjectURL(response.data as Blob);
+      const a = document.createElement("a");
+      const empName = employee ? employee.last_name.toLowerCase() : "mitarbeiter";
+      const month = entry.month.slice(0, 7);
+      a.href = url;
+      a.download = `vera-abrechnung-${empName}-${month}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("PDF konnte nicht geladen werden");
+    } finally {
+      setPdfLoading(false);
+    }
+  }
 
   const updateMutation = useMutation({
     mutationFn: (data: { status?: string; notes?: string }) =>
@@ -349,6 +371,16 @@ function DetailModal({
                 <CheckCircle size={16} style={{ color: "rgb(var(--ctp-green))" }} />
                 Abrechnung abgeschlossen
               </div>
+            )}
+            {entry.status !== "draft" && (
+              <button
+                onClick={handleDownloadPdf}
+                disabled={pdfLoading}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
+              >
+                {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                PDF
+              </button>
             )}
           </div>
         </div>
