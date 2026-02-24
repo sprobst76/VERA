@@ -189,6 +189,17 @@ export const recurringShiftsApi = {
   delete: (id: string) => api.delete(`/recurring-shifts/${id}`),
 };
 
+// Compliance
+export const complianceApi = {
+  listViolations: (params?: {
+    from_date?: string;
+    to_date?: string;
+    employee_id?: string;
+  }) => api.get("/compliance/violations", { params }),
+  run: (params?: { from_date?: string; to_date?: string }) =>
+    api.post("/compliance/run", null, { params }),
+};
+
 // Calendar vacation data
 export const calendarDataApi = {
   vacationData: (from: string, to: string) =>

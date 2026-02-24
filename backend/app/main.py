@@ -16,6 +16,7 @@ from app.api.v1.calendar import router as calendar_router, vacation_router
 from app.api.v1.superadmin import router as superadmin_router
 from app.api.v1.holiday_profiles import router as holiday_profiles_router
 from app.api.v1.recurring_shifts import router as recurring_shifts_router
+from app.api.v1.compliance import router as compliance_router
 
 
 @asynccontextmanager
@@ -57,6 +58,7 @@ app.include_router(superadmin_router, prefix=API_PREFIX)
 app.include_router(holiday_profiles_router, prefix=API_PREFIX)
 app.include_router(recurring_shifts_router, prefix=API_PREFIX)
 app.include_router(vacation_router, prefix=API_PREFIX)
+app.include_router(compliance_router, prefix=API_PREFIX)
 app.include_router(calendar_router)  # public, no auth prefix
 
 

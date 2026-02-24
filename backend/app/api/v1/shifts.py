@@ -8,6 +8,7 @@ from app.api.deps import DB, AdminUser, CurrentUser, ManagerOrAdmin
 from app.models.audit import AuditLog
 from app.models.employee import Employee
 from app.models.shift import Shift, ShiftTemplate
+from app.services.compliance_service import ComplianceService
 from app.schemas.shift import (
     ShiftCreate, ShiftUpdate, ShiftOut, ShiftActualTime, ShiftConfirm,
     ShiftTemplateCreate, ShiftTemplateOut, BulkShiftCreate,
@@ -87,6 +88,27 @@ async def update_template(template_id: uuid.UUID, payload: ShiftTemplateCreate, 
     return template
 
 
+# ── Compliance helper ─────────────────────────────────────────────────────────
+
+async def _run_compliance(shift: "Shift", db) -> None:
+    """Compliance-Flags auf dem Shift aktualisieren (kein Fehler bei Problemen)."""
+    if not shift.employee_id:
+        return
+    emp = await db.get(Employee, shift.employee_id)
+    if not emp:
+        return
+    try:
+        svc = ComplianceService(db)
+        cr = await svc.check_shift(shift, emp)
+        shift.rest_period_ok   = not any("Ruhezeit" in v for v in cr.violations)
+        shift.break_ok         = not any("Pause"    in v for v in cr.violations)
+        shift.minijob_limit_ok = not any("Minijob"  in v for v in cr.violations)
+        await db.commit()
+        await db.refresh(shift)
+    except Exception:
+        pass  # Compliance-Fehler nie die eigentliche Operation blockieren
+
+
 # ── Shifts ───────────────────────────────────────────────────────────────────
 
 shifts_router = APIRouter(prefix="/shifts")
@@ -131,6 +153,7 @@ async def create_shift(payload: ShiftCreate, current_user: ManagerOrAdmin, db: D
     db.add(shift)
     await db.commit()
     await db.refresh(shift)
+    await _run_compliance(shift, db)
     return shift
 
 
@@ -239,6 +262,7 @@ async def update_shift(shift_id: uuid.UUID, payload: ShiftUpdate, current_user: 
 
     await db.commit()
     await db.refresh(shift)
+    await _run_compliance(shift, db)
     return shift
 
 

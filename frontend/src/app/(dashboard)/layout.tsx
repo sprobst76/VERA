@@ -18,20 +18,22 @@ import {
   LogOut,
   Menu,
   X,
+  ShieldAlert,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/",              label: "Übersicht",         icon: BarChart3 },
-  { href: "/calendar",      label: "Kalender",           icon: CalendarDays },
-  { href: "/shifts",        label: "Dienste",            icon: Clock },
-  { href: "/employees",     label: "Mitarbeiter",        icon: Users },
-  { href: "/absences",      label: "Abwesenheiten",      icon: CalendarOff },
-  { href: "/payroll",       label: "Abrechnung",         icon: DollarSign },
-  { href: "/notifications", label: "Benachrichtigungen", icon: Bell },
-  { href: "/reports",       label: "Berichte",           icon: BarChart3 },
-  { href: "/settings",      label: "Einstellungen",      icon: Settings },
+  { href: "/",              label: "Übersicht",         icon: BarChart3,    adminOnly: false },
+  { href: "/calendar",      label: "Kalender",           icon: CalendarDays, adminOnly: false },
+  { href: "/shifts",        label: "Dienste",            icon: Clock,        adminOnly: false },
+  { href: "/employees",     label: "Mitarbeiter",        icon: Users,        adminOnly: false },
+  { href: "/absences",      label: "Abwesenheiten",      icon: CalendarOff,  adminOnly: false },
+  { href: "/payroll",       label: "Abrechnung",         icon: DollarSign,   adminOnly: true  },
+  { href: "/compliance",    label: "Compliance",         icon: ShieldAlert,  adminOnly: true  },
+  { href: "/notifications", label: "Benachrichtigungen", icon: Bell,         adminOnly: false },
+  { href: "/reports",       label: "Berichte",           icon: BarChart3,    adminOnly: false },
+  { href: "/settings",      label: "Einstellungen",      icon: Settings,     adminOnly: false },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -101,7 +103,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map(({ href, label, icon: Icon }) => (
+          {navItems.filter(item => !item.adminOnly || user.role !== "employee").map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
