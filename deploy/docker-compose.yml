@@ -31,6 +31,19 @@ services:
     networks:
       - default
 
+  # ── Redis (Celery Broker + Backend) ──────────────────────────────────────────
+  vera-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    volumes:
+      - redis_data:/data
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    networks:
+      - default
+
   # ── Backend (FastAPI) ────────────────────────────────────────────────────────
   vera-api:
     image: ghcr.io/sprobst76/vera-backend:latest
@@ -75,6 +88,46 @@ services:
       - default
       - ai-lab
 
+  # ── Celery Worker ────────────────────────────────────────────────────────────
+  vera-celery-worker:
+    image: ghcr.io/sprobst76/vera-backend:latest
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://vera:${POSTGRES_PASSWORD}@vera-db:5432/vera
+      REDIS_URL: redis://vera-redis:6379/0
+    depends_on:
+      vera-db:
+        condition: service_healthy
+      vera-redis:
+        condition: service_started
+    mem_limit: 256m
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks:
+      - default
+
+  # ── Celery Beat (Scheduler) ───────────────────────────────────────────────────
+  vera-celery-beat:
+    image: ghcr.io/sprobst76/vera-backend:latest
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://vera:${POSTGRES_PASSWORD}@vera-db:5432/vera
+      REDIS_URL: redis://vera-redis:6379/0
+    depends_on:
+      vera-redis:
+        condition: service_started
+    mem_limit: 64m
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    networks:
+      - default
+
   # ── Frontend (Next.js Standalone) ────────────────────────────────────────────
   vera-web:
     image: ghcr.io/sprobst76/vera-frontend:latest
@@ -110,3 +163,6 @@ networks:
     name: ai-lab_ai-lab   # Docker Compose project prefix
   default:
     driver: bridge
+
+volumes:
+  redis_data:

@@ -189,6 +189,19 @@ export const recurringShiftsApi = {
   delete: (id: string) => api.delete(`/recurring-shifts/${id}`),
 };
 
+// Notifications
+export const notificationsApi = {
+  getLogs: (params?: { employee_id?: string; channel?: string; status?: string }) =>
+    api.get("/notifications/logs", { params }),
+  getPreferences: () => api.get("/notifications/preferences"),
+  updatePreferences: (data: {
+    telegram_chat_id?: string | null;
+    quiet_hours_start?: string;
+    quiet_hours_end?: string;
+    notification_prefs?: Record<string, unknown>;
+  }) => api.put("/notifications/preferences", data),
+};
+
 // Compliance
 export const complianceApi = {
   listViolations: (params?: {

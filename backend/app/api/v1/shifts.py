@@ -9,6 +9,7 @@ from app.models.audit import AuditLog
 from app.models.employee import Employee
 from app.models.shift import Shift, ShiftTemplate
 from app.services.compliance_service import ComplianceService
+from app.services.notification_service import notify_shift_assigned, notify_shift_changed
 from app.schemas.shift import (
     ShiftCreate, ShiftUpdate, ShiftOut, ShiftActualTime, ShiftConfirm,
     ShiftTemplateCreate, ShiftTemplateOut, BulkShiftCreate,
@@ -154,6 +155,10 @@ async def create_shift(payload: ShiftCreate, current_user: ManagerOrAdmin, db: D
     await db.commit()
     await db.refresh(shift)
     await _run_compliance(shift, db)
+    if shift.employee_id:
+        emp = await db.get(Employee, shift.employee_id)
+        if emp:
+            await notify_shift_assigned(shift, emp, db)
     return shift
 
 
@@ -263,6 +268,17 @@ async def update_shift(shift_id: uuid.UUID, payload: ShiftUpdate, current_user: 
     await db.commit()
     await db.refresh(shift)
     await _run_compliance(shift, db)
+    # Notification: Zuweisung oder Zeitänderung
+    if shift.employee_id:
+        emp = await db.get(Employee, shift.employee_id)
+        if emp:
+            payload_keys = set(payload.model_dump(exclude_unset=True).keys())
+            if "employee_id" in payload_keys and old_values.get("employee_id") in ("None", None):
+                await notify_shift_assigned(shift, emp, db)
+            else:
+                changed = [f for f in ("start_time", "end_time", "location") if f in payload_keys]
+                if changed:
+                    await notify_shift_changed(shift, emp, changed, db)
     return shift
 
 

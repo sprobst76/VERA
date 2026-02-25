@@ -74,9 +74,7 @@ async def _do_send_reminder(shift_id: str, hours_before: int):
     from sqlalchemy.orm import selectinload
     from app.core.database import AsyncSessionLocal
     from app.models.shift import Shift
-    from app.models.employee import Employee
-    from app.models.notification import NotificationLog
-    from datetime import datetime, timezone
+    from app.services.notification_service import NotificationService, EVENT_SHIFT_REMINDER
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -88,15 +86,24 @@ async def _do_send_reminder(shift_id: str, hours_before: int):
         if not shift or not shift.employee:
             return
 
-        log = NotificationLog(
-            tenant_id=shift.tenant_id,
-            employee_id=shift.employee_id,
-            channel="email",
-            event_type="shift_reminder",
-            subject=f"Erinnerung: Dienst am {shift.date} um {shift.start_time}",
-            body=f"Hallo {shift.employee.first_name},\n\nErinnerung: Dein Dienst am {shift.date} beginnt um {shift.start_time} Uhr.\n\nOrt: {shift.location or 'siehe Planung'}\n\nViele Grüße\nVERA",
-            status="pending",
+        emp = shift.employee
+        weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+        wday = weekdays[shift.date.weekday()]
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"Erinnerung: Dein Dienst beginnt in {hours_before} Stunde(n).\n"
+            f"Datum:  {wday}, {shift.date.strftime('%d.%m.%Y')}\n"
+            f"Zeit:   {shift.start_time.strftime('%H:%M')} – {shift.end_time.strftime('%H:%M')} Uhr\n"
         )
-        db.add(log)
-        await db.commit()
-        # TODO: Tatsächlichen Versand implementieren (SendGrid/Telegram)
+        if shift.location:
+            msg += f"Ort:    {shift.location}\n"
+        msg += "\nVERA Schichtplanner"
+
+        svc = NotificationService(db)
+        await svc.dispatch(
+            employee=emp,
+            event_type=EVENT_SHIFT_REMINDER,
+            message=msg,
+            subject=f"Erinnerung: Dienst am {shift.date.strftime('%d.%m.%Y')} um {shift.start_time.strftime('%H:%M')} Uhr",
+            tenant_id=shift.tenant_id,
+        )

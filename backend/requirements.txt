@@ -21,9 +21,9 @@ httpx==0.28.0
 # Feiertage (optional, Fallback ist eingebaut)
 # workalendar==17.0.0
 
-# Benachrichtigungen (Phase 2)
-# sendgrid==6.11.0
-# python-telegram-bot==21.9
+# Benachrichtigungen
+sendgrid==6.11.0
+python-telegram-bot==21.9
 # matrix-nio==0.25.2
 
 # PDF
