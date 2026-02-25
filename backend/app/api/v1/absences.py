@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import DB, AdminUser, ManagerOrAdmin, CurrentUser
 from app.models.absence import EmployeeAbsence, CareRecipientAbsence
@@ -12,6 +13,7 @@ from app.schemas.absence import (
     EmployeeAbsenceCreate, EmployeeAbsenceUpdate, EmployeeAbsenceOut,
     CareAbsenceCreate, CareAbsenceOut,
 )
+from app.services.notification_service import notify_absence_decision
 
 router = APIRouter(tags=["absences"])
 
@@ -21,7 +23,11 @@ employee_absences_router = APIRouter(prefix="/absences")
 
 
 @employee_absences_router.get("", response_model=list[EmployeeAbsenceOut])
-async def list_absences(current_user: CurrentUser, db: DB, employee_id: uuid.UUID | None = None):
+async def list_absences(
+    current_user: CurrentUser, db: DB,
+    employee_id: uuid.UUID | None = None,
+    status: str | None = None,
+):
     query = select(EmployeeAbsence).where(EmployeeAbsence.tenant_id == current_user.tenant_id)
 
     if current_user.role != "admin":
@@ -35,6 +41,9 @@ async def list_absences(current_user: CurrentUser, db: DB, employee_id: uuid.UUI
         query = query.where(EmployeeAbsence.employee_id == own_id)
     elif employee_id:
         query = query.where(EmployeeAbsence.employee_id == employee_id)
+
+    if status:
+        query = query.where(EmployeeAbsence.status == status)
 
     result = await db.execute(query.order_by(EmployeeAbsence.start_date.desc()))
     return result.scalars().all()
@@ -126,6 +135,18 @@ async def update_absence(absence_id: uuid.UUID, payload: EmployeeAbsenceUpdate, 
 
     await db.commit()
     await db.refresh(absence)
+
+    # Mitarbeiter benachrichtigen wenn Antrag entschieden wurde
+    if payload.status in ("approved", "rejected"):
+        emp_result = await db.execute(
+            select(Employee)
+            .options(selectinload(Employee.user))
+            .where(Employee.id == absence.employee_id)
+        )
+        emp = emp_result.scalar_one_or_none()
+        if emp:
+            await notify_absence_decision(absence, emp, payload.status, db)
+
     return absence
 
 

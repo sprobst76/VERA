@@ -39,7 +39,7 @@ interface Preferences {
   quiet_hours_end: string;
   notification_prefs: {
     channels?: { email?: boolean; telegram?: boolean };
-    events?: { shift_assigned?: boolean; shift_changed?: boolean; shift_reminder?: boolean };
+    events?: { shift_assigned?: boolean; shift_changed?: boolean; shift_reminder?: boolean; absence_approved?: boolean; absence_rejected?: boolean };
   };
 }
 
@@ -57,9 +57,11 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  shift_assigned: "Zuweisung",
-  shift_changed:  "Änderung",
-  shift_reminder: "Erinnerung",
+  shift_assigned:   "Schicht-Zuweisung",
+  shift_changed:    "Dienst geändert",
+  shift_reminder:   "Dienst-Erinnerung",
+  absence_approved: "Abwesenheit genehmigt",
+  absence_rejected: "Abwesenheit abgelehnt",
 };
 
 const STATUS_STYLE: Record<string, { bg: string; fg: string; label: string }> = {
@@ -108,10 +110,12 @@ export default function NotificationsPage() {
   const [quietEnd, setQuietEnd]               = useState<string>("07:00");
   const [emailOn, setEmailOn]                 = useState(true);
   const [telegramOn, setTelegramOn]           = useState(false);
-  const [evtAssigned, setEvtAssigned]         = useState(true);
-  const [evtChanged, setEvtChanged]           = useState(true);
-  const [evtReminder, setEvtReminder]         = useState(true);
-  const [prefsSynced, setPrefsSynced]         = useState(false);
+  const [evtAssigned, setEvtAssigned]             = useState(true);
+  const [evtChanged, setEvtChanged]               = useState(true);
+  const [evtReminder, setEvtReminder]             = useState(true);
+  const [evtAbsenceApproved, setEvtAbsenceApproved] = useState(true);
+  const [evtAbsenceRejected, setEvtAbsenceRejected] = useState(true);
+  const [prefsSynced, setPrefsSynced]             = useState(false);
 
   // Prefs in lokalen State übernehmen (einmalig)
   if (prefs && !prefsSynced) {
@@ -125,6 +129,8 @@ export default function NotificationsPage() {
     setEvtAssigned(ev.shift_assigned !== false);
     setEvtChanged(ev.shift_changed   !== false);
     setEvtReminder(ev.shift_reminder !== false);
+    setEvtAbsenceApproved(ev.absence_approved !== false);
+    setEvtAbsenceRejected(ev.absence_rejected !== false);
     setPrefsSynced(true);
   }
 
@@ -136,7 +142,7 @@ export default function NotificationsPage() {
         quiet_hours_end:   quietEnd,
         notification_prefs: {
           channels: { email: emailOn, telegram: telegramOn },
-          events:   { shift_assigned: evtAssigned, shift_changed: evtChanged, shift_reminder: evtReminder },
+          events:   { shift_assigned: evtAssigned, shift_changed: evtChanged, shift_reminder: evtReminder, absence_approved: evtAbsenceApproved, absence_rejected: evtAbsenceRejected },
         },
       }),
     onSuccess: () => {
@@ -377,6 +383,8 @@ export default function NotificationsPage() {
                     { label: "Neue Schicht-Zuweisung", value: evtAssigned, set: setEvtAssigned },
                     { label: "Dienst geändert (Zeit/Ort)", value: evtChanged, set: setEvtChanged },
                     { label: "Erinnerung vor dem Dienst", value: evtReminder, set: setEvtReminder },
+                    { label: "Abwesenheit genehmigt", value: evtAbsenceApproved, set: setEvtAbsenceApproved },
+                    { label: "Abwesenheit abgelehnt", value: evtAbsenceRejected, set: setEvtAbsenceRejected },
                   ].map(({ label, value, set }) => (
                     <label key={label} className="flex items-center gap-3 cursor-pointer">
                       <input

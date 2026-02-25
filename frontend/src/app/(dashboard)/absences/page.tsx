@@ -88,7 +88,7 @@ function CreateModal({ employees, ownEmployeeId, isAdmin, onClose, onCreated }: 
         notes: notes || undefined,
       }),
     onSuccess: () => {
-      toast.success("Abwesenheit eingetragen");
+      toast.success(isAdmin ? "Abwesenheit eingetragen" : "Antrag gestellt – wartet auf Genehmigung");
       onCreated();
     },
     onError: (err: any) =>
@@ -103,7 +103,9 @@ function CreateModal({ employees, ownEmployeeId, isAdmin, onClose, onCreated }: 
       <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-md" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4">
-          <h2 className="text-lg font-semibold text-foreground">Abwesenheit eintragen</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            {isAdmin ? "Abwesenheit eintragen" : "Abwesenheitsantrag stellen"}
+          </h2>
           <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground">
             <X size={18} />
           </button>
@@ -217,10 +219,14 @@ export default function AbsencesPage() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [filterEmployee, setFilterEmployee] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
 
   const { data: absences = [], isLoading } = useQuery({
-    queryKey: ["absences", filterEmployee],
-    queryFn: () => absencesApi.list(filterEmployee || undefined).then(r => r.data),
+    queryKey: ["absences", filterEmployee, filterStatus],
+    queryFn: () => absencesApi.list({
+      employee_id: filterEmployee || undefined,
+      status: filterStatus || undefined,
+    }).then(r => r.data),
   });
 
   const { data: employees = [] } = useQuery({
@@ -235,6 +241,12 @@ export default function AbsencesPage() {
   });
 
   const empMap = Object.fromEntries((employees as any[]).map((e: any) => [e.id, e]));
+
+  // user_id → Anzeigename (für approved_by-Lookup)
+  const approverMap: Record<string, string> = {};
+  (employees as any[]).forEach((e: any) => {
+    if (e.user_id) approverMap[e.user_id] = `${e.first_name} ${e.last_name}`;
+  });
 
   const approveMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -280,6 +292,21 @@ export default function AbsencesPage() {
               <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>
             ))}
           </select>
+        )}
+
+        {/* Status-Filter (admin/manager only) */}
+        {isPrivileged && (
+          <div className="flex gap-1 rounded-lg border border-border p-1">
+            {([["", "Alle"], ["pending", "Ausstehend"], ["approved", "Genehmigt"], ["rejected", "Abgelehnt"]] as [string, string][]).map(([v, l]) => (
+              <button
+                key={v}
+                onClick={() => setFilterStatus(v)}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filterStatus === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
         )}
 
         <button
@@ -368,14 +395,23 @@ export default function AbsencesPage() {
                   )}
                 </div>
 
-                {/* Status badge */}
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 flex items-center gap-1"
-                  style={STATUS_STYLE[a.status] ?? STATUS_STYLE.pending}
-                >
-                  {STATUS_ICONS[a.status]}
-                  {STATUS_LABELS[a.status] ?? a.status}
-                </span>
+                {/* Status badge + Genehmiger-Info */}
+                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1"
+                    style={STATUS_STYLE[a.status] ?? STATUS_STYLE.pending}
+                  >
+                    {STATUS_ICONS[a.status]}
+                    {STATUS_LABELS[a.status] ?? a.status}
+                  </span>
+                  {a.approved_by && a.status !== "pending" && (
+                    <div className="text-xs text-muted-foreground">
+                      {a.status === "approved" ? "von" : "abgel."}{" "}
+                      {approverMap[a.approved_by] ?? "Admin"}
+                      {a.approved_at && `, ${format(parseISO(a.approved_at), "d. MMM", { locale: de })}`}
+                    </div>
+                  )}
+                </div>
 
                 {/* Approve / Reject (admin/manager, pending only) */}
                 {isPrivileged && a.status === "pending" && (

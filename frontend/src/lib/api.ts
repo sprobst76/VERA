@@ -118,8 +118,8 @@ export const templatesApi = {
 
 // Absences
 export const absencesApi = {
-  list: (employeeId?: string) =>
-    api.get("/absences", { params: { employee_id: employeeId } }),
+  list: (params?: { employee_id?: string; status?: string }) =>
+    api.get("/absences", { params }),
   create: (data: Record<string, unknown>) => api.post("/absences", data),
   update: (id: string, data: Record<string, unknown>) =>
     api.put(`/absences/${id}`, data),

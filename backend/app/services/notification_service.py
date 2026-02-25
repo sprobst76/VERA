@@ -19,12 +19,15 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from app.models.employee import Employee
     from app.models.shift import Shift
+    from app.models.absence import EmployeeAbsence
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
-EVENT_SHIFT_ASSIGNED = "shift_assigned"
-EVENT_SHIFT_CHANGED  = "shift_changed"
-EVENT_SHIFT_REMINDER = "shift_reminder"
+EVENT_SHIFT_ASSIGNED   = "shift_assigned"
+EVENT_SHIFT_CHANGED    = "shift_changed"
+EVENT_SHIFT_REMINDER   = "shift_reminder"
+EVENT_ABSENCE_APPROVED = "absence_approved"
+EVENT_ABSENCE_REJECTED = "absence_rejected"
 
 
 def _is_quiet_now(employee: "Employee") -> bool:
@@ -217,6 +220,44 @@ async def notify_shift_changed(
             message=msg,
             subject=f"Dienständerung: {shift.date.strftime('%d.%m.%Y')}",
             tenant_id=shift.tenant_id,
+        )
+    except Exception:
+        pass
+
+
+async def notify_absence_decision(
+    absence: "EmployeeAbsence",
+    employee: "Employee",
+    decision: str,
+    db: "AsyncSession",
+) -> None:
+    """Benachrichtigung wenn ein Abwesenheitsantrag genehmigt oder abgelehnt wird."""
+    prefs  = employee.notification_prefs or {}
+    events = prefs.get("events", {})
+    key = EVENT_ABSENCE_APPROVED if decision == "approved" else EVENT_ABSENCE_REJECTED
+    if not events.get(key, True):
+        return
+
+    label = "genehmigt ✓" if decision == "approved" else "abgelehnt ✗"
+    msg = (
+        f"Hallo {employee.first_name},\n\n"
+        f"Dein Abwesenheitsantrag wurde {label}:\n"
+        f"Zeitraum: {absence.start_date.strftime('%d.%m.%Y')} – "
+        f"{absence.end_date.strftime('%d.%m.%Y')}\n"
+        f"Art:      {absence.type}\n"
+    )
+    if absence.notes:
+        msg += f"Notiz:    {absence.notes}\n"
+    msg += "\nVERA Schichtplanner"
+
+    svc = NotificationService(db)
+    try:
+        await svc.dispatch(
+            employee=employee,
+            event_type=key,
+            message=msg,
+            subject=f"Abwesenheitsantrag {label}: {absence.start_date.strftime('%d.%m.%Y')}",
+            tenant_id=absence.tenant_id,
         )
     except Exception:
         pass
