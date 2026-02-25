@@ -29,9 +29,10 @@ EVENT_SHIFT_REMINDER = "shift_reminder"
 
 def _is_quiet_now(employee: "Employee") -> bool:
     """True wenn die aktuelle Berliner Zeit in den Quiet Hours liegt."""
+    from datetime import time as time_type
     now   = datetime.now(_BERLIN).time()
-    start = employee.quiet_hours_start
-    end   = employee.quiet_hours_end
+    start = employee.quiet_hours_start or time_type(21, 0)
+    end   = employee.quiet_hours_end   or time_type(7, 0)
     # wrap-around (z.B. 21:00–07:00 geht über Mitternacht)
     if start > end:
         return now >= start or now <= end
@@ -127,6 +128,8 @@ class NotificationService:
         from_email = settings.SENDGRID_FROM_EMAIL
         if not api_key:
             return False, "SENDGRID_API_KEY nicht konfiguriert"
+        if not from_email:
+            return False, "SENDGRID_FROM_EMAIL nicht konfiguriert"
         try:
             from sendgrid import SendGridAPIClient
             from sendgrid.helpers.mail import Mail

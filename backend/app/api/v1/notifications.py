@@ -109,8 +109,8 @@ async def get_preferences(current_user: CurrentUser, db: DB):
         )
     return NotificationPreferencesOut(
         telegram_chat_id=emp.telegram_chat_id,
-        quiet_hours_start=emp.quiet_hours_start,
-        quiet_hours_end=emp.quiet_hours_end,
+        quiet_hours_start=emp.quiet_hours_start or time(21, 0),
+        quiet_hours_end=emp.quiet_hours_end or time(7, 0),
         notification_prefs=emp.notification_prefs or {},
     )
 
@@ -146,7 +146,7 @@ async def update_preferences(
     await db.refresh(emp)
     return NotificationPreferencesOut(
         telegram_chat_id=emp.telegram_chat_id,
-        quiet_hours_start=emp.quiet_hours_start,
-        quiet_hours_end=emp.quiet_hours_end,
+        quiet_hours_start=emp.quiet_hours_start or time(21, 0),
+        quiet_hours_end=emp.quiet_hours_end or time(7, 0),
         notification_prefs=emp.notification_prefs or {},
     )

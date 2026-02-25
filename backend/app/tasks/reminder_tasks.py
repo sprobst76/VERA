@@ -57,7 +57,7 @@ async def _send_reminder_2h():
         shifts = result.scalars().all()
         for shift in shifts:
             shift_start_hour = shift.start_time.hour
-            if abs(shift_start_hour - in_2h.hour) <= 0:
+            if shift_start_hour == in_2h.hour:
                 send_shift_reminder.delay(str(shift.id), hours_before=2)
 
 

@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import create_tables
-from app.core.config import settings
 from app.api.v1.auth import router as auth_router
 from app.api.v1.employees import router as employees_router
 from app.api.v1.shifts import shifts_router, templates_router
