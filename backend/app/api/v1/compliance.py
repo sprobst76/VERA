@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter
 from sqlalchemy import select, or_
 
-from app.api.deps import DB, ManagerOrAdmin
+from app.api.deps import DB, ManagerOrAdmin, CurrentUser
 from app.models.employee import Employee
 from app.models.shift import Shift
 from app.schemas.compliance import ComplianceViolationOut
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/compliance", tags=["compliance"])
 
 @router.get("/violations", response_model=list[ComplianceViolationOut])
 async def list_violations(
-    current_user: ManagerOrAdmin,
+    current_user: CurrentUser,
     db: DB,
     from_date: date | None = None,
     to_date: date | None = None,
@@ -41,7 +41,17 @@ async def list_violations(
         conditions.append(Shift.date >= from_date)
     if to_date:
         conditions.append(Shift.date <= to_date)
-    if employee_id:
+
+    if current_user.role == "employee":
+        # Only own violations
+        emp_result = await db.execute(
+            select(Employee.id).where(Employee.user_id == current_user.id)
+        )
+        own_id = emp_result.scalar_one_or_none()
+        if own_id is None:
+            return []
+        conditions.append(Shift.employee_id == own_id)
+    elif employee_id:
         conditions.append(Shift.employee_id == employee_id)
 
     result = await db.execute(

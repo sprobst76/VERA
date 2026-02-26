@@ -21,7 +21,7 @@ router = APIRouter(prefix="/payroll", tags=["payroll"])
 
 @router.get("", response_model=list[PayrollEntryOut])
 async def list_payroll_entries(
-    current_user: ManagerOrAdmin,
+    current_user: CurrentUser,
     db: DB,
     month: date | None = None,
     employee_id: uuid.UUID | None = None,
@@ -29,11 +29,20 @@ async def list_payroll_entries(
     """List payroll entries, optionally filtered by month and/or employee."""
     query = select(PayrollEntry).where(PayrollEntry.tenant_id == current_user.tenant_id)
 
-    if month:
-        # Match the first day of the given month
-        query = query.where(PayrollEntry.month == month)
-    if employee_id:
+    if current_user.role == "employee":
+        # Only own payroll entries
+        emp_result = await db.execute(
+            select(Employee.id).where(Employee.user_id == current_user.id)
+        )
+        own_id = emp_result.scalar_one_or_none()
+        if own_id is None:
+            return []
+        query = query.where(PayrollEntry.employee_id == own_id)
+    elif employee_id:
         query = query.where(PayrollEntry.employee_id == employee_id)
+
+    if month:
+        query = query.where(PayrollEntry.month == month)
 
     result = await db.execute(query.order_by(PayrollEntry.month.desc(), PayrollEntry.employee_id))
     return result.scalars().all()
@@ -150,7 +159,7 @@ async def calculate_all_payroll(
 
 
 @router.get("/{entry_id}", response_model=PayrollEntryOut)
-async def get_payroll_entry(entry_id: uuid.UUID, current_user: ManagerOrAdmin, db: DB):
+async def get_payroll_entry(entry_id: uuid.UUID, current_user: CurrentUser, db: DB):
     result = await db.execute(
         select(PayrollEntry).where(
             PayrollEntry.id == entry_id,
@@ -160,6 +169,13 @@ async def get_payroll_entry(entry_id: uuid.UUID, current_user: ManagerOrAdmin, d
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="Abrechnungseintrag nicht gefunden")
+    if current_user.role == "employee":
+        emp_result = await db.execute(
+            select(Employee.id).where(Employee.user_id == current_user.id)
+        )
+        own_id = emp_result.scalar_one_or_none()
+        if entry.employee_id != own_id:
+            raise HTTPException(status_code=403, detail="Zugriff verweigert")
     return entry
 
 
@@ -203,7 +219,7 @@ async def update_payroll_entry(
 
 
 @router.get("/{entry_id}/pdf")
-async def download_payroll_pdf(entry_id: uuid.UUID, current_user: ManagerOrAdmin, db: DB):
+async def download_payroll_pdf(entry_id: uuid.UUID, current_user: CurrentUser, db: DB):
     """Generiert den Lohnzettel als PDF und gibt ihn zum Download zurück."""
     result = await db.execute(
         select(PayrollEntry).where(
@@ -214,6 +230,14 @@ async def download_payroll_pdf(entry_id: uuid.UUID, current_user: ManagerOrAdmin
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="Abrechnungseintrag nicht gefunden")
+
+    if current_user.role == "employee":
+        own_result = await db.execute(
+            select(Employee.id).where(Employee.user_id == current_user.id)
+        )
+        own_id = own_result.scalar_one_or_none()
+        if entry.employee_id != own_id:
+            raise HTTPException(status_code=403, detail="Zugriff verweigert")
 
     emp_result = await db.execute(select(Employee).where(Employee.id == entry.employee_id))
     employee = emp_result.scalar_one_or_none()

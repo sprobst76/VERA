@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { employeesApi, shiftsApi } from "@/lib/api";
+import { employeesApi, shiftsApi, absencesApi } from "@/lib/api";
 import { formatDate, SHIFT_STATUS_LABELS } from "@/lib/utils";
-import { Users, Clock, CalendarCheck, AlertTriangle, HandshakeIcon, CalendarDays, Copy, Check as CheckIcon } from "lucide-react";
+import { Users, Clock, CalendarCheck, AlertTriangle, HandshakeIcon, CalendarDays, Copy, Check as CheckIcon, CalendarOff } from "lucide-react";
 import { useState } from "react";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -115,6 +115,22 @@ export default function DashboardPage() {
       shiftsApi.list({ from_date: monthStart, to_date: monthEnd }).then((r) => r.data),
   });
 
+  // Employee-specific: own upcoming shifts (next 14 days)
+  const next14 = format(new Date(today.getTime() + 14 * 86400000), "yyyy-MM-dd");
+  const { data: upcomingOwnShifts = [] } = useQuery({
+    queryKey: ["shifts-upcoming-own", format(today, "yyyy-MM-dd"), next14],
+    queryFn: () =>
+      shiftsApi.list({ from_date: format(today, "yyyy-MM-dd"), to_date: next14 }).then(r => r.data as any[]),
+    enabled: !isPrivileged,
+  });
+
+  // Employee-specific: own pending absences
+  const { data: ownPendingAbsences = [] } = useQuery({
+    queryKey: ["absences-own-pending"],
+    queryFn: () => absencesApi.list({ status: "pending" }).then(r => r.data as any[]),
+    enabled: !isPrivileged,
+  });
+
   // Open shifts in next 30 days (for claim functionality)
   const nextMonth = format(new Date(today.getTime() + 30 * 86400000), "yyyy-MM-dd");
   const { data: openShifts = [] } = useQuery({
@@ -144,7 +160,7 @@ export default function DashboardPage() {
         .then((r) => r.data),
   });
 
-  const stats = [
+  const adminStats = [
     {
       label: "Aktive Mitarbeiter",
       value: employees?.length ?? "–",
@@ -170,6 +186,35 @@ export default function DashboardPage() {
       ctpVar: "peach",
     },
   ];
+
+  const employeeStats = [
+    {
+      label: "Dienste heute",
+      value: (todayShifts as any[])?.length ?? "–",
+      icon: Clock,
+      ctpVar: "green",
+    },
+    {
+      label: "Dienste diesen Monat",
+      value: (shifts as any[])?.length ?? "–",
+      icon: CalendarCheck,
+      ctpVar: "mauve",
+    },
+    {
+      label: "Nächste 14 Tage",
+      value: (upcomingOwnShifts as any[])?.length ?? "–",
+      icon: CalendarDays,
+      ctpVar: "blue",
+    },
+    {
+      label: "Offene Anträge",
+      value: (ownPendingAbsences as any[])?.length ?? "–",
+      icon: CalendarOff,
+      ctpVar: "peach",
+    },
+  ];
+
+  const stats = isPrivileged ? adminStats : employeeStats;
 
   return (
     <div className="space-y-6">
@@ -230,6 +275,40 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Upcoming own shifts – shown to employees */}
+      {!isPrivileged && (upcomingOwnShifts as any[]).length > 0 && (
+        <div className="bg-card rounded-xl shadow-sm border border-border p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarDays size={18} style={{ color: "rgb(var(--ctp-blue))" }} />
+            <h2 className="font-semibold text-foreground">Nächste Dienste</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ color: "rgb(var(--ctp-blue))", backgroundColor: "rgb(var(--ctp-blue) / 0.12)" }}>
+              {(upcomingOwnShifts as any[]).length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {(upcomingOwnShifts as any[]).slice(0, 5).map((shift: any) => (
+              <div key={shift.id} className="flex items-center justify-between p-3 bg-accent/50 rounded-lg">
+                <div>
+                  <div className="font-medium text-sm text-foreground">
+                    {format(parseISO(shift.date), "EEE, d. MMM", { locale: de })}
+                    {" · "}
+                    {shift.start_time?.slice(0, 5)} – {shift.end_time?.slice(0, 5)} Uhr
+                  </div>
+                  {shift.location && (
+                    <div className="text-xs text-muted-foreground">{shift.location}</div>
+                  )}
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full font-medium"
+                  style={{ color: "rgb(var(--ctp-green))", backgroundColor: "rgb(var(--ctp-green) / 0.15)" }}>
+                  {shift.status === "confirmed" ? "Bestätigt" : "Geplant"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Open shifts – shown to non-privileged users only */}
       <ICalSection user={user} isPrivileged={isPrivileged} />

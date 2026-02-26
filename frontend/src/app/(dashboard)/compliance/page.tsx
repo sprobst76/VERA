@@ -74,10 +74,11 @@ export default function CompliancePage() {
   const [filterFrom, setFilterFrom]         = useState("");
   const [filterTo, setFilterTo]             = useState("");
 
-  // Mitarbeiter-Liste für Filter-Dropdown
+  // Mitarbeiter-Liste für Filter-Dropdown (nur für Admin/Manager)
   const { data: employees = [] } = useQuery<Employee[]>({
     queryKey: ["employees"],
     queryFn: () => employeesApi.list(false).then((r) => r.data),
+    enabled: !isEmployee,
   });
 
   // Violations laden
@@ -102,14 +103,7 @@ export default function CompliancePage() {
     onError: () => toast.error("Compliance-Prüfung fehlgeschlagen"),
   });
 
-  // Role-Guard
-  if (user?.role === "employee") {
-    return (
-      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-        Keine Berechtigung
-      </div>
-    );
-  }
+  const isEmployee = user?.role === "employee";
 
   // Summary-Zahlen berechnen
   const totalViolations    = violations.length;
@@ -124,20 +118,24 @@ export default function CompliancePage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Compliance</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Arbeitsrechtliche Prüfungen nach ArbZG
+            {isEmployee
+              ? "Deine arbeitsrechtlichen Prüfungen nach ArbZG"
+              : "Arbeitsrechtliche Prüfungen nach ArbZG"}
           </p>
         </div>
-        <button
-          onClick={() => runMutation.mutate()}
-          disabled={runMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-          style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
-        >
-          {runMutation.isPending
-            ? <Loader2 size={15} className="animate-spin" />
-            : <RefreshCw size={15} />}
-          Jetzt prüfen
-        </button>
+        {!isEmployee && (
+          <button
+            onClick={() => runMutation.mutate()}
+            disabled={runMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+          >
+            {runMutation.isPending
+              ? <Loader2 size={15} className="animate-spin" />
+              : <RefreshCw size={15} />}
+            Jetzt prüfen
+          </button>
+        )}
       </div>
 
       {/* Summary-Cards */}
@@ -176,22 +174,30 @@ export default function CompliancePage() {
 
       {/* Filter */}
       <div className="bg-card rounded-xl border border-border p-4">
+        {isEmployee && (
+          <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">
+            <Info size={13} className="shrink-0" />
+            Es werden nur deine eigenen Dienste angezeigt.
+          </p>
+        )}
         <div className="flex flex-wrap gap-3 items-end">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Mitarbeiter</label>
-            <select
-              value={filterEmployee}
-              onChange={(e) => setFilterEmployee(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm"
-            >
-              <option value="">Alle</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.first_name} {e.last_name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!isEmployee && (
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Mitarbeiter</label>
+              <select
+                value={filterEmployee}
+                onChange={(e) => setFilterEmployee(e.target.value)}
+                className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm"
+              >
+                <option value="">Alle</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.first_name} {e.last_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Von</label>
             <input

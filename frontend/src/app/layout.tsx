@@ -16,6 +16,10 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "VERA",
   },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/icon-192.png",
+  },
   other: {
     "mobile-web-app-capable": "yes",
   },

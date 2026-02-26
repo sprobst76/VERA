@@ -3,11 +3,17 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import DB, AdminUser, CurrentUser
 from app.models.employee import Employee
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, EmployeePublicOut
+
+
+class EmployeeSelfUpdate(BaseModel):
+    phone: str | None = None
+    email: str | None = None
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -26,6 +32,27 @@ async def get_own_employee(current_user: CurrentUser, db: DB):
     employee = result.scalar_one_or_none()
     if not employee:
         raise HTTPException(status_code=404, detail="Kein Mitarbeiterprofil mit diesem Account verknüpft")
+    return employee
+
+
+@router.put("/me", response_model=EmployeeOut)
+async def update_own_employee(payload: EmployeeSelfUpdate, current_user: CurrentUser, db: DB):
+    """Mitarbeiter bearbeitet eigenes Profil (nur phone und email)."""
+    result = await db.execute(
+        select(Employee).where(
+            Employee.user_id == current_user.id,
+            Employee.tenant_id == current_user.tenant_id,
+        )
+    )
+    employee = result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Kein Mitarbeiterprofil mit diesem Account verknüpft")
+    if payload.phone is not None:
+        employee.phone = payload.phone or None
+    if payload.email is not None:
+        employee.email = payload.email or None
+    await db.commit()
+    await db.refresh(employee)
     return employee
 
 

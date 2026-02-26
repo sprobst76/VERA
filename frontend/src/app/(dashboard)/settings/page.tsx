@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -350,6 +350,125 @@ function HolidayProfileCard({ profile, onRefresh }: { profile: any; onRefresh: (
   );
 }
 
+// ── Mein Profil Section (Employee only) ──────────────────────────────────────
+
+function MeinProfilSection() {
+  const qc = useQueryClient();
+
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["employees", "me"],
+    queryFn: () => employeesApi.me().then(r => r.data),
+  });
+
+  const [phone, setPhone] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [initialized, setInitialized] = useState(false);
+
+  if (!initialized && profile) {
+    setPhone((profile as any).phone ?? "");
+    setEmail((profile as any).email ?? "");
+    setInitialized(true);
+  }
+
+  const saveMut = useMutation({
+    mutationFn: () => employeesApi.updateMe({ phone: phone || null, email: email || null }),
+    onSuccess: () => {
+      toast.success("Profil gespeichert");
+      qc.invalidateQueries({ queryKey: ["employees", "me"] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || "Fehler beim Speichern"),
+  });
+
+  const CONTRACT_LABELS: Record<string, string> = {
+    minijob: "Minijob",
+    teilzeit: "Teilzeit",
+    vollzeit: "Vollzeit",
+    ehrenamt: "Ehrenamt",
+  };
+
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+  return (
+    <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <User size={18} style={{ color: "rgb(var(--ctp-sapphire))" }} />
+        <h2 className="font-semibold text-foreground">Mein Profil</h2>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Lade…</p>
+      ) : profile ? (
+        <>
+          {/* Read-only info */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground mb-0.5">Vorname</div>
+              <div className="font-medium text-foreground">{(profile as any).first_name}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-0.5">Nachname</div>
+              <div className="font-medium text-foreground">{(profile as any).last_name}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-0.5">Vertragstyp</div>
+              <div className="font-medium text-foreground capitalize">
+                {CONTRACT_LABELS[(profile as any).contract_type] ?? (profile as any).contract_type}
+              </div>
+            </div>
+            {(profile as any).hourly_rate != null && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-0.5">Stundenlohn</div>
+                <div className="font-medium text-foreground">
+                  {((profile as any).hourly_rate as number).toLocaleString("de-DE", { style: "currency", currency: "EUR" })} / h
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Editable fields */}
+          <div className="space-y-3 pt-1 border-t border-border">
+            <p className="text-xs text-muted-foreground">Bearbeitbare Felder:</p>
+            <div>
+              <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+                <Phone size={12} /> Telefon
+              </label>
+              <input
+                type="tel"
+                className={inputCls}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+49 …"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+                <Mail size={12} /> Kontakt-E-Mail
+              </label>
+              <input
+                type="email"
+                className={inputCls}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="vorname@example.com"
+              />
+            </div>
+            <button
+              onClick={() => saveMut.mutate()}
+              disabled={saveMut.isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+              style={{ backgroundColor: "rgb(var(--ctp-sapphire))" }}
+            >
+              {saveMut.isPending ? "Wird gespeichert…" : (<><Check size={15} />Speichern</>)}
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Kein Mitarbeiterprofil verknüpft.</p>
+      )}
+    </div>
+  );
+}
+
 function FerienprofileSection() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -500,6 +619,9 @@ export default function SettingsPage() {
           </div>
         </form>
       </div>
+
+      {/* Mein Profil (employee only) */}
+      {role === "employee" && <MeinProfilSection />}
 
       {/* Ferienprofile (admin/manager only) */}
       {isPrivileged && <FerienprofileSection />}

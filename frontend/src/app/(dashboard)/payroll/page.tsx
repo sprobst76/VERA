@@ -97,6 +97,37 @@ interface Employee {
   vacation_days: number;
 }
 
+/* ── EmployeePdfButton ────────────────────────────────────────────── */
+function EmployeePdfButton({ entry }: { entry: PayrollEntry }) {
+  const [loading, setLoading] = useState(false);
+  async function handleDownload() {
+    setLoading(true);
+    try {
+      const response = await payrollApi.downloadPdf(entry.id);
+      const url = URL.createObjectURL(response.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vera-abrechnung-${entry.month.slice(0, 7)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("PDF konnte nicht geladen werden");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={loading}
+      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
+    >
+      {loading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+      PDF herunterladen
+    </button>
+  );
+}
+
 /* ── DetailModal ──────────────────────────────────────────────────── */
 function DetailModal({
   entry,
@@ -493,6 +524,7 @@ export default function PayrollPage() {
   const [calculatingId, setCalculatingId] = useState<string | null>(null);
 
   const isPrivileged = user?.role === "admin" || user?.role === "manager";
+  const isEmployee = user?.role === "employee";
 
   const { data: entries = [], isLoading } = useQuery<PayrollEntry[]>({
     queryKey: ["payroll", month],
@@ -500,7 +532,7 @@ export default function PayrollPage() {
       const res = await payrollApi.list({ month });
       return res.data;
     },
-    enabled: isPrivileged,
+    enabled: !!user,
   });
 
   const { data: employees = [] } = useQuery<Employee[]>({
@@ -560,12 +592,123 @@ export default function PayrollPage() {
     year: "numeric",
   });
 
-  if (!isPrivileged) {
+  if (isEmployee) {
+    // Employee self-service: own payslips, read-only with download
+    const ownEntry = entries[0] ?? null;
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-foreground">Abrechnung</h1>
-        <div className="bg-card rounded-xl border border-border p-12 text-center text-muted-foreground">
-          Keine Berechtigung
+      <div className="space-y-5">
+        {/* Header with month nav */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold text-foreground">Meine Abrechnung</h1>
+          <div className="flex items-center gap-1 bg-card border border-border rounded-xl px-1 py-1">
+            <button onClick={() => changeMonth(-1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-sm font-medium text-foreground px-2 min-w-[120px] text-center">{monthLabel}</span>
+            <button onClick={() => changeMonth(1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+
+        {isLoading && (
+          <div className="text-center py-12 text-muted-foreground text-sm">Lade…</div>
+        )}
+
+        {!isLoading && !ownEntry && (
+          <div className="bg-card rounded-xl border border-border p-10 text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.12)", color: "rgb(var(--ctp-blue))" }}>
+              <Euro size={28} />
+            </div>
+            <div className="font-medium text-foreground mb-1">Keine Abrechnung für {monthLabel}</div>
+            <p className="text-sm text-muted-foreground">Die Abrechnung für diesen Monat wurde noch nicht erstellt.</p>
+          </div>
+        )}
+
+        {!isLoading && ownEntry && (
+          <div className="bg-card rounded-xl border border-border p-5 space-y-5">
+            {/* Status header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-lg font-semibold text-foreground">{monthLabel}</div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[ownEntry.status]}`}>
+                  {STATUS_LABELS[ownEntry.status]}
+                </span>
+              </div>
+              {ownEntry.status !== "draft" && (
+                <EmployeePdfButton entry={ownEntry} />
+              )}
+            </div>
+
+            {/* Key figures */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-muted/50 rounded-xl p-3 text-center">
+                <div className="text-xs text-muted-foreground mb-1">Bezahlte Std.</div>
+                <div className="font-semibold text-foreground">{hrs(ownEntry.paid_hours)}</div>
+              </div>
+              <div className="bg-muted/50 rounded-xl p-3 text-center">
+                <div className="text-xs text-muted-foreground mb-1">Grundlohn</div>
+                <div className="font-semibold text-foreground">{eur(ownEntry.base_wage)}</div>
+              </div>
+              <div className="rounded-xl p-3 text-center"
+                style={{ backgroundColor: "rgb(var(--ctp-green) / 0.12)", color: "rgb(var(--ctp-green))" }}>
+                <div className="text-xs opacity-75 mb-1">Brutto gesamt</div>
+                <div className="font-bold text-lg">{eur(ownEntry.total_gross)}</div>
+              </div>
+            </div>
+
+            {/* Hours breakdown */}
+            <div>
+              <div className="text-sm font-medium text-foreground mb-2">Stunden</div>
+              <div className="space-y-1 text-sm">
+                {[
+                  { label: "Geplant (Soll)", value: hrs(ownEntry.planned_hours) },
+                  { label: "Ist-Zeit", value: hrs(ownEntry.actual_hours) },
+                  { label: "Übertrag Vormonat", value: hrs(ownEntry.carryover_hours) },
+                  { label: "Bezahlte Stunden", value: hrs(ownEntry.paid_hours), bold: true },
+                ].map((r) => (
+                  <div key={r.label} className="flex justify-between">
+                    <span className={r.bold ? "font-medium text-foreground" : "text-muted-foreground"}>{r.label}</span>
+                    <span className={r.bold ? "font-semibold text-foreground" : ""}>{r.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Surcharges */}
+            {(ownEntry.early_surcharge + ownEntry.late_surcharge + ownEntry.night_surcharge +
+              ownEntry.weekend_surcharge + ownEntry.sunday_surcharge + ownEntry.holiday_surcharge) > 0 && (
+              <div>
+                <div className="text-sm font-medium text-foreground mb-2">Zuschläge (§3b EStG)</div>
+                <div className="space-y-1 text-sm">
+                  {ownEntry.early_hours > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Frühzuschlag ({fmt(ownEntry.early_hours)} h)</span><span>{eur(ownEntry.early_surcharge)}</span></div>}
+                  {ownEntry.late_hours > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Spätdienst ({fmt(ownEntry.late_hours)} h)</span><span>{eur(ownEntry.late_surcharge)}</span></div>}
+                  {ownEntry.night_hours > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Nachtzuschlag ({fmt(ownEntry.night_hours)} h)</span><span>{eur(ownEntry.night_surcharge)}</span></div>}
+                  {ownEntry.weekend_hours > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Samstag ({fmt(ownEntry.weekend_hours)} h)</span><span>{eur(ownEntry.weekend_surcharge)}</span></div>}
+                  {ownEntry.sunday_hours > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Sonntag ({fmt(ownEntry.sunday_hours)} h)</span><span>{eur(ownEntry.sunday_surcharge)}</span></div>}
+                  {ownEntry.holiday_hours > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Feiertag ({fmt(ownEntry.holiday_hours)} h)</span><span>{eur(ownEntry.holiday_surcharge)}</span></div>}
+                </div>
+              </div>
+            )}
+
+            {ownEntry.notes && (
+              <div>
+                <div className="text-sm font-medium text-foreground mb-1">Notizen</div>
+                <p className="text-sm text-muted-foreground">{ownEntry.notes}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="rounded-xl p-4 text-sm"
+          style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.08)", color: "rgb(var(--ctp-blue))" }}>
+          <div className="font-medium mb-1">Berechnungsgrundlage</div>
+          <ul className="list-disc list-inside space-y-0.5 opacity-85">
+            <li>Nur bestätigte & abgeschlossene Dienste fließen ein</li>
+            <li>Zuschläge gem. §3b EStG (Nacht, Sonn- u. Feiertag steuerfrei)</li>
+            <li>PDF-Download verfügbar sobald Abrechnung genehmigt ist</li>
+          </ul>
         </div>
       </div>
     );
