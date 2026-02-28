@@ -22,6 +22,7 @@ import {
   Menu,
   X,
   ShieldAlert,
+  UserCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -30,12 +31,13 @@ const navItems = [
   { href: "/",              label: "Übersicht",         icon: BarChart3,    adminOnly: false },
   { href: "/calendar",      label: "Kalender",           icon: CalendarDays, adminOnly: false },
   { href: "/shifts",        label: "Dienste",            icon: Clock,        adminOnly: false },
-  { href: "/employees",     label: "Mitarbeiter",        icon: Users,        adminOnly: false },
+  { href: "/employees",     label: "Mitarbeiter",        icon: Users,        adminOnly: true  },
   { href: "/absences",      label: "Abwesenheiten",      icon: CalendarOff,  adminOnly: false },
+  { href: "/account",       label: "Mein Profil",        icon: UserCircle,   adminOnly: false },
   { href: "/payroll",       label: "Abrechnung",         icon: DollarSign,   adminOnly: false },
   { href: "/compliance",    label: "Compliance",         icon: ShieldAlert,  adminOnly: false },
   { href: "/notifications", label: "Benachrichtigungen", icon: Bell,         adminOnly: false },
-  { href: "/reports",       label: "Berichte",           icon: BarChart3,    adminOnly: false },
+  { href: "/reports",       label: "Berichte",           icon: BarChart3,    adminOnly: true  },
   { href: "/settings",      label: "Einstellungen",      icon: Settings,     adminOnly: false },
 ];
 
