@@ -19,8 +19,9 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
+  History,
 } from "lucide-react";
-import { employeesApi, usersApi } from "@/lib/api";
+import { employeesApi, usersApi, contractsApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 
@@ -716,6 +717,316 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
   );
 }
 
+/* ── ContractHistoryModal ─────────────────────────────────────────── */
+interface ContractEntry {
+  id: string;
+  employee_id: string;
+  valid_from: string;
+  valid_to: string | null;
+  contract_type: string;
+  hourly_rate: number;
+  weekly_hours: number | null;
+  full_time_percentage: number | null;
+  monthly_hours_limit: number | null;
+  annual_salary_limit: number | null;
+  note: string | null;
+}
+
+function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    valid_from: new Date().toISOString().slice(0, 10),
+    contract_type: employee.contract_type,
+    hourly_rate: employee.hourly_rate.toString(),
+    weekly_hours: "",
+    full_time_percentage: "",
+    monthly_hours_limit: employee.monthly_hours_limit?.toString() ?? "",
+    annual_salary_limit: employee.annual_salary_limit?.toString() ?? "6672",
+    note: "",
+  });
+
+  const { data: contracts = [], isLoading } = useQuery<ContractEntry[]>({
+    queryKey: ["contracts", employee.id],
+    queryFn: () => contractsApi.list(employee.id).then((r) => r.data),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      contractsApi.create(employee.id, {
+        valid_from: form.valid_from,
+        contract_type: form.contract_type,
+        hourly_rate: parseFloat(form.hourly_rate),
+        weekly_hours: form.weekly_hours ? parseFloat(form.weekly_hours) : null,
+        full_time_percentage: form.full_time_percentage ? parseFloat(form.full_time_percentage) : null,
+        monthly_hours_limit: form.monthly_hours_limit ? parseFloat(form.monthly_hours_limit) : null,
+        annual_salary_limit: form.annual_salary_limit ? parseFloat(form.annual_salary_limit) : null,
+        note: form.note || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contracts", employee.id] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      toast.success("Neue Vertragsperiode gespeichert");
+      setShowForm(false);
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Fehler beim Speichern");
+    },
+  });
+
+  function setF(field: string, value: string) {
+    setForm((f) => {
+      const next = { ...f, [field]: value };
+      if (field === "contract_type" && value === "minijob") {
+        next.annual_salary_limit = "6672";
+        if (!next.monthly_hours_limit) next.monthly_hours_limit = "43";
+        next.full_time_percentage = "";
+      }
+      return next;
+    });
+  }
+
+  const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("de-DE");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-card rounded-2xl border border-border w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
+          <div>
+            <h2 className="font-semibold text-foreground">Vertragsverlauf</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {employee.first_name} {employee.last_name}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Lade Verlauf…</p>
+          ) : contracts.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Noch kein Vertragsverlauf erfasst.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-muted-foreground border-b border-border">
+                    <th className="text-left pb-2 pr-3 font-medium">Ab</th>
+                    <th className="text-left pb-2 pr-3 font-medium">Bis</th>
+                    <th className="text-left pb-2 pr-3 font-medium">Vertragsart</th>
+                    <th className="text-right pb-2 pr-3 font-medium">€/h</th>
+                    <th className="text-right pb-2 pr-3 font-medium">h/Wo</th>
+                    <th className="text-right pb-2 pr-3 font-medium">% VZ</th>
+                    <th className="text-left pb-2 font-medium">Notiz</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contracts.map((c) => {
+                    const isCurrent = c.valid_to === null;
+                    return (
+                      <tr
+                        key={c.id}
+                        className="border-b border-border/50 last:border-0"
+                        style={isCurrent ? { backgroundColor: "rgb(var(--ctp-green) / 0.06)" } : {}}
+                      >
+                        <td className="py-2 pr-3 whitespace-nowrap">{fmtDate(c.valid_from)}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
+                          {c.valid_to ? fmtDate(c.valid_to) : (
+                            <span style={{ color: "rgb(var(--ctp-green))" }} className="font-medium">
+                              aktuell
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3">
+                          <span
+                            className="text-xs px-1.5 py-0.5 rounded font-medium"
+                            style={{ color: CONTRACT_COLORS[c.contract_type] ?? "inherit", backgroundColor: (CONTRACT_COLORS[c.contract_type] ?? "rgb(0,0,0)").replace(")", " / 0.10)").replace("rgb(", "rgb(") }}
+                          >
+                            {CONTRACT_LABELS[c.contract_type] ?? c.contract_type}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{Number(c.hourly_rate).toFixed(2)}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
+                          {c.weekly_hours != null ? Number(c.weekly_hours).toFixed(1) : "—"}
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
+                          {c.full_time_percentage != null ? `${Number(c.full_time_percentage).toFixed(0)} %` : "—"}
+                        </td>
+                        <td className="py-2 text-muted-foreground text-xs">{c.note ?? ""}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Add new period */}
+          {!showForm ? (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-dashed border-border text-muted-foreground hover:border-blue-400 hover:text-foreground transition-colors"
+            >
+              <Plus size={14} /> Neue Vertragsperiode
+            </button>
+          ) : (
+            <div className="border border-border rounded-xl p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-foreground">Neue Vertragsperiode</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Gültig ab *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={form.valid_from}
+                    onChange={(e) => setF("valid_from", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Vertragsart *
+                  </label>
+                  <select
+                    value={form.contract_type}
+                    onChange={(e) => setF("contract_type", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="minijob">Minijob</option>
+                    <option value="part_time">Teilzeit</option>
+                    <option value="full_time">Vollzeit</option>
+                    <option value="ehrenamt">Ehrenamt</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Stundenlohn (€) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={form.hourly_rate}
+                    onChange={(e) => setF("hourly_rate", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="12.41"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Std./Woche (Vertrag)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.weekly_hours}
+                    onChange={(e) => setF("weekly_hours", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="20"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {form.contract_type === "part_time" && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">
+                      Vollzeit-% (z.B. 50)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={form.full_time_percentage}
+                      onChange={(e) => setF("full_time_percentage", e.target.value)}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      placeholder="50"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Std.-Limit / Monat
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.monthly_hours_limit}
+                    onChange={(e) => setF("monthly_hours_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder={form.contract_type === "minijob" ? "43" : ""}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Jahresgehaltsgrenze (€)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.annual_salary_limit}
+                    onChange={(e) => setF("annual_salary_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Notiz (optional)
+                </label>
+                <input
+                  type="text"
+                  value={form.note}
+                  onChange={(e) => setF("note", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="z.B. Gehaltserhöhung ab 01.01.2026"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => addMutation.mutate()}
+                  disabled={!form.valid_from || !form.hourly_rate || addMutation.isPending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+                >
+                  {addMutation.isPending ? "Speichern…" : "Vertragsperiode speichern"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2.5 rounded-xl text-sm border border-border text-muted-foreground hover:bg-muted"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── EmployeesPage ────────────────────────────────────────────────── */
 export default function EmployeesPage() {
   const { user } = useAuthStore();
@@ -726,6 +1037,7 @@ export default function EmployeesPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [linking, setLinking] = useState<Employee | null>(null);
+  const [contractsEmployee, setContractsEmployee] = useState<Employee | null>(null);
 
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
     queryKey: ["employees", showInactive],
@@ -836,6 +1148,7 @@ export default function EmployeesPage() {
                       isAdmin={isAdmin}
                       onEdit={() => setEditing(emp)}
                       onLink={() => setLinking(emp)}
+                      onContracts={() => setContractsEmployee(emp)}
                       onDeactivate={() => {
                         if (confirm(`${emp.first_name} ${emp.last_name} wirklich deaktivieren?`)) {
                           deactivateMutation.mutate(emp.id);
@@ -887,6 +1200,7 @@ export default function EmployeesPage() {
                     isAdmin={isAdmin}
                     inactive
                     onEdit={() => setEditing(emp)}
+                    onContracts={() => setContractsEmployee(emp)}
                     onReactivate={() => reactivateMutation.mutate(emp.id)}
                   />
                 ))}
@@ -917,6 +1231,12 @@ export default function EmployeesPage() {
           onSaved={() => qc.invalidateQueries({ queryKey: ["employees"] })}
         />
       )}
+      {contractsEmployee && (
+        <ContractHistoryModal
+          employee={contractsEmployee}
+          onClose={() => setContractsEmployee(null)}
+        />
+      )}
     </div>
   );
 }
@@ -928,6 +1248,7 @@ function EmployeeCard({
   inactive,
   onEdit,
   onLink,
+  onContracts,
   onDeactivate,
   onReactivate,
 }: {
@@ -936,6 +1257,7 @@ function EmployeeCard({
   inactive?: boolean;
   onEdit: () => void;
   onLink?: () => void;
+  onContracts?: () => void;
   onDeactivate?: () => void;
   onReactivate?: () => void;
 }) {
@@ -983,6 +1305,15 @@ function EmployeeCard({
             >
               <Pencil size={13} />
             </button>
+            {onContracts && (
+              <button
+                onClick={onContracts}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                title="Vertragsverlauf"
+              >
+                <History size={13} />
+              </button>
+            )}
             {onLink && (
               <button
                 onClick={onLink}

@@ -30,6 +30,8 @@ class EmployeeOut(BaseModel):
     phone: str | None
     contract_type: str
     hourly_rate: float
+    weekly_hours: float | None
+    full_time_percentage: float | None
     monthly_hours_limit: float | None
     annual_salary_limit: float | None
     vacation_days: int
@@ -55,6 +57,8 @@ class EmployeeCreate(BaseModel):
     phone: str | None = None
     contract_type: str  # minijob | part_time | full_time
     hourly_rate: float
+    weekly_hours: float | None = None
+    full_time_percentage: float | None = None
     monthly_hours_limit: float | None = None
     annual_salary_limit: float | None = 6672.0
     vacation_days: int = 30
@@ -73,6 +77,8 @@ class EmployeeUpdate(BaseModel):
     phone: str | None = None
     contract_type: str | None = None
     hourly_rate: float | None = None
+    weekly_hours: float | None = None
+    full_time_percentage: float | None = None
     monthly_hours_limit: float | None = None
     annual_salary_limit: float | None = None
     vacation_days: int | None = None

@@ -209,6 +209,22 @@ export const notificationsApi = {
     api.delete("/notifications/push-subscription", { data: { endpoint } }),
 };
 
+// Contract History
+export const contractsApi = {
+  list: (employeeId: string) =>
+    api.get(`/employees/${employeeId}/contracts`),
+  create: (employeeId: string, data: {
+    valid_from: string;
+    contract_type: string;
+    hourly_rate: number;
+    weekly_hours?: number | null;
+    full_time_percentage?: number | null;
+    monthly_hours_limit?: number | null;
+    annual_salary_limit?: number | null;
+    note?: string | null;
+  }) => api.post(`/employees/${employeeId}/contracts`, data),
+};
+
 // Compliance
 export const complianceApi = {
   listViolations: (params?: {

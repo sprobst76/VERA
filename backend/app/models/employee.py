@@ -21,6 +21,8 @@ class Employee(Base):
 
     contract_type: Mapped[str] = mapped_column(String(50), nullable=False)  # minijob | part_time | full_time
     hourly_rate: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
+    weekly_hours: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    full_time_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     monthly_hours_limit: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     annual_salary_limit: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True, default=6672.0)
     vacation_days: Mapped[int] = mapped_column(Integer, default=30)

@@ -10,6 +10,7 @@ from app.models.payroll import PayrollEntry, HoursCarryover
 from app.models.notification import NotificationLog
 from app.models.push_subscription import PushSubscription
 from app.models.audit import ComplianceCheck, AuditLog, ApiKey, Webhook
+from app.models.contract_history import ContractHistory
 
 __all__ = [
     "SuperAdmin",
@@ -32,4 +33,5 @@ __all__ = [
     "AuditLog",
     "ApiKey",
     "Webhook",
+    "ContractHistory",
 ]

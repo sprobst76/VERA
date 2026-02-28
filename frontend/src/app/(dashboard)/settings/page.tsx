@@ -381,8 +381,8 @@ function MeinProfilSection() {
 
   const CONTRACT_LABELS: Record<string, string> = {
     minijob: "Minijob",
-    teilzeit: "Teilzeit",
-    vollzeit: "Vollzeit",
+    part_time: "Teilzeit",
+    full_time: "Vollzeit",
     ehrenamt: "Ehrenamt",
   };
 
@@ -421,6 +421,18 @@ function MeinProfilSection() {
                 <div className="font-medium text-foreground">
                   {((profile as any).hourly_rate as number).toLocaleString("de-DE", { style: "currency", currency: "EUR" })} / h
                 </div>
+              </div>
+            )}
+            {(profile as any).weekly_hours != null && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-0.5">Vertragsstunden / Woche</div>
+                <div className="font-medium text-foreground">{(profile as any).weekly_hours} h</div>
+              </div>
+            )}
+            {(profile as any).full_time_percentage != null && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-0.5">Vollzeitanteil</div>
+                <div className="font-medium text-foreground">{(profile as any).full_time_percentage} %</div>
               </div>
             )}
           </div>

@@ -69,6 +69,7 @@ function FlagBadge({ ok, label }: { ok: boolean; label: string }) {
 export default function CompliancePage() {
   const { user } = useAuthStore();
   const qc = useQueryClient();
+  const isEmployee = user?.role === "employee";
 
   const [filterEmployee, setFilterEmployee] = useState("");
   const [filterFrom, setFilterFrom]         = useState("");
@@ -102,8 +103,6 @@ export default function CompliancePage() {
     },
     onError: () => toast.error("Compliance-Prüfung fehlgeschlagen"),
   });
-
-  const isEmployee = user?.role === "employee";
 
   // Summary-Zahlen berechnen
   const totalViolations    = violations.length;
