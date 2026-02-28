@@ -6,6 +6,7 @@ import { shiftsApi } from "@/lib/api";
 import { addDays } from "date-fns";
 import { X, CalendarRange } from "lucide-react";
 import toast from "react-hot-toast";
+import { TimeInput } from "@/components/shared/TimeInput";
 
 const WEEKDAY_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
@@ -149,11 +150,11 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Von *</label>
-                <input type="time" className={inputCls} value={sStart} onChange={e => setSStart(e.target.value)} />
+                <TimeInput value={sStart} onChange={setSStart} />
               </div>
               <div>
                 <label className={labelCls}>Bis *</label>
-                <input type="time" className={inputCls} value={sEnd} onChange={e => setSEnd(e.target.value)} />
+                <TimeInput value={sEnd} onChange={setSEnd} />
               </div>
             </div>
 
@@ -228,10 +229,8 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
             <div>
               <label className={labelCls}>Abweichende Uhrzeiten <span className="font-normal">(optional – überschreibt Template)</span></label>
               <div className="grid grid-cols-2 gap-3">
-                <input type="time" className={inputCls} value={bStart} placeholder="Von"
-                  onChange={e => setBStart(e.target.value)} />
-                <input type="time" className={inputCls} value={bEnd} placeholder="Bis"
-                  onChange={e => setBEnd(e.target.value)} />
+                <TimeInput value={bStart} onChange={setBStart} />
+                <TimeInput value={bEnd} onChange={setBEnd} />
               </div>
               {(bStart || bEnd) && (
                 <p className="mt-1 text-xs" style={{ color: "rgb(var(--ctp-peach))" }}>

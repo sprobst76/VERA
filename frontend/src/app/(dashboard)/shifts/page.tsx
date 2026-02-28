@@ -6,6 +6,7 @@ import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfi
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon } from "lucide-react";
+import { TimeInput } from "@/components/shared/TimeInput";
 import toast from "react-hot-toast";
 import { useAuthStore } from "@/store/auth";
 import { CreateShiftModal } from "@/components/shared/CreateShiftModal";
@@ -74,8 +75,8 @@ function ConfirmModal({ shift, onClose, onDone }: { shift: any; onClose: () => v
         <div className="px-5 pb-5 space-y-3">
           <p className="text-sm text-muted-foreground">Geplant: {shift.start_time?.slice(0,5)} – {shift.end_time?.slice(0,5)} Uhr</p>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Ist-Zeit von</label><input type="time" className={inputCls} value={actualStart} onChange={e => setActualStart(e.target.value)} /></div>
-            <div><label className={labelCls}>Ist-Zeit bis</label><input type="time" className={inputCls} value={actualEnd} onChange={e => setActualEnd(e.target.value)} /></div>
+            <div><label className={labelCls}>Ist-Zeit von</label><TimeInput value={actualStart} onChange={setActualStart} /></div>
+            <div><label className={labelCls}>Ist-Zeit bis</label><TimeInput value={actualEnd} onChange={setActualEnd} /></div>
           </div>
           <div><label className={labelCls}>Bestätigungsnotiz</label><input type="text" className={inputCls} value={note} onChange={e => setNote(e.target.value)} placeholder="optional" /></div>
           <button onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}
@@ -114,8 +115,8 @@ function ActualTimeModal({ shift, onClose, onDone }: { shift: any; onClose: () =
         <div className="px-5 pb-5 space-y-3">
           <p className="text-sm text-muted-foreground">Geplant: {shift.start_time?.slice(0,5)} – {shift.end_time?.slice(0,5)} Uhr</p>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Tatsächlich von</label><input type="time" className={inputCls} value={actualStart} onChange={e => setActualStart(e.target.value)} /></div>
-            <div><label className={labelCls}>Tatsächlich bis</label><input type="time" className={inputCls} value={actualEnd} onChange={e => setActualEnd(e.target.value)} /></div>
+            <div><label className={labelCls}>Tatsächlich von</label><TimeInput value={actualStart} onChange={setActualStart} /></div>
+            <div><label className={labelCls}>Tatsächlich bis</label><TimeInput value={actualEnd} onChange={setActualEnd} /></div>
           </div>
           <div><label className={labelCls}>Notiz</label><input type="text" className={inputCls} value={notes} onChange={e => setNotes(e.target.value)} placeholder="optional" /></div>
           <button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}
@@ -197,8 +198,8 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
                 {WEEKDAY_NAMES.map((n, i) => <option key={i} value={i}>{n}</option>)}
               </select>
             </div>
-            <div><label className={labelCls}>Von</label><input type="time" className={inputCls} value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
-            <div><label className={labelCls}>Bis</label><input type="time" className={inputCls} value={endTime} onChange={e => setEndTime(e.target.value)} /></div>
+            <div><label className={labelCls}>Von</label><TimeInput value={startTime} onChange={setStartTime} /></div>
+            <div><label className={labelCls}>Bis</label><TimeInput value={endTime} onChange={setEndTime} /></div>
             <div><label className={labelCls}>Pause (Min)</label><input type="number" className={inputCls} value={breakMin} onChange={e => setBreakMin(+e.target.value)} min={0} /></div>
             <div><label className={labelCls}>Bezeichnung</label><input className={inputCls} value={label} onChange={e => setLabel(e.target.value)} placeholder="optional" /></div>
           </div>
@@ -299,8 +300,8 @@ function UpdateFromModal({ rs, employees, onClose, onDone }: { rs: any; employee
           </p>
           <div><label className={labelCls}>Ab Datum</label><input type="date" className={inputCls} value={fromDate} onChange={e => setFromDate(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Von (Uhrzeit)</label><input type="time" className={inputCls} value={startTime} onChange={e => setStartTime(e.target.value)} /></div>
-            <div><label className={labelCls}>Bis (Uhrzeit)</label><input type="time" className={inputCls} value={endTime} onChange={e => setEndTime(e.target.value)} /></div>
+            <div><label className={labelCls}>Von (Uhrzeit)</label><TimeInput value={startTime} onChange={setStartTime} /></div>
+            <div><label className={labelCls}>Bis (Uhrzeit)</label><TimeInput value={endTime} onChange={setEndTime} /></div>
           </div>
           <div>
             <label className={labelCls}>Mitarbeiter</label>

@@ -573,7 +573,7 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
               <input
                 type="number"
                 min="0"
-                step="0.5"
+                step="0.01"
                 value={form.monthly_hours_limit}
                 onChange={(e) => set("monthly_hours_limit", e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -933,7 +933,7 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
                   <input
                     type="number"
                     min="0"
-                    step="0.5"
+                    step="0.01"
                     value={form.weekly_hours}
                     onChange={(e) => setF("weekly_hours", e.target.value)}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -967,7 +967,7 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
                   <input
                     type="number"
                     min="0"
-                    step="0.5"
+                    step="0.01"
                     value={form.monthly_hours_limit}
                     onChange={(e) => setF("monthly_hours_limit", e.target.value)}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"

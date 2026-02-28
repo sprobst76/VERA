@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { notificationsApi, employeesApi } from "@/lib/api";
 import { enablePushNotifications, disablePushNotifications } from "@/components/shared/PushManager";
+import { TimeInput } from "@/components/shared/TimeInput";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { format, parseISO } from "date-fns";
@@ -483,21 +484,11 @@ export default function NotificationsPage() {
                 <div className="flex gap-4 items-center">
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Von</label>
-                    <input
-                      type="time"
-                      value={quietStart}
-                      onChange={(e) => setQuietStart(e.target.value)}
-                      className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
-                    />
+                    <TimeInput value={quietStart} onChange={setQuietStart} />
                   </div>
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Bis</label>
-                    <input
-                      type="time"
-                      value={quietEnd}
-                      onChange={(e) => setQuietEnd(e.target.value)}
-                      className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
-                    />
+                    <TimeInput value={quietEnd} onChange={setQuietEnd} />
                   </div>
                 </div>
               </div>
