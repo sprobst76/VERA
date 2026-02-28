@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # Telegram (Phase 2)
     TELEGRAM_BOT_TOKEN: str = ""
 
+    # Web Push / VAPID
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_CLAIMS_SUB: str = "mailto:admin@vera.app"
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]

@@ -8,6 +8,7 @@ from app.models.shift import Shift, ShiftTemplate
 from app.models.absence import EmployeeAbsence, CareRecipientAbsence
 from app.models.payroll import PayrollEntry, HoursCarryover
 from app.models.notification import NotificationLog
+from app.models.push_subscription import PushSubscription
 from app.models.audit import ComplianceCheck, AuditLog, ApiKey, Webhook
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "PayrollEntry",
     "HoursCarryover",
     "NotificationLog",
+    "PushSubscription",
     "ComplianceCheck",
     "AuditLog",
     "ApiKey",

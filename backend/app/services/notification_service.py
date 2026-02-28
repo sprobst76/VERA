@@ -1,13 +1,14 @@
 """
-Notification Service – Telegram + SendGrid E-Mail Versand.
+Notification Service – Telegram + SendGrid E-Mail + Web Push Versand.
 
-Graceful Degradation: Wenn TELEGRAM_BOT_TOKEN oder SENDGRID_API_KEY nicht
-gesetzt sind, wird der Versand übersprungen und als "failed" geloggt.
+Graceful Degradation: Wenn TELEGRAM_BOT_TOKEN, SENDGRID_API_KEY oder
+VAPID_PRIVATE_KEY nicht gesetzt sind, wird der Versand übersprungen.
 Quiet Hours werden pro Mitarbeiter respektiert (Standard: 21:00–07:00).
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -111,6 +112,25 @@ class NotificationService:
                 error=err,
             ))
 
+        # ── Web Push ──────────────────────────────────────────────────────────
+        if channels.get("push", False):
+            ok, err = await self._send_push(
+                employee_id=employee.id,
+                title=subject or "VERA",
+                body=message,
+            )
+            self.db.add(NotificationLog(
+                tenant_id=tid,
+                employee_id=employee.id,
+                channel="push",
+                event_type=event_type,
+                subject=subject,
+                body=message,
+                status="sent" if ok else "failed",
+                sent_at=datetime.now(timezone.utc) if ok else None,
+                error=err,
+            ))
+
         await self.db.commit()
 
     async def _send_telegram(self, chat_id: str, message: str) -> tuple[bool, str | None]:
@@ -144,6 +164,54 @@ class NotificationService:
             )
             await asyncio.to_thread(SendGridAPIClient(api_key).send, mail)
             return True, None
+        except Exception as e:
+            return False, str(e)[:200]
+
+    async def _send_push(
+        self, employee_id: uuid.UUID, title: str, body: str
+    ) -> tuple[bool, str | None]:
+        """Sendet Web Push an alle registrierten Browser-Subscriptions des Mitarbeiters."""
+        if not settings.VAPID_PRIVATE_KEY:
+            return False, "VAPID_PRIVATE_KEY nicht konfiguriert"
+        try:
+            from pywebpush import webpush, WebPushException
+            from sqlalchemy import select as sa_select
+            from app.models.push_subscription import PushSubscription
+
+            result = await self.db.execute(
+                sa_select(PushSubscription).where(
+                    PushSubscription.employee_id == employee_id
+                )
+            )
+            subs = result.scalars().all()
+            if not subs:
+                return False, "Keine Push-Subscriptions vorhanden"
+
+            payload = json.dumps({"title": title, "body": body, "url": "/"})
+            sent_any = False
+            last_err: str | None = None
+
+            for sub in subs:
+                try:
+                    await asyncio.to_thread(
+                        webpush,
+                        subscription_info={
+                            "endpoint": sub.endpoint,
+                            "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                        },
+                        data=payload,
+                        vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                        vapid_claims={"sub": settings.VAPID_CLAIMS_SUB},
+                    )
+                    sent_any = True
+                except WebPushException as e:
+                    last_err = str(e)[:200]
+                    # 410 Gone → Subscription abgelaufen, aus DB entfernen
+                    if e.response is not None and e.response.status_code == 410:
+                        await self.db.delete(sub)
+                        await self.db.flush()
+
+            return sent_any, None if sent_any else last_err
         except Exception as e:
             return False, str(e)[:200]
 

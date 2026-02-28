@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
@@ -13,8 +13,10 @@ import {
   Save,
   Loader2,
   Info,
+  Smartphone,
 } from "lucide-react";
 import { notificationsApi, employeesApi } from "@/lib/api";
+import { enablePushNotifications, disablePushNotifications } from "@/components/shared/PushManager";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { format, parseISO } from "date-fns";
@@ -53,6 +55,7 @@ interface Employee {
 const CHANNEL_LABELS: Record<string, string> = {
   email:    "E-Mail",
   telegram: "Telegram",
+  push:     "Web Push",
   all:      "Alle",
 };
 
@@ -81,6 +84,19 @@ export default function NotificationsPage() {
   const [filterChannel, setFilterChannel] = useState("");
   const [filterStatus, setFilterStatus]   = useState("");
   const [filterEmployee, setFilterEmployee] = useState("");
+
+  // Web Push state
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled]     = useState(false);
+  const [pushLoading, setPushLoading]     = useState(false);
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    setPushSupported(true);
+    navigator.serviceWorker.ready.then((reg) =>
+      reg.pushManager.getSubscription().then((sub) => setPushEnabled(!!sub))
+    );
+  }, []);
 
   // ── Daten laden ────────────────────────────────────────────────────────────
   const { data: employees = [] } = useQuery<Employee[]>({
@@ -158,7 +174,7 @@ export default function NotificationsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Benachrichtigungen</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Telegram und E-Mail Benachrichtigungen
+          E-Mail, Telegram und Browser-Push Benachrichtigungen
         </p>
       </div>
 
@@ -210,6 +226,7 @@ export default function NotificationsPage() {
                 <option value="">Alle</option>
                 <option value="email">E-Mail</option>
                 <option value="telegram">Telegram</option>
+                <option value="push">Web Push</option>
               </select>
             </div>
             <div>
@@ -346,6 +363,61 @@ export default function NotificationsPage() {
                     className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
                   />
                 </div>
+              </div>
+
+              {/* Web Push */}
+              <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone size={18} style={{ color: "rgb(var(--ctp-mauve))" }} />
+                  <span className="font-medium text-foreground">Browser-Push</span>
+                </div>
+                {!pushSupported ? (
+                  <p className="text-xs text-muted-foreground">
+                    Dein Browser unterstützt keine Push-Benachrichtigungen.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Erhalte Benachrichtigungen direkt im Browser – auch wenn die Seite nicht geöffnet ist.
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-foreground">
+                        {pushEnabled ? (
+                          <span style={{ color: "rgb(var(--ctp-green))" }}>
+                            <Check size={14} className="inline mr-1" />Aktiviert
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Nicht aktiviert</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setPushLoading(true);
+                          try {
+                            if (pushEnabled) {
+                              await disablePushNotifications();
+                              setPushEnabled(false);
+                            } else {
+                              const sub = await enablePushNotifications();
+                              setPushEnabled(!!sub);
+                              if (!sub) toast.error("Push-Erlaubnis verweigert oder Fehler");
+                            }
+                          } finally {
+                            setPushLoading(false);
+                          }
+                        }}
+                        disabled={pushLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border hover:bg-muted disabled:opacity-50 transition-colors"
+                        style={pushEnabled ? { color: "rgb(var(--ctp-red))" } : { color: "rgb(var(--ctp-mauve))" }}
+                      >
+                        {pushLoading
+                          ? <Loader2 size={13} className="animate-spin" />
+                          : <Smartphone size={13} />}
+                        {pushEnabled ? "Deaktivieren" : "Aktivieren"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Kanäle */}

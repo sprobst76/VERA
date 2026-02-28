@@ -202,6 +202,11 @@ export const notificationsApi = {
     quiet_hours_end?: string;
     notification_prefs?: Record<string, unknown>;
   }) => api.put("/notifications/preferences", data),
+  getVapidKey: () => api.get("/notifications/vapid-key"),
+  subscribePush: (data: { endpoint: string; p256dh: string; auth: string }) =>
+    api.post("/notifications/push-subscription", data),
+  unsubscribePush: (endpoint: string) =>
+    api.delete("/notifications/push-subscription", { data: { endpoint } }),
 };
 
 // Compliance

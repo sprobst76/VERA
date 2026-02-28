@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/auth";
 import { absencesApi } from "@/lib/api";
 import { DemoBar } from "@/components/shared/DemoBar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { PushManager } from "@/components/shared/PushManager";
 import {
   CalendarDays,
   Users,
@@ -194,6 +195,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       <DemoBar />
+      <PushManager />
     </div>
   );
 }
