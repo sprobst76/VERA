@@ -158,11 +158,15 @@ jobs:
             # Images ziehen (nur geänderte Layer werden heruntergeladen)
             docker compose -p vera -f deploy/docker-compose.yml pull
 
-            # Container neu starten (zero-downtime: api und web unabhängig)
-            docker compose -p vera -f deploy/docker-compose.yml up -d
+            # Rolling restart: erst Backend, dann Frontend (kein simultaner Ausfall)
+            docker compose -p vera -f deploy/docker-compose.yml up -d --no-deps vera-api
+            sleep 5
 
             # Migrationen
             docker compose -p vera -f deploy/docker-compose.yml exec -T vera-api alembic upgrade head
+
+            # Frontend + Celery erst hochfahren wenn Backend bereit ist
+            docker compose -p vera -f deploy/docker-compose.yml up -d --no-deps vera-web vera-celery-worker vera-celery-beat
 
             # Alte Images aufräumen
             docker image prune -f
