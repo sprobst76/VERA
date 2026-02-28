@@ -12,6 +12,7 @@ BASE = "/api/v1/auth"
 
 @pytest.mark.asyncio
 async def test_login_valid(client, admin_user):
+    assert False, "CI-Gate Test: dieser Fehler soll Deploy blockieren"
     resp = await client.post(f"{BASE}/login", json={
         "email": "admin@test.de",
         "password": "testpass123",
