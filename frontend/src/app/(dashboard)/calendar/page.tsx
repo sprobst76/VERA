@@ -159,7 +159,8 @@ export default function CalendarPage() {
 
   // Farbe je Template, grau für offene Dienste
   const eventPropGetter = useCallback((event: any) => {
-    const { shift, template } = event.resource;
+    const { shift, template } = event.resource ?? {};
+    if (!shift) return {};   // background events have no shift
     const isOpen = !shift.employee_id;
     const color = isOpen ? "#ef4444" : (template?.color ?? "#1E3A5F");
     const isCancelled = shift.status.startsWith("cancelled");

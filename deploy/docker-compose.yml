@@ -68,17 +68,24 @@ services:
       options: { max-size: "10m", max-file: "3" }
     labels:
       - "traefik.enable=true"
-      # API + calendar + health – höhere Priorität als Frontend
+      # ── Router: /auth/login – strenger Brute-Force-Schutz (Prio 30) ──────────
+      - "traefik.http.routers.vera-auth.rule=Host(`vera.lab.${DOMAIN}`) && Path(`/api/v1/auth/login`)"
+      - "traefik.http.routers.vera-auth.entrypoints=websecure"
+      - "traefik.http.routers.vera-auth.tls.certresolver=cloudflare"
+      - "traefik.http.routers.vera-auth.priority=30"
+      - "traefik.http.routers.vera-auth.middlewares=vera-auth-ratelimit@docker,vera-security@docker"
+      - "traefik.http.routers.vera-auth.service=vera-api"
+      # Rate limit Login: 10 Versuche / Minute, kein Burst
+      - "traefik.http.middlewares.vera-auth-ratelimit.ratelimit.average=10"
+      - "traefik.http.middlewares.vera-auth-ratelimit.ratelimit.burst=3"
+      - "traefik.http.middlewares.vera-auth-ratelimit.ratelimit.period=1m"
+      # ── Router: alle anderen API-Routen (Prio 20) ────────────────────────────
       - "traefik.http.routers.vera-api.rule=Host(`vera.lab.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/calendar/`) || PathPrefix(`/health`))"
       - "traefik.http.routers.vera-api.entrypoints=websecure"
       - "traefik.http.routers.vera-api.tls.certresolver=cloudflare"
       - "traefik.http.routers.vera-api.priority=20"
-      - "traefik.http.routers.vera-api.middlewares=vera-ratelimit@docker,vera-security@docker"
+      - "traefik.http.routers.vera-api.middlewares=vera-security@docker"
       - "traefik.http.services.vera-api.loadbalancer.server.port=8000"
-      # Rate limiting (Brute-Force-Schutz für /auth/login)
-      - "traefik.http.middlewares.vera-ratelimit.ratelimit.average=30"
-      - "traefik.http.middlewares.vera-ratelimit.ratelimit.burst=10"
-      - "traefik.http.middlewares.vera-ratelimit.ratelimit.period=1m"
       # Security headers
       - "traefik.http.middlewares.vera-security.headers.stsSeconds=31536000"
       - "traefik.http.middlewares.vera-security.headers.stsIncludeSubdomains=true"
