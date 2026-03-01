@@ -491,8 +491,20 @@ export default function ShiftsPage() {
   const templateMap = Object.fromEntries((templates as any[]).map((t: any) => [t.id, t]));
   const employeeMap = Object.fromEntries((employees as any[]).map((e: any) => [e.id, e]));
 
-  const prevMonth = () => setMonth(m => { const d = new Date(m); d.setMonth(d.getMonth() - 1); return d; });
-  const nextMonth = () => setMonth(m => { const d = new Date(m); d.setMonth(d.getMonth() + 1); return d; });
+  const isPastMonth = month < startOfMonth(new Date());
+
+  const prevMonth = () => setMonth(m => {
+    const d = new Date(m); d.setMonth(d.getMonth() - 1);
+    // Vergangener Monat → automatisch alle Dienste zeigen
+    if (d < startOfMonth(new Date())) setStatusFilter("all");
+    return d;
+  });
+  const nextMonth = () => setMonth(m => {
+    const d = new Date(m); d.setMonth(d.getMonth() + 1);
+    // Aktueller/zukünftiger Monat → zurück auf "Offen"
+    if (d >= startOfMonth(new Date())) setStatusFilter("open");
+    return d;
+  });
 
   const allowedStatuses = FILTER_STATUSES[statusFilter];
   const filteredShifts = allowedStatuses.length > 0
@@ -535,8 +547,8 @@ export default function ShiftsPage() {
             {/* Month nav */}
             <div className="flex items-center gap-1 bg-card rounded-lg border border-border p-1">
               <button onClick={prevMonth} className="p-2.5 hover:bg-accent rounded"><ChevronLeft size={16} /></button>
-              <span className="px-3 text-sm font-medium text-foreground min-w-[120px] text-center">
-                {format(month, "MMMM yyyy", { locale: de })}
+              <span className="px-2 text-sm font-medium text-foreground min-w-[110px] text-center">
+                {format(month, "MMM yyyy", { locale: de })}
               </span>
               <button onClick={nextMonth} className="p-2.5 hover:bg-accent rounded"><ChevronRight size={16} /></button>
             </div>
@@ -611,6 +623,16 @@ export default function ShiftsPage() {
                 }, 0).toFixed(1)}
               </span>
             </span>
+          </div>
+
+          {/* Monatsüberschrift */}
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-foreground">
+              {format(month, "MMMM yyyy", { locale: de })}
+            </h2>
+            {isPastMonth && statusFilter === "all" && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">vergangen</span>
+            )}
           </div>
 
           {/* Shift list */}
