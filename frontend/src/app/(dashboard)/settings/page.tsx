@@ -6,7 +6,7 @@ import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi } from "@/l
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -55,6 +55,8 @@ function AddPeriodModal({ profileId, onClose, onDone }: { profileId: string; onC
   const [endDate, setEndDate] = useState("");
   const [color, setColor] = useState("#a6e3a1");
 
+  const dateError = startDate && endDate && endDate < startDate;
+
   const mut = useMutation({
     mutationFn: () => holidayProfilesApi.addPeriod(profileId, { name, start_date: startDate, end_date: endDate, color }),
     onSuccess: () => { toast.success("Ferienperiode hinzugefügt"); onDone(); },
@@ -81,17 +83,23 @@ function AddPeriodModal({ profileId, onClose, onDone }: { profileId: string; onC
               <input type="date" className={inputCls} value={startDate} onChange={e => setStartDate(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">Bis</label>
+              <label className="text-xs text-muted-foreground block mb-1">Bis (einschl.)</label>
               <input type="date" className={inputCls} value={endDate} onChange={e => setEndDate(e.target.value)} />
             </div>
           </div>
+          {dateError && (
+            <p className="text-xs text-destructive">Enddatum muss nach dem Startdatum liegen.</p>
+          )}
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Farbe</label>
-            <input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-8 w-16 rounded border border-border cursor-pointer" />
+            <div className="flex items-center gap-2">
+              <input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-8 w-16 rounded border border-border cursor-pointer" />
+              <span className="text-xs text-muted-foreground">wird im Kalender angezeigt</span>
+            </div>
           </div>
           <button
             onClick={() => mut.mutate()}
-            disabled={!name || !startDate || !endDate || mut.isPending}
+            disabled={!name || !startDate || !endDate || !!dateError || mut.isPending}
             className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity"
             style={{ backgroundColor: "rgb(var(--ctp-green))" }}>
             {mut.isPending ? "Wird gespeichert…" : "Hinzufügen"}
@@ -201,11 +209,53 @@ function CreateProfileModal({ onClose, onDone }: { onClose: () => void; onDone: 
   );
 }
 
+function EditPeriodRow({ profileId, vp, onDone, onCancel }: {
+  profileId: string; vp: any; onDone: () => void; onCancel: () => void;
+}) {
+  const [name, setName] = useState(vp.name);
+  const [startDate, setStartDate] = useState(vp.start_date);
+  const [endDate, setEndDate] = useState(vp.end_date);
+  const [color, setColor] = useState(vp.color ?? "#a6e3a1");
+
+  const dateError = startDate && endDate && endDate < startDate;
+
+  const mut = useMutation({
+    mutationFn: () => holidayProfilesApi.updatePeriod(profileId, vp.id, { name, start_date: startDate, end_date: endDate, color }),
+    onSuccess: () => { toast.success("Gespeichert"); onDone(); },
+    onError: () => toast.error("Fehler beim Speichern"),
+  });
+
+  const inputCls = "px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-ring";
+
+  return (
+    <div className="space-y-2 py-1 px-1 rounded-lg bg-muted/40 border border-border">
+      <input className={`w-full ${inputCls}`} value={name} onChange={e => setName(e.target.value)} placeholder="Bezeichnung" />
+      <div className="flex gap-2 items-center flex-wrap">
+        <input type="date" className={inputCls} value={startDate} onChange={e => setStartDate(e.target.value)} />
+        <span className="text-xs text-muted-foreground">–</span>
+        <input type="date" className={inputCls} value={endDate} onChange={e => setEndDate(e.target.value)} />
+        <input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-6 w-10 rounded border border-border cursor-pointer" />
+      </div>
+      {dateError && <p className="text-xs text-destructive">Enddatum muss nach dem Startdatum liegen.</p>}
+      <div className="flex gap-2">
+        <button onClick={() => mut.mutate()} disabled={!name || !!dateError || mut.isPending}
+          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-primary text-primary-foreground disabled:opacity-50">
+          <Check size={11} /> Speichern
+        </button>
+        <button onClick={onCancel} className="text-xs px-2.5 py-1 rounded border border-border hover:bg-accent text-muted-foreground">
+          Abbrechen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function HolidayProfileCard({ profile, onRefresh }: { profile: any; onRefresh: () => void }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [showAddPeriod, setShowAddPeriod] = useState(false);
   const [showAddCustom, setShowAddCustom] = useState(false);
+  const [editingPeriodId, setEditingPeriodId] = useState<string | null>(null);
 
   const { data: detail } = useQuery({
     queryKey: ["holiday-profile", profile.id],
@@ -294,19 +344,33 @@ function HolidayProfileCard({ profile, onRefresh }: { profile: any; onRefresh: (
             {detail.vacation_periods.length === 0 ? (
               <p className="text-xs text-muted-foreground">Keine Ferienperioden</p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {detail.vacation_periods.map((vp: any) => (
-                  <div key={vp.id} className="flex items-center gap-2 text-sm">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: vp.color }} />
-                    <span className="flex-1 text-foreground">{vp.name}</span>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {format(parseISO(vp.start_date), "d.M.", { locale: de })} – {format(parseISO(vp.end_date), "d.M.yy", { locale: de })}
-                    </span>
-                    <button onClick={() => deletePeriodMut.mutate(vp.id)}
-                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
+                  editingPeriodId === vp.id ? (
+                    <EditPeriodRow
+                      key={vp.id}
+                      profileId={profile.id}
+                      vp={vp}
+                      onDone={() => { setEditingPeriodId(null); qc.invalidateQueries({ queryKey: ["holiday-profile", profile.id] }); onRefresh(); }}
+                      onCancel={() => setEditingPeriodId(null)}
+                    />
+                  ) : (
+                    <div key={vp.id} className="flex items-center gap-2 text-sm">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: vp.color ?? "#a6e3a1" }} />
+                      <span className="flex-1 text-foreground">{vp.name}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {format(parseISO(vp.start_date), "d.M.", { locale: de })} – {format(parseISO(vp.end_date), "d.M.yy", { locale: de })}
+                      </span>
+                      <button onClick={() => setEditingPeriodId(vp.id)}
+                        className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+                        <Pencil size={12} />
+                      </button>
+                      <button onClick={() => deletePeriodMut.mutate(vp.id)}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )
                 ))}
               </div>
             )}

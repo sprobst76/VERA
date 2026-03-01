@@ -86,44 +86,49 @@ export default function CalendarPage() {
     };
   }), [shifts, templateMap, employeeMap]);
 
-  // Background events: vacation periods, public holidays, custom holidays, recurring shift Schienen
-  const backgroundEvents = useMemo(() => {
-    const bgs: any[] = [];
-
+  // Holiday display events: vacation periods + public holidays as visible all-day bars
+  const holidayEvents = useMemo(() => {
+    const hevents: any[] = [];
     if (vacationData) {
-      // Vacation periods
       for (const vp of vacationData.vacation_periods ?? []) {
-        bgs.push({
+        hevents.push({
+          id: `vp-${vp.id}`,
           title: vp.name,
           start: parseISO(vp.start_date),
-          end: new Date(parseISO(vp.end_date).getTime() + 86400000), // inclusive end
+          end: new Date(parseISO(vp.end_date).getTime() + 86400000),
           allDay: true,
-          resource: { type: "vacation", color: vp.color, name: vp.name },
+          resource: { type: "vacation_label", color: vp.color },
         });
       }
-
-      // Public holidays
       for (const ph of vacationData.public_holidays ?? []) {
-        bgs.push({
+        hevents.push({
+          id: `ph-${ph.date}`,
           title: ph.name,
           start: parseISO(ph.date),
           end: new Date(parseISO(ph.date).getTime() + 86400000),
           allDay: true,
-          resource: { type: "public_holiday", color: "#f38ba8", name: ph.name },
+          resource: { type: "holiday_label", color: "#f38ba8" },
         });
       }
-
-      // Custom holidays (bewegliche Ferientage)
       for (const ch of vacationData.custom_holidays ?? []) {
-        bgs.push({
+        hevents.push({
+          id: `ch-${ch.id}`,
           title: ch.name,
           start: parseISO(ch.date),
           end: new Date(parseISO(ch.date).getTime() + 86400000),
           allDay: true,
-          resource: { type: "custom_holiday", color: ch.color, name: ch.name },
+          resource: { type: "holiday_label", color: ch.color },
         });
       }
     }
+    return hevents;
+  }, [vacationData]);
+
+  const allEvents = useMemo(() => [...events, ...holidayEvents], [events, holidayEvents]);
+
+  // Background events: only recurring shift Schienen (time-based overlays in week/day view)
+  const backgroundEvents = useMemo(() => {
+    const bgs: any[] = [];
 
     // Recurring shift Schienen (colored time bands in week/day view)
     if (view !== "month") {
@@ -155,23 +160,41 @@ export default function CalendarPage() {
     }
 
     return bgs;
-  }, [vacationData, recurringShifts, templateMap, rangeStart, rangeEnd, view]);
+  }, [recurringShifts, templateMap, rangeStart, rangeEnd, view]);
 
-  // Farbe je Template, grau für offene Dienste
+  // Farbe je Template, grau für offene Dienste; Ferien/Feiertage als bunte Labels
   const eventPropGetter = useCallback((event: any) => {
-    const { shift, template } = event.resource ?? {};
-    if (!shift) return {};   // background events have no shift
+    const { shift, template, type, color: labelColor } = event.resource ?? {};
+
+    // Schulferien / Feiertag – farbiger, nicht-interaktiver Balken
+    if (type === "vacation_label" || type === "holiday_label") {
+      return {
+        style: {
+          backgroundColor: labelColor,
+          borderColor: "transparent",
+          color: "rgba(0,0,0,0.75)",
+          fontSize: "0.65rem",
+          fontWeight: "600",
+          opacity: 0.88,
+          borderRadius: "3px",
+          pointerEvents: "none",
+          cursor: "default",
+        },
+      };
+    }
+
+    if (!shift) return {};
     const isOpen = !shift.employee_id;
-    const color = isOpen ? "#ef4444" : (template?.color ?? "#1E3A5F");
+    const c = isOpen ? "#ef4444" : (template?.color ?? "#1E3A5F");
     const isCancelled = shift.status.startsWith("cancelled");
     return {
       style: {
-        backgroundColor: color,
-        borderColor: color,
+        backgroundColor: c,
+        borderColor: c,
         opacity: isCancelled ? 0.35 : 1,
         textDecoration: isCancelled ? "line-through" : "none",
         fontSize: "0.75rem",
-        border: shift.notes ? `2px dashed ${color}` : `1px solid ${color}`,
+        border: shift.notes ? `2px dashed ${c}` : `1px solid ${c}`,
       },
     };
   }, []);
@@ -203,9 +226,9 @@ export default function CalendarPage() {
     const isCustom = (vacationData?.custom_holidays ?? []).some(
       (ch: any) => ch.date === ds
     );
-    if (isPublicHoliday) return { style: { backgroundColor: "rgba(243, 139, 168, 0.07)" } };
-    if (isVacation) return { style: { backgroundColor: "rgba(166, 227, 161, 0.06)" } };
-    if (isCustom) return { style: { backgroundColor: "rgba(250, 179, 135, 0.07)" } };
+    if (isPublicHoliday) return { style: { backgroundColor: "rgba(243, 139, 168, 0.18)" } };
+    if (isVacation) return { style: { backgroundColor: "rgba(166, 227, 161, 0.15)" } };
+    if (isCustom) return { style: { backgroundColor: "rgba(250, 179, 135, 0.16)" } };
     return {};
   }, [vacationData]);
 
@@ -294,7 +317,7 @@ export default function CalendarPage() {
       <div className="bg-card rounded-xl border border-border overflow-hidden" style={{ height: "calc(100svh - 220px)", minHeight: 380 }}>
         <Calendar
           localizer={localizer}
-          events={events}
+          events={allEvents}
           backgroundEvents={backgroundEvents}
           view={view}
           date={currentDate}
@@ -303,7 +326,11 @@ export default function CalendarPage() {
           eventPropGetter={eventPropGetter}
           {...({ backgroundEventPropGetter } as any)}
           dayPropGetter={dayPropGetter}
-          onSelectEvent={(e: any) => setSelectedShift(e.resource)}
+          onSelectEvent={(e: any) => {
+            const t = e.resource?.type;
+            if (t === "vacation_label" || t === "holiday_label") return;
+            setSelectedShift(e.resource);
+          }}
           onSelectSlot={isPrivileged ? (slot: any) => {
             setCreateDate(format(slot.start, "yyyy-MM-dd"));
             setShowCreate(true);
