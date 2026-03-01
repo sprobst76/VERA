@@ -12,8 +12,6 @@ import {
   UserX,
   UserCheck,
   X,
-  ChevronDown,
-  ChevronUp,
   Link,
   Unlink,
   ShieldCheck,
@@ -364,28 +362,14 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
     last_name: employee?.last_name ?? "",
     email: employee?.email ?? "",
     phone: employee?.phone ?? "",
-    contract_type: employee?.contract_type ?? "minijob",
-    hourly_rate: employee?.hourly_rate?.toString() ?? "",
-    monthly_hours_limit: employee?.monthly_hours_limit?.toString() ?? "",
-    annual_salary_limit: employee?.annual_salary_limit?.toString() ?? "6672",
-    vacation_days: employee?.vacation_days?.toString() ?? "30",
   });
   const [qualifications, setQualifications] = useState<string[]>(
     employee?.qualifications ?? []
   );
   const [qualInput, setQualInput] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   function set(field: string, value: string) {
-    setForm((f) => {
-      const next = { ...f, [field]: value };
-      // Auto-fill limits for Minijob
-      if (field === "contract_type" && value === "minijob") {
-        next.annual_salary_limit = "6672";
-        if (!next.monthly_hours_limit) next.monthly_hours_limit = "43";
-      }
-      return next;
-    });
+    setForm((f) => ({ ...f, [field]: value }));
   }
 
   function addQual(q: string) {
@@ -425,17 +409,16 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
       last_name: form.last_name.trim(),
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
-      contract_type: form.contract_type,
-      hourly_rate: parseFloat(form.hourly_rate),
-      monthly_hours_limit: form.monthly_hours_limit
-        ? parseFloat(form.monthly_hours_limit)
-        : null,
-      annual_salary_limit: form.annual_salary_limit
-        ? parseFloat(form.annual_salary_limit)
-        : null,
-      vacation_days: parseInt(form.vacation_days),
       qualifications,
     };
+    // Beim Anlegen: Vertragsdetails werden über den Vertragsverlauf gepflegt
+    if (!isEdit) {
+      payload.contract_type = "minijob";
+      payload.hourly_rate = 0;
+      payload.monthly_hours_limit = null;
+      payload.annual_salary_limit = null;
+      payload.vacation_days = 0;
+    }
     mutation.mutate(payload);
   }
 
@@ -511,77 +494,6 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
             </div>
           </div>
 
-          {/* Vertragstyp */}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-2">
-              Vertragstyp *
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["minijob", "part_time", "full_time"] as const).map((ct) => (
-                <button
-                  key={ct}
-                  type="button"
-                  onClick={() => set("contract_type", ct)}
-                  className="py-2 px-3 rounded-lg border text-sm font-medium transition-all"
-                  style={
-                    form.contract_type === ct
-                      ? {
-                          borderColor: CONTRACT_COLORS[ct],
-                          backgroundColor: CONTRACT_COLORS[ct] + " / 0.12)",
-                          color: CONTRACT_COLORS[ct],
-                          // inline style workaround:
-                        }
-                      : {}
-                  }
-                  data-selected={form.contract_type === ct}
-                >
-                  <span
-                    style={
-                      form.contract_type === ct
-                        ? { color: CONTRACT_COLORS[ct] }
-                        : { color: "rgb(var(--ctp-subtext0))" }
-                    }
-                  >
-                    {CONTRACT_LABELS[ct]}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Vergütung */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Stundenlohn (€) *
-              </label>
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.hourly_rate}
-                onChange={(e) => set("hourly_rate", e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                placeholder="12.41"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Std.-Limit / Monat
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.monthly_hours_limit}
-                onChange={(e) => set("monthly_hours_limit", e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                placeholder={form.contract_type === "minijob" ? "43" : ""}
-              />
-            </div>
-          </div>
-
           {/* Qualifikationen */}
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">
@@ -643,51 +555,14 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
             </div>
           </div>
 
-          {/* Erweitert (aufklappbar) */}
-          <div className="border border-border rounded-xl overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
-            >
-              <span>Erweiterte Einstellungen</span>
-              {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-            {showAdvanced && (
-              <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground block mb-1">
-                      Jahresgehaltsgrenze (€)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.annual_salary_limit}
-                      onChange={(e) => set("annual_salary_limit", e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
-                    />
-                    {form.contract_type === "minijob" && (
-                      <p className="text-xs text-muted-foreground mt-0.5">Minijob 2025: 6.672 €</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground block mb-1">
-                      Urlaubstage / Jahr
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.vacation_days}
-                      onChange={(e) => set("vacation_days", e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Vertragsdetails-Hinweis */}
+          {isEdit && (
+            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+              Vertragsdetails (Stundenlohn, Vertragstyp, Limits) über den{" "}
+              <span className="font-medium text-foreground">History-Button</span>{" "}
+              in der Mitarbeiterliste ändern.
+            </p>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">
