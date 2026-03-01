@@ -270,14 +270,18 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
 
 function UpdateFromModal({ rs, employees, onClose, onDone }: { rs: any; employees: any[]; onClose: () => void; onDone: () => void }) {
   const [fromDate,    setFromDate]   = useState("");
+  const [validUntil,  setValidUntil] = useState(rs.valid_until ?? "");
   const [startTime,   setStartTime]  = useState(rs.start_time?.slice(0, 5) ?? "");
   const [endTime,     setEndTime]    = useState(rs.end_time?.slice(0, 5) ?? "");
   const [employeeId,  setEmployeeId] = useState(rs.employee_id ?? "");
 
   const mut = useMutation({
     mutationFn: () => recurringShiftsApi.updateFrom(rs.id, {
-      from_date: fromDate, start_time: startTime || undefined,
-      end_time: endTime || undefined, employee_id: employeeId || null,
+      from_date: fromDate,
+      valid_until: validUntil || undefined,
+      start_time: startTime || undefined,
+      end_time: endTime || undefined,
+      employee_id: employeeId || null,
     }),
     onSuccess: (res) => {
       const d = res.data;
@@ -298,7 +302,13 @@ function UpdateFromModal({ rs, employees, onClose, onDone }: { rs: any; employee
           <p className="text-xs text-muted-foreground">
             Geplante (nicht bestätigte) Dienste ab dem gewählten Datum werden neu generiert. Bestätigte Dienste bleiben erhalten.
           </p>
-          <div><label className={labelCls}>Ab Datum</label><input type="date" className={inputCls} value={fromDate} onChange={e => setFromDate(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelCls}>Ab Datum</label><input type="date" className={inputCls} value={fromDate} onChange={e => setFromDate(e.target.value)} /></div>
+            <div>
+              <label className={labelCls}>Bis (Enddatum)</label>
+              <input type="date" className={inputCls} value={validUntil} onChange={e => setValidUntil(e.target.value)} />
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className={labelCls}>Von (Uhrzeit)</label><TimeInput value={startTime} onChange={setStartTime} /></div>
             <div><label className={labelCls}>Bis (Uhrzeit)</label><TimeInput value={endTime} onChange={setEndTime} /></div>

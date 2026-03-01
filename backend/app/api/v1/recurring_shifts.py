@@ -114,9 +114,9 @@ async def update_recurring_shift(rs_id: uuid.UUID, data: RecurringShiftUpdate, c
 async def update_from(rs_id: uuid.UUID, data: RecurringShiftUpdateFrom, current_user: ManagerOrAdmin, db: DB):
     rs = await _get_rs_or_404(rs_id, current_user.tenant_id, db)
 
-    # Apply new meta fields
+    # Apply new meta fields (inkl. optional valid_until-Verlängerung)
     for field in ("start_time", "end_time", "break_minutes", "employee_id", "template_id",
-                  "holiday_profile_id", "skip_public_holidays", "label"):
+                  "holiday_profile_id", "skip_public_holidays", "label", "valid_until"):
         val = getattr(data, field)
         if val is not None:
             setattr(rs, field, val)

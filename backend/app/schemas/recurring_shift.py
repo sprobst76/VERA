@@ -39,6 +39,7 @@ class RecurringShiftUpdate(BaseModel):
 class RecurringShiftUpdateFrom(BaseModel):
     """Update a recurring shift 'ab Datum': regenerate from from_date forward."""
     from_date: date
+    valid_until: date | None = None   # optional: Enddatum verlängern/ändern
     start_time: time | None = None
     end_time: time | None = None
     break_minutes: int | None = None

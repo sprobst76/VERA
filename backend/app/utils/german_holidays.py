@@ -14,10 +14,10 @@ class HolidayInfo(NamedTuple):
 
 # BW Schulferien 2025/26 (aus Spec)
 BW_SCHOOL_HOLIDAYS_2025_26: list[tuple[date, date, str]] = [
-    (date(2025, 10, 27), date(2025, 10, 30), "Herbstferien"),
+    (date(2025, 10, 27), date(2025, 10, 31), "Herbstferien"),   # Mo–Fr
     (date(2025, 12, 22), date(2026, 1, 5),   "Weihnachten"),
     (date(2026, 3, 30),  date(2026, 4, 11),  "Ostern"),
-    (date(2026, 5, 26),  date(2026, 6, 5),   "Pfingsten"),
+    (date(2026, 5, 26),  date(2026, 6, 6),   "Pfingsten"),      # inkl. Pfingstmontag
     (date(2026, 7, 30),  date(2026, 9, 12),  "Sommer"),
 ]
 
