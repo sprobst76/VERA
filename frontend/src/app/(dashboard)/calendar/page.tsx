@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
-import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, eachDayOfInterval } from "date-fns";
+import { format, parse, startOfWeek, endOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, eachDayOfInterval } from "date-fns";
 import { de } from "date-fns/locale";
 import { shiftsApi, templatesApi, employeesApi, calendarDataApi, recurringShiftsApi } from "@/lib/api";
 import { ChevronLeft, ChevronRight, AlertCircle, Plus } from "lucide-react";
@@ -36,8 +36,18 @@ export default function CalendarPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createDate, setCreateDate] = useState("");
 
-  const rangeStart = format(subMonths(startOfMonth(currentDate), 0), "yyyy-MM-dd");
-  const rangeEnd   = format(endOfMonth(addMonths(currentDate, 0)), "yyyy-MM-dd");
+  const rangeStart = format(
+    view === "month" ? startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 })
+    : view === "week"  ? startOfWeek(currentDate, { weekStartsOn: 1 })
+    : currentDate,
+    "yyyy-MM-dd"
+  );
+  const rangeEnd = format(
+    view === "month" ? endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 })
+    : view === "week"  ? endOfWeek(currentDate, { weekStartsOn: 1 })
+    : currentDate,
+    "yyyy-MM-dd"
+  );
 
   const { data: shifts = [] } = useQuery({
     queryKey: ["shifts", rangeStart, rangeEnd],
