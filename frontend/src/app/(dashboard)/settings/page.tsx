@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi, employeesApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -481,6 +481,151 @@ function MeinProfilSection() {
   );
 }
 
+// ── SMTP-Konfiguration (Admin only) ───────────────────────────────────────────
+
+function SMTPSection() {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("587");
+  const [user, setUser] = useState("");
+  const [password, setPassword] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
+
+  const { data: cfg, isLoading } = useQuery({
+    queryKey: ["admin-settings-smtp"],
+    queryFn: () => adminSettingsApi.getSmtp().then(r => r.data),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => adminSettingsApi.updateSmtp({
+      host, port: Number(port), user, password, from_email: fromEmail,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-settings-smtp"] });
+      toast.success("SMTP-Konfiguration gespeichert");
+      setEditing(false);
+      setPassword("");
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Fehler beim Speichern"),
+  });
+
+  const testMutation = useMutation({
+    mutationFn: () => adminSettingsApi.testSmtp(),
+    onSuccess: (r: any) => toast.success(r.data?.detail || "Test-Mail gesendet"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "SMTP-Fehler"),
+  });
+
+  const startEdit = () => {
+    setHost(cfg?.host ?? "");
+    setPort(String(cfg?.port ?? 587));
+    setUser(cfg?.user ?? "");
+    setPassword("");
+    setFromEmail(cfg?.from_email ?? "");
+    setEditing(true);
+  };
+
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Server size={16} className="text-muted-foreground" />
+          <span className="font-semibold text-sm">E-Mail (SMTP)</span>
+          {cfg?.configured && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ backgroundColor: "rgb(var(--ctp-green) / 0.15)", color: "rgb(var(--ctp-green))" }}>
+              Konfiguriert
+            </span>
+          )}
+        </div>
+        {!editing && !isLoading && (
+          <button onClick={startEdit}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <Settings size={13} /> {cfg?.configured ? "Bearbeiten" : "Einrichten"}
+          </button>
+        )}
+      </div>
+
+      {!editing ? (
+        <dl className="divide-y divide-border text-sm">
+          <div className="px-5 py-3 flex justify-between gap-4">
+            <dt className="text-muted-foreground">SMTP-Server</dt>
+            <dd>{cfg?.host ? `${cfg.host}:${cfg.port}` : <span className="text-muted-foreground italic">nicht gesetzt</span>}</dd>
+          </div>
+          <div className="px-5 py-3 flex justify-between gap-4">
+            <dt className="text-muted-foreground">Benutzer</dt>
+            <dd>{cfg?.user || <span className="text-muted-foreground italic">nicht gesetzt</span>}</dd>
+          </div>
+          <div className="px-5 py-3 flex justify-between gap-4">
+            <dt className="text-muted-foreground">Passwort</dt>
+            <dd>{cfg?.has_password ? "••••••" : <span className="text-muted-foreground italic">nicht gesetzt</span>}</dd>
+          </div>
+          <div className="px-5 py-3 flex justify-between gap-4">
+            <dt className="text-muted-foreground">Absender</dt>
+            <dd>{cfg?.from_email || <span className="text-muted-foreground italic">nicht gesetzt</span>}</dd>
+          </div>
+          {cfg?.configured && (
+            <div className="px-5 py-3">
+              <button onClick={() => testMutation.mutate()}
+                disabled={testMutation.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-accent transition-colors disabled:opacity-50">
+                <Send size={13} />
+                {testMutation.isPending ? "Wird gesendet…" : "Test-Mail senden"}
+              </button>
+            </div>
+          )}
+        </dl>
+      ) : (
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">SMTP-Host</label>
+              <input value={host} onChange={e => setHost(e.target.value)}
+                placeholder="smtp.ionos.de" className={inputCls} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Port</label>
+              <input value={port} onChange={e => setPort(e.target.value)}
+                type="number" placeholder="587" className={inputCls} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Benutzername</label>
+            <input value={user} onChange={e => setUser(e.target.value)}
+              type="email" placeholder="deine@ionos-adresse.de" className={inputCls} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Passwort {cfg?.has_password && <span className="text-muted-foreground font-normal">(leer lassen = unverändert)</span>}
+            </label>
+            <PasswordField label="" value={password} onChange={setPassword}
+              placeholder={cfg?.has_password ? "unverändert" : "Passwort eingeben"} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Absender-Adresse</label>
+            <input value={fromEmail} onChange={e => setFromEmail(e.target.value)}
+              type="email" placeholder="vera@deinedomain.de (leer = Benutzername)" className={inputCls} />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending || !host || !user || (!password && !cfg?.has_password)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity"
+              style={{ backgroundColor: "rgb(var(--ctp-green))" }}>
+              <Check size={14} /> {saveMutation.isPending ? "Speichern…" : "Speichern"}
+            </button>
+            <button onClick={() => setEditing(false)}
+              className="px-4 py-2 rounded-lg text-sm border border-border hover:bg-accent transition-colors">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FerienprofileSection() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -634,6 +779,9 @@ export default function SettingsPage() {
 
       {/* Mein Profil (employee only) */}
       {role === "employee" && <MeinProfilSection />}
+
+      {/* SMTP-Konfiguration (admin only) */}
+      {role === "admin" && <SMTPSection />}
 
       {/* Ferienprofile (admin/manager only) */}
       {isPrivileged && <FerienprofileSection />}

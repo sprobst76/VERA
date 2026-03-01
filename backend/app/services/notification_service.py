@@ -61,6 +61,9 @@ class NotificationService:
 
         tid = tenant_id or employee.tenant_id
 
+        # SMTP-Config aus Tenant-Settings laden (Fallback auf ENV-Vars)
+        smtp_cfg = await self._load_smtp_cfg(tid)
+
         if _is_quiet_now(employee):
             log = NotificationLog(
                 tenant_id=tid,
@@ -99,6 +102,7 @@ class NotificationService:
                 to=employee.email,
                 subject=subject or "VERA – Benachrichtigung",
                 body=message,
+                smtp_cfg=smtp_cfg,
             )
             self.db.add(NotificationLog(
                 tenant_id=tid,
@@ -146,13 +150,41 @@ class NotificationService:
         except Exception as e:
             return False, str(e)[:200]
 
-    async def _send_email(self, to: str, subject: str, body: str) -> tuple[bool, str | None]:
-        host      = settings.SMTP_HOST
-        user      = settings.SMTP_USER
-        password  = settings.SMTP_PASSWORD
-        from_addr = settings.SMTP_FROM_EMAIL or user
+    async def _load_smtp_cfg(self, tenant_id: uuid.UUID) -> dict:
+        """Lädt SMTP-Config aus Tenant.settings; fällt auf ENV-Vars zurück."""
+        try:
+            from sqlalchemy import select as sa_select
+            from app.models.tenant import Tenant
+            result = await self.db.execute(
+                sa_select(Tenant).where(Tenant.id == tenant_id)
+            )
+            tenant = result.scalar_one_or_none()
+            if tenant:
+                cfg = (tenant.settings or {}).get("smtp", {})
+                if cfg.get("host") and cfg.get("user") and cfg.get("password"):
+                    return cfg
+        except Exception:
+            pass
+        # ENV-Var Fallback
+        return {
+            "host":       settings.SMTP_HOST,
+            "port":       settings.SMTP_PORT,
+            "user":       settings.SMTP_USER,
+            "password":   settings.SMTP_PASSWORD,
+            "from_email": settings.SMTP_FROM_EMAIL,
+        }
+
+    async def _send_email(
+        self, to: str, subject: str, body: str, smtp_cfg: dict | None = None
+    ) -> tuple[bool, str | None]:
+        cfg       = smtp_cfg or {}
+        host      = cfg.get("host") or settings.SMTP_HOST
+        port      = int(cfg.get("port") or settings.SMTP_PORT)
+        user      = cfg.get("user") or settings.SMTP_USER
+        password  = cfg.get("password") or settings.SMTP_PASSWORD
+        from_addr = cfg.get("from_email") or settings.SMTP_FROM_EMAIL or user
         if not host or not user or not password:
-            return False, "SMTP nicht konfiguriert (SMTP_HOST/SMTP_USER/SMTP_PASSWORD fehlen)"
+            return False, "SMTP nicht konfiguriert"
         try:
             import smtplib
             from email.mime.text import MIMEText
@@ -164,7 +196,7 @@ class NotificationService:
                 msg["From"]    = from_addr
                 msg["To"]      = to
                 msg.attach(MIMEText(body, "plain", "utf-8"))
-                with smtplib.SMTP(host, settings.SMTP_PORT) as smtp:
+                with smtplib.SMTP(host, port) as smtp:
                     smtp.ehlo()
                     smtp.starttls()
                     smtp.login(user, password)

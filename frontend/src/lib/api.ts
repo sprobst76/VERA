@@ -236,6 +236,15 @@ export const complianceApi = {
     api.post("/compliance/run", null, { params }),
 };
 
+// Admin Settings (SMTP)
+export const adminSettingsApi = {
+  getSmtp: () => api.get("/admin/settings/smtp"),
+  updateSmtp: (data: {
+    host: string; port: number; user: string; password: string; from_email: string;
+  }) => api.put("/admin/settings/smtp", data),
+  testSmtp: () => api.post("/admin/settings/smtp/test"),
+};
+
 // Calendar vacation data
 export const calendarDataApi = {
   vacationData: (from: string, to: string) =>
