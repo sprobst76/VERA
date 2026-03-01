@@ -1,7 +1,7 @@
 """
-Notification Service – Telegram + SendGrid E-Mail + Web Push Versand.
+Notification Service – Telegram + SMTP E-Mail + Web Push Versand.
 
-Graceful Degradation: Wenn TELEGRAM_BOT_TOKEN, SENDGRID_API_KEY oder
+Graceful Degradation: Wenn TELEGRAM_BOT_TOKEN, SMTP_HOST/USER/PASSWORD oder
 VAPID_PRIVATE_KEY nicht gesetzt sind, wird der Versand übersprungen.
 Quiet Hours werden pro Mitarbeiter respektiert (Standard: 21:00–07:00).
 """
@@ -147,22 +147,30 @@ class NotificationService:
             return False, str(e)[:200]
 
     async def _send_email(self, to: str, subject: str, body: str) -> tuple[bool, str | None]:
-        api_key    = settings.SENDGRID_API_KEY
-        from_email = settings.SENDGRID_FROM_EMAIL
-        if not api_key:
-            return False, "SENDGRID_API_KEY nicht konfiguriert"
-        if not from_email:
-            return False, "SENDGRID_FROM_EMAIL nicht konfiguriert"
+        host      = settings.SMTP_HOST
+        user      = settings.SMTP_USER
+        password  = settings.SMTP_PASSWORD
+        from_addr = settings.SMTP_FROM_EMAIL or user
+        if not host or not user or not password:
+            return False, "SMTP nicht konfiguriert (SMTP_HOST/SMTP_USER/SMTP_PASSWORD fehlen)"
         try:
-            from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail
-            mail = Mail(
-                from_email=from_email,
-                to_emails=to,
-                subject=subject,
-                plain_text_content=body,
-            )
-            await asyncio.to_thread(SendGridAPIClient(api_key).send, mail)
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            def _send() -> None:
+                msg = MIMEMultipart("alternative")
+                msg["Subject"] = subject
+                msg["From"]    = from_addr
+                msg["To"]      = to
+                msg.attach(MIMEText(body, "plain", "utf-8"))
+                with smtplib.SMTP(host, settings.SMTP_PORT) as smtp:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.login(user, password)
+                    smtp.sendmail(from_addr, [to], msg.as_string())
+
+            await asyncio.to_thread(_send)
             return True, None
         except Exception as e:
             return False, str(e)[:200]

@@ -22,7 +22,6 @@ httpx==0.28.0
 # workalendar==17.0.0
 
 # Benachrichtigungen
-sendgrid==6.11.0
 python-telegram-bot==21.9
 pywebpush==2.0.0
 # matrix-nio==0.25.2

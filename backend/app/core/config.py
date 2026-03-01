@@ -25,9 +25,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # SendGrid (Phase 2)
-    SENDGRID_API_KEY: str = ""
-    SENDGRID_FROM_EMAIL: str = "vera@yourdomain.de"
+    # E-Mail via SMTP (z.B. IONOS: smtp.ionos.de:587)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
 
     # Telegram (Phase 2)
     TELEGRAM_BOT_TOKEN: str = ""
