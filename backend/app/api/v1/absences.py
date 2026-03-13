@@ -169,6 +169,40 @@ async def list_care_absences(current_user: CurrentUser, db: DB):
 async def create_care_absence(payload: CareAbsenceCreate, current_user: AdminUser, db: DB):
     absence = CareRecipientAbsence(tenant_id=current_user.tenant_id, **payload.model_dump())
     db.add(absence)
+    await db.flush()
+
+    # Handle affected shifts
+    shifts_result = await db.execute(
+        select(Shift).where(
+            Shift.tenant_id == current_user.tenant_id,
+            Shift.date >= payload.start_date,
+            Shift.date <= payload.end_date,
+            Shift.status.not_in(["cancelled", "cancelled_absence"]),
+        )
+    )
+    affected_shifts = shifts_result.scalars().all()
+
+    if payload.shift_handling == "cancelled_unpaid":
+        for shift in affected_shifts:
+            shift.status = "cancelled_absence"
+            shift.notes = (shift.notes or "") + f"\nAbgesagt: {payload.description or 'Abwesenheit betreute Person'}"
+    # carry_over and paid_anyway: shifts stay as-is, admin handles manually
+
     await db.commit()
     await db.refresh(absence)
     return absence
+
+
+@care_absences_router.delete("/{absence_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_care_absence(absence_id: uuid.UUID, current_user: AdminUser, db: DB):
+    result = await db.execute(
+        select(CareRecipientAbsence).where(
+            CareRecipientAbsence.id == absence_id,
+            CareRecipientAbsence.tenant_id == current_user.tenant_id,
+        )
+    )
+    absence = result.scalar_one_or_none()
+    if not absence:
+        raise HTTPException(status_code=404, detail="Abwesenheit nicht gefunden")
+    await db.delete(absence)
+    await db.commit()

@@ -133,6 +133,7 @@ export const absencesApi = {
 export const careAbsencesApi = {
   list: () => api.get("/care-absences"),
   create: (data: Record<string, unknown>) => api.post("/care-absences", data),
+  delete: (id: string) => api.delete(`/care-absences/${id}`),
 };
 
 // Users (Admin only)
