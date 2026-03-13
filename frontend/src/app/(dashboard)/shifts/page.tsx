@@ -268,25 +268,35 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
 
 // ── Edit Recurring Shift Modal ────────────────────────────────────────────────
 
+type EditScope = "from_date" | "all";
+
 function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; employees: any[]; onClose: () => void; onDone: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [fromDate,    setFromDate]   = useState(today);
-  const [validUntil,  setValidUntil] = useState(rs.valid_until ?? "");
-  const [startTime,   setStartTime]  = useState(rs.start_time?.slice(0, 5) ?? "");
-  const [endTime,     setEndTime]    = useState(rs.end_time?.slice(0, 5) ?? "");
-  const [employeeId,  setEmployeeId] = useState(rs.employee_id ?? "");
+  const [scope,        setScope]       = useState<EditScope>("from_date");
+  const [fromDate,     setFromDate]    = useState(today);
+  const [label,        setLabel]       = useState(rs.label ?? "");
+  const [validUntil,   setValidUntil]  = useState(rs.valid_until ?? "");
+  const [startTime,    setStartTime]   = useState(rs.start_time?.slice(0, 5) ?? "");
+  const [endTime,      setEndTime]     = useState(rs.end_time?.slice(0, 5) ?? "");
+  const [breakMinutes, setBreakMinutes]= useState(String(rs.break_minutes ?? 0));
+  const [employeeId,   setEmployeeId]  = useState(rs.employee_id ?? "");
+
+  const effectiveFrom = scope === "all" ? rs.valid_from : fromDate;
 
   const mut = useMutation({
     mutationFn: () => recurringShiftsApi.updateFrom(rs.id, {
-      from_date: fromDate,
+      from_date: effectiveFrom,
       valid_until: validUntil || undefined,
       start_time: startTime || undefined,
       end_time: endTime || undefined,
+      break_minutes: breakMinutes !== "" ? parseInt(breakMinutes) : undefined,
       employee_id: employeeId || null,
+      label: label || null,
     }),
     onSuccess: (res) => {
       const d = res.data;
-      toast.success(`${d.generated_count} Dienste aktualisiert`);
+      const scopeLabel = scope === "all" ? "Gesamte Reihe" : `Ab ${fromDate}`;
+      toast.success(`${scopeLabel}: ${d.generated_count} Dienste aktualisiert`);
       onDone();
     },
     onError: (err: any) => toast.error(err?.response?.data?.detail || "Fehler"),
@@ -294,17 +304,63 @@ function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-sm" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <div>
-            <h2 className="font-semibold text-foreground">Regeltermin bearbeiten</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Geplante Dienste ab dem gewählten Datum werden neu generiert. Bestätigte bleiben erhalten.
-            </p>
-          </div>
+      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
+          <h2 className="font-semibold text-foreground">Regeltermin bearbeiten</h2>
           <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
         </div>
-        <div className="px-5 pb-5 space-y-3">
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Scope selector */}
+          <div>
+            <label className={labelCls}>Welche Dienste ändern?</label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                ["from_date", "Ab Datum", "Geplante Dienste ab dem gewählten Datum neu generieren"],
+                ["all",       "Gesamte Reihe", "Alle geplanten Dienste der gesamten Reihe neu generieren"],
+              ] as [EditScope, string, string][]).map(([v, l, desc]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setScope(v)}
+                  className="text-left px-3 py-2.5 rounded-lg border text-sm transition-colors"
+                  style={scope === v
+                    ? { borderColor: "rgb(var(--ctp-blue))", backgroundColor: "rgb(var(--ctp-blue) / 0.10)", color: "rgb(var(--ctp-blue))" }
+                    : { borderColor: "rgb(var(--border))", color: "rgb(var(--muted-foreground))" }
+                  }
+                >
+                  <div className="font-medium">{l}</div>
+                  <div className="text-xs opacity-70 mt-0.5">{desc}</div>
+                </button>
+              ))}
+            </div>
+            {scope === "from_date" && (
+              <div className="mt-2">
+                <label className={labelCls}>Ab Datum</label>
+                <input type="date" className={inputCls} value={fromDate} onChange={e => setFromDate(e.target.value)} />
+              </div>
+            )}
+            {scope === "all" && (
+              <p className="mt-2 text-xs px-3 py-2 rounded-lg"
+                style={{ backgroundColor: "rgb(var(--ctp-peach) / 0.10)", color: "rgb(var(--ctp-peach))" }}>
+                Alle geplanten (nicht bestätigten) Dienste ab {rs.valid_from} werden gelöscht und neu generiert. Bestätigte Dienste bleiben erhalten.
+              </p>
+            )}
+          </div>
+
+          {/* Label */}
+          <div>
+            <label className={labelCls}>Titel / Beschreibung</label>
+            <input
+              type="text"
+              className={inputCls}
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              placeholder="z.B. Schulbegleitung Max M."
+            />
+          </div>
+
+          {/* Employee */}
           <div>
             <label className={labelCls}>Mitarbeiter</label>
             <select className={inputCls} value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
@@ -312,23 +368,30 @@ function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; 
               {employees.map((e: any) => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Von (Uhrzeit)</label><TimeInput value={startTime} onChange={setStartTime} /></div>
-            <div><label className={labelCls}>Bis (Uhrzeit)</label><TimeInput value={endTime} onChange={setEndTime} /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Times + break */}
+          <div className="grid grid-cols-3 gap-3">
+            <div><label className={labelCls}>Von</label><TimeInput value={startTime} onChange={setStartTime} /></div>
+            <div><label className={labelCls}>Bis</label><TimeInput value={endTime} onChange={setEndTime} /></div>
             <div>
-              <label className={labelCls}>Änderung ab</label>
-              <input type="date" className={inputCls} value={fromDate} onChange={e => setFromDate(e.target.value)} />
-            </div>
-            <div>
-              <label className={labelCls}>Regeltermin bis</label>
-              <input type="date" className={inputCls} value={validUntil} onChange={e => setValidUntil(e.target.value)} />
+              <label className={labelCls}>Pause (min)</label>
+              <input type="number" min="0" step="5" className={inputCls} value={breakMinutes}
+                onChange={e => setBreakMinutes(e.target.value)} />
             </div>
           </div>
-          <button onClick={() => mut.mutate()} disabled={!fromDate || mut.isPending}
+
+          {/* Valid until */}
+          <div>
+            <label className={labelCls}>Regeltermin gültig bis</label>
+            <input type="date" className={inputCls} value={validUntil} onChange={e => setValidUntil(e.target.value)} />
+          </div>
+
+          <button
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending}
             className="w-full py-2.5 rounded-lg text-white text-sm font-medium disabled:opacity-50"
-            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}>
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+          >
             {mut.isPending ? "Wird gespeichert…" : "Speichern & Dienste neu generieren"}
           </button>
         </div>

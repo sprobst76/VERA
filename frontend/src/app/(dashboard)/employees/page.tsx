@@ -874,11 +874,16 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
               onClick={() => setShowForm(true)}
               className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-dashed border-border text-muted-foreground hover:border-blue-400 hover:text-foreground transition-colors"
             >
-              <Plus size={14} /> Neue Vertragsperiode
+              <Plus size={14} /> Vertragsänderung ab Datum eintragen
             </button>
           ) : (
             <div className="border border-border rounded-xl p-4 space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Neue Vertragsperiode</h3>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Vertragsänderung ab Datum</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Der aktuelle Vertrag endet automatisch am Vortag. Ab dem gewählten Datum gelten die neuen Konditionen.
+                </p>
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

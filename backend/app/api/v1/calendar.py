@@ -49,6 +49,7 @@ def _build_calendar(shifts: list, emp_map: dict, cal_name: str) -> bytes:
     cal.add("calscale", "GREGORIAN")
     cal.add("method", "PUBLISH")
     cal.add("x-wr-calname", vText(cal_name))
+    cal.add("name", vText(cal_name))
     cal.add("x-wr-timezone", vText("Europe/Berlin"))
     cal.add("refresh-interval;value=duration", "PT1H")
     cal.add("x-published-ttl", "PT1H")
