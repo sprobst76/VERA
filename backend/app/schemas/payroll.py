@@ -29,6 +29,11 @@ class PayrollEntryOut(BaseModel):
     total_gross: float | None
     ytd_gross: float | None
     annual_limit_remaining: float | None
+    ytd_hours: float
+    annual_hours_target: float | None
+    annual_hours_remaining: float | None
+    monthly_hours_target: float | None
+    wage_details: dict | None
     status: str
     notes: str | None
     pdf_path: str | None

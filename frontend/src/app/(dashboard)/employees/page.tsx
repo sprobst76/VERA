@@ -34,6 +34,7 @@ interface Employee {
   hourly_rate: number;
   monthly_hours_limit: number | null;
   annual_salary_limit: number | null;
+  annual_hours_target: number | null;
   vacation_days: number;
   qualifications: string[];
   is_active: boolean;
@@ -366,6 +367,7 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
     hourly_rate: employee?.hourly_rate?.toString() ?? "",
     monthly_hours_limit: employee?.monthly_hours_limit?.toString() ?? "",
     annual_salary_limit: employee?.annual_salary_limit?.toString() ?? "6672",
+    annual_hours_target: employee?.annual_hours_target?.toString() ?? "",
   });
   const [qualifications, setQualifications] = useState<string[]>(
     employee?.qualifications ?? []
@@ -418,6 +420,7 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
       hourly_rate: parseFloat(form.hourly_rate) || 0,
       monthly_hours_limit: form.monthly_hours_limit ? parseFloat(form.monthly_hours_limit) : null,
       annual_salary_limit: form.annual_salary_limit ? parseFloat(form.annual_salary_limit) : null,
+      annual_hours_target: form.annual_hours_target ? parseFloat(form.annual_hours_target) : null,
     };
     if (!isEdit) {
       payload.vacation_days = 0;
@@ -631,6 +634,22 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
                 />
               </div>
             </div>
+            {(form.contract_type === "full_time" || form.contract_type === "part_time") && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Jahressoll (Std./Jahr)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.annual_hours_target}
+                  onChange={(e) => set("annual_hours_target", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="z.B. 1800"
+                />
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -673,6 +692,7 @@ interface ContractEntry {
   full_time_percentage: number | null;
   monthly_hours_limit: number | null;
   annual_salary_limit: number | null;
+  annual_hours_target: number | null;
   note: string | null;
 }
 
@@ -687,6 +707,7 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
     full_time_percentage: "",
     monthly_hours_limit: employee.monthly_hours_limit?.toString() ?? "",
     annual_salary_limit: employee.annual_salary_limit?.toString() ?? "6672",
+    annual_hours_target: employee.annual_hours_target?.toString() ?? "",
     note: "",
   });
 
@@ -705,6 +726,7 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
         full_time_percentage: form.full_time_percentage ? parseFloat(form.full_time_percentage) : null,
         monthly_hours_limit: form.monthly_hours_limit ? parseFloat(form.monthly_hours_limit) : null,
         annual_salary_limit: form.annual_salary_limit ? parseFloat(form.annual_salary_limit) : null,
+        annual_hours_target: form.annual_hours_target ? parseFloat(form.annual_hours_target) : null,
         note: form.note || null,
       }),
     onSuccess: () => {
@@ -768,6 +790,7 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
                     <th className="text-right pb-2 pr-3 font-medium">€/h</th>
                     <th className="text-right pb-2 pr-3 font-medium">h/Wo</th>
                     <th className="text-right pb-2 pr-3 font-medium">% VZ</th>
+                    <th className="text-right pb-2 pr-3 font-medium">Jahressoll</th>
                     <th className="text-left pb-2 font-medium">Notiz</th>
                   </tr>
                 </thead>
@@ -802,6 +825,9 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
                         </td>
                         <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
                           {c.full_time_percentage != null ? `${Number(c.full_time_percentage).toFixed(0)} %` : "—"}
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
+                          {c.annual_hours_target != null ? `${Number(c.annual_hours_target).toFixed(0)} h` : "—"}
                         </td>
                         <td className="py-2 text-muted-foreground text-xs">{c.note ?? ""}</td>
                       </tr>
@@ -932,6 +958,60 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
                   />
                 </div>
               </div>
+
+              {(form.contract_type === "full_time" || form.contract_type === "part_time") && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Jahressoll (Std./Jahr)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.annual_hours_target}
+                    onChange={(e) => setF("annual_hours_target", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="z.B. 1800"
+                  />
+                </div>
+              )}
+
+              {/* Vorschau */}
+              {form.hourly_rate && parseFloat(form.hourly_rate) > 0 && form.annual_hours_target && parseFloat(form.annual_hours_target) > 0 && (
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1 text-sm">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Vorschau</div>
+                  {(() => {
+                    const annual = parseFloat(form.annual_hours_target);
+                    const rate = parseFloat(form.hourly_rate);
+                    const monthlyH = annual / 12;
+                    const monthlyPay = monthlyH * rate;
+                    const currentAnnual = employee.annual_hours_target ?? 0;
+                    const currentRate = employee.hourly_rate ?? 0;
+                    const currentMonthlyH = currentAnnual / 12;
+                    const currentMonthlyPay = currentMonthlyH * currentRate;
+                    const deltaH = monthlyH - currentMonthlyH;
+                    const deltaPay = monthlyPay - currentMonthlyPay;
+                    return (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Monatssoll</span>
+                          <span className="font-medium">{monthlyH.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Std./Mo</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Geschätztes Monatsgehalt</span>
+                          <span className="font-medium">{monthlyPay.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                        </div>
+                        {currentAnnual > 0 && (
+                          <div className="flex justify-between text-xs" style={{ color: deltaH >= 0 ? "rgb(var(--ctp-green))" : "rgb(var(--ctp-red))" }}>
+                            <span>Änderung vs. aktuell</span>
+                            <span>{deltaH >= 0 ? "+" : ""}{deltaH.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Std. | {deltaPay >= 0 ? "+" : ""}{deltaPay.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">

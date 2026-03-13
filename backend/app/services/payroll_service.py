@@ -1,13 +1,18 @@
 """
 PayrollService: Monatliche Lohnabrechnung mit Zuschlägen.
 Zuschlagsätze gemäß §3b EStG (steuerlich begünstigt).
+
+Unterstützt:
+- Mehrere Vertragsperioden pro Monat (exakter Split bei Stundenlohnänderung mid-month)
+- Jahressoll (annual_hours_target) mit anteiliger Berechnung bei unterjährigem Eintritt
+- YTD-Stunden-Tracking parallel zum bestehenden YTD-Brutto-Tracking (Minijob)
 """
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, time
 from typing import TYPE_CHECKING
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.german_holidays import is_holiday
@@ -33,23 +38,88 @@ class PayrollService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def _get_contract_at(self, employee_id: uuid.UUID, month_start: date):
-        """Gibt den zum Monatsersten gültigen Vertragseintrag zurück, oder None."""
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    async def _get_contract_at(self, employee_id: uuid.UUID, target_date: date):
+        """Gibt den zum target_date gültigen Vertragseintrag zurück, oder None."""
         from app.models.contract_history import ContractHistory
         result = await self.db.execute(
             select(ContractHistory)
             .where(
                 ContractHistory.employee_id == employee_id,
-                ContractHistory.valid_from <= month_start,
-                or_(ContractHistory.valid_to.is_(None), ContractHistory.valid_to > month_start),
+                ContractHistory.valid_from <= target_date,
+                or_(ContractHistory.valid_to.is_(None), ContractHistory.valid_to > target_date),
             )
             .limit(1)
         )
         return result.scalar_one_or_none()
 
-    async def calculate_monthly_payroll(
-        self, employee_id, month: date
-    ):
+    async def _get_contracts_for_month(
+        self, employee_id: uuid.UUID, month_start: date, month_end: date
+    ) -> list[tuple]:
+        """
+        Gibt alle Vertragsperioden zurück, die sich mit dem Monat überschneiden.
+        Rückgabe: list[(contract, period_start_in_month, period_end_exclusive_in_month)]
+        """
+        from app.models.contract_history import ContractHistory
+        result = await self.db.execute(
+            select(ContractHistory)
+            .where(
+                ContractHistory.employee_id == employee_id,
+                ContractHistory.valid_from <= month_end,
+                or_(
+                    ContractHistory.valid_to.is_(None),
+                    ContractHistory.valid_to > month_start,
+                ),
+            )
+            .order_by(ContractHistory.valid_from)
+        )
+        contracts = result.scalars().all()
+
+        periods = []
+        for c in contracts:
+            ps = max(c.valid_from, month_start)
+            pe = c.valid_to if c.valid_to else (month_end + timedelta(days=1))
+            pe = min(pe, month_end + timedelta(days=1))
+            periods.append((c, ps, pe))
+        return periods
+
+    async def _get_ytd_hours(self, employee_id: uuid.UUID, month_start: date) -> float:
+        """Summiert paid_hours aus approved/paid Einträgen des laufenden Jahres (vor diesem Monat)."""
+        from app.models.payroll import PayrollEntry
+        year_start = month_start.replace(month=1, day=1)
+        result = await self.db.execute(
+            select(func.sum(PayrollEntry.paid_hours)).where(
+                PayrollEntry.employee_id == employee_id,
+                PayrollEntry.month >= year_start,
+                PayrollEntry.month < month_start,
+                PayrollEntry.status.in_(["approved", "paid"]),
+            )
+        )
+        return float(result.scalar() or 0)
+
+    async def _get_first_contract_date_this_year(
+        self, employee_id: uuid.UUID, year: int
+    ) -> date | None:
+        """Frühestes valid_from eines Vertrags im gegebenen Jahr (für anteiliges Jahressoll)."""
+        from app.models.contract_history import ContractHistory
+        year_start = date(year, 1, 1)
+        year_end = date(year, 12, 31)
+        result = await self.db.execute(
+            select(func.min(ContractHistory.valid_from)).where(
+                ContractHistory.employee_id == employee_id,
+                ContractHistory.valid_from <= year_end,
+            )
+        )
+        first = result.scalar()
+        if first is None:
+            return None
+        # Wenn der allererste Vertrag vor dem aktuellen Jahr liegt, gilt 1.1.
+        return first if first >= year_start else None
+
+    # ── Hauptberechnung ───────────────────────────────────────────────────────
+
+    async def calculate_monthly_payroll(self, employee_id, month: date):
         from app.models.employee import Employee
         from app.models.payroll import PayrollEntry, HoursCarryover
         from app.models.shift import Shift
@@ -58,19 +128,48 @@ class PayrollService:
         emp_result = await self.db.execute(select(Employee).where(Employee.id == employee_id))
         employee = emp_result.scalar_one()
 
-        # Historischen Vertrag für diesen Monat ermitteln (Fallback: aktuelle Employee-Felder)
         month_start = month.replace(day=1)
-        contract = await self._get_contract_at(employee.id, month_start)
-        hourly_rate = float(contract.hourly_rate) if contract else float(employee.hourly_rate)
-        monthly_limit = float(contract.monthly_hours_limit) if (contract and contract.monthly_hours_limit) else (float(employee.monthly_hours_limit) if employee.monthly_hours_limit else None)
-        annual_limit = float(contract.annual_salary_limit) if (contract and contract.annual_salary_limit) else float(employee.annual_salary_limit or 6672)
+        month_end = (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+        # Alle Vertragsperioden die diesen Monat berühren
+        contract_periods = await self._get_contracts_for_month(employee.id, month_start, month_end)
+
+        # Primärvertrag = der letzte im Monat (für display-rate, annual_hours_target, limits)
+        primary_contract = contract_periods[-1][0] if contract_periods else None
+
+        # Fallback auf Employee-Felder wenn kein Vertragseintrag vorhanden
+        primary_rate = (
+            float(primary_contract.hourly_rate) if primary_contract
+            else float(employee.hourly_rate)
+        )
+        monthly_limit = (
+            float(primary_contract.monthly_hours_limit)
+            if (primary_contract and primary_contract.monthly_hours_limit)
+            else (float(employee.monthly_hours_limit) if employee.monthly_hours_limit else None)
+        )
+        annual_limit = (
+            float(primary_contract.annual_salary_limit)
+            if (primary_contract and primary_contract.annual_salary_limit)
+            else float(employee.annual_salary_limit or 6672)
+        )
+        annual_hours_target_raw = (
+            float(primary_contract.annual_hours_target)
+            if (primary_contract and primary_contract.annual_hours_target)
+            else (float(employee.annual_hours_target) if employee.annual_hours_target else None)
+        )
+
+        # Hilfsfunktion: Welcher Vertrag gilt an einem bestimmten Datum?
+        def _rate_for_date(d: date) -> float:
+            for c, ps, pe in contract_periods:
+                if ps <= d < pe:
+                    return float(c.hourly_rate)
+            return primary_rate
 
         # Abgeschlossene Dienste des Monats
-        month_end = (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
         shifts_result = await self.db.execute(
             select(Shift).where(
                 Shift.employee_id == employee_id,
-                Shift.date >= month,
+                Shift.date >= month_start,
                 Shift.date <= month_end,
                 Shift.status.in_(["completed", "confirmed"]),
             )
@@ -87,17 +186,32 @@ class PayrollService:
         carryover_entry = carryover_result.scalar_one_or_none()
         carryover_hours = float(carryover_entry.hours) if carryover_entry else 0.0
 
+        # ── Dienste berechnen ──────────────────────────────────────────────────
         total_hours = 0.0
+        base_wage_sum = 0.0   # Grundlohn (ohne Zuschläge), exakt per Dienst
         total_gross = 0.0
         surcharge_hours: dict[str, float] = defaultdict(float)
         surcharge_amounts: dict[str, float] = defaultdict(float)
 
+        # Für wage_details: Stunden und Betrag pro Vertragsperiode
+        period_stats: dict[int, dict] = {}   # index → {from, to, rate, hours, amount}
+        for idx, (c, ps, pe) in enumerate(contract_periods):
+            period_stats[idx] = {
+                "from": ps.isoformat(),
+                "to": (pe - timedelta(days=1)).isoformat(),
+                "rate": float(c.hourly_rate),
+                "hours": 0.0,
+                "amount": 0.0,
+            }
+
         for shift in shifts:
+            rate = _rate_for_date(shift.date)
             net_hours = self._calc_net_hours(shift)
-            base_pay = net_hours * hourly_rate
-            surcharges = self._calc_surcharges(shift, hourly_rate)
+            base_pay = net_hours * rate
+            surcharges = self._calc_surcharges(shift, rate)
 
             total_hours += net_hours
+            base_wage_sum += base_pay
             total_gross += base_pay + sum(surcharges["amounts"].values())
 
             for k, v in surcharges["hours"].items():
@@ -105,14 +219,38 @@ class PayrollService:
             for k, v in surcharges["amounts"].items():
                 surcharge_amounts[k] += v
 
+            # Welcher Periode gehört dieser Dienst?
+            for idx, (c, ps, pe) in enumerate(contract_periods):
+                if ps <= shift.date < pe:
+                    period_stats[idx]["hours"] += net_hours
+                    period_stats[idx]["amount"] += base_pay
+                    break
+
         paid_hours = total_hours + carryover_hours
         new_carryover = 0.0
 
         if monthly_limit:
-            new_carryover = paid_hours - monthly_limit
+            new_carryover = max(0.0, paid_hours - monthly_limit)
             paid_hours = min(paid_hours, monthly_limit)
 
-        # YTD berechnen
+        # wage_details nur befüllen wenn > 1 Periode vorhanden
+        wage_details = None
+        if len(contract_periods) > 1:
+            wage_details = {
+                "splits": [
+                    {
+                        "from": s["from"],
+                        "to": s["to"],
+                        "rate": round(s["rate"], 2),
+                        "hours": round(s["hours"], 2),
+                        "amount": round(s["amount"], 2),
+                    }
+                    for s in period_stats.values()
+                    if s["hours"] > 0
+                ]
+            }
+
+        # ── YTD Brutto (Minijob-Tracking €) ───────────────────────────────────
         year_start = month.replace(month=1, day=1)
         ytd_result = await self.db.execute(
             select(PayrollEntry).where(
@@ -126,6 +264,28 @@ class PayrollService:
         ytd_gross = sum(float(e.total_gross or 0) for e in prev_entries)
         ytd_gross += total_gross
         annual_limit_remaining = annual_limit - ytd_gross
+
+        # ── Jahressoll (Stunden-Tracking) ─────────────────────────────────────
+        monthly_hours_target = None
+        annual_hours_remaining = None
+        ytd_hours = 0.0
+
+        if annual_hours_target_raw:
+            monthly_hours_target = round(annual_hours_target_raw / 12, 1)
+
+            # Anteiliges Soll bei unterjährigem Eintritt
+            first_day_this_year = await self._get_first_contract_date_this_year(
+                employee.id, month_start.year
+            )
+            if first_day_this_year and first_day_this_year > date(month_start.year, 1, 1):
+                # Anzahl verbleibender Monate ab Eintrittsdatum (inkl. Eintrittmonat)
+                remaining_months = 13 - first_day_this_year.month
+                prorated_annual = annual_hours_target_raw * (remaining_months / 12)
+            else:
+                prorated_annual = annual_hours_target_raw
+
+            ytd_hours = await self._get_ytd_hours(employee.id, month_start)
+            annual_hours_remaining = round(prorated_annual - ytd_hours - paid_hours, 1)
 
         entry = PayrollEntry(
             tenant_id=employee.tenant_id,
@@ -141,7 +301,7 @@ class PayrollService:
             weekend_hours=round(surcharge_hours.get("weekend", 0), 2),
             sunday_hours=round(surcharge_hours.get("sunday", 0), 2),
             holiday_hours=round(surcharge_hours.get("holiday", 0), 2),
-            base_wage=round(paid_hours * hourly_rate, 2),
+            base_wage=round(base_wage_sum, 2),
             early_surcharge=round(surcharge_amounts.get("early", 0), 2),
             late_surcharge=round(surcharge_amounts.get("late", 0), 2),
             night_surcharge=round(surcharge_amounts.get("night", 0), 2),
@@ -151,8 +311,15 @@ class PayrollService:
             total_gross=round(total_gross, 2),
             ytd_gross=round(ytd_gross, 2),
             annual_limit_remaining=round(annual_limit_remaining, 2),
+            ytd_hours=round(ytd_hours, 2),
+            annual_hours_target=annual_hours_target_raw,
+            annual_hours_remaining=annual_hours_remaining,
+            monthly_hours_target=monthly_hours_target,
+            wage_details=wage_details,
         )
         return entry, new_carryover
+
+    # ── Dienst-Berechnungen ───────────────────────────────────────────────────
 
     def _calc_net_hours(self, shift) -> float:
         start = datetime.combine(shift.date, shift.start_time)

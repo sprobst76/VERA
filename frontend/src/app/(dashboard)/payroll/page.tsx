@@ -82,6 +82,11 @@ interface PayrollEntry {
   total_gross: number | null;
   ytd_gross: number | null;
   annual_limit_remaining: number | null;
+  ytd_hours: number;
+  annual_hours_target: number | null;
+  annual_hours_remaining: number | null;
+  monthly_hours_target: number | null;
+  wage_details: { splits: { from: string; to: string; rate: number; hours: number; amount: number }[] } | null;
   status: string;
   notes: string | null;
   pdf_path: string | null;
@@ -299,6 +304,75 @@ function DetailModal({
             </div>
           )}
 
+          {/* Lohnaufteilung (bei Vertragsänderung im Monat) */}
+          {entry.wage_details?.splits && entry.wage_details.splits.length > 1 && (
+            <div>
+              <div className="text-sm font-medium text-foreground mb-2">Lohnaufteilung</div>
+              <div className="rounded-lg border border-border overflow-hidden text-sm">
+                {entry.wage_details.splits.map((s, i) => (
+                  <div key={i} className="flex justify-between px-3 py-2 border-b border-border/50 last:border-0">
+                    <span className="text-muted-foreground">
+                      {new Date(s.from + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}–{new Date(s.to + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                      {" "}·{" "}{s.rate.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €/h × {fmt(s.hours)} h
+                    </span>
+                    <span className="font-medium">{eur(s.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Jahressoll-Tracking */}
+          {entry.monthly_hours_target != null && entry.monthly_hours_target > 0 && (
+            <div>
+              <div className="text-sm font-medium text-foreground mb-2">Jahressoll</div>
+              {(() => {
+                const target = entry.monthly_hours_target!;
+                const actual = entry.paid_hours ?? 0;
+                const annualTarget = entry.annual_hours_target ?? 0;
+                const ytdH = entry.ytd_hours ?? 0;
+                const remaining = entry.annual_hours_remaining ?? 0;
+                const paidThisYear = ytdH + actual;
+                const yearPct = annualTarget > 0 ? Math.min((paidThisYear / annualTarget) * 100, 120) : 0;
+                const overYear = remaining < 0;
+                const nearYear = !overYear && remaining < annualTarget * 0.05;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                      <div className="bg-muted/40 rounded-lg px-3 py-2">
+                        <div className="text-xs text-muted-foreground mb-0.5">Monatssoll</div>
+                        <div className="font-semibold">{fmt(target)} Std.</div>
+                      </div>
+                      <div className="bg-muted/40 rounded-lg px-3 py-2">
+                        <div className="text-xs text-muted-foreground mb-0.5">Tatsächlich</div>
+                        <div className="font-semibold" style={{ color: actual < target * 0.9 ? "rgb(var(--ctp-peach))" : "rgb(var(--ctp-green))" }}>
+                          {fmt(actual)} Std.
+                        </div>
+                      </div>
+                    </div>
+                    {annualTarget > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                          <span>YTD: {fmt(paidThisYear)} / {fmt(annualTarget)} Std.</span>
+                          <span style={{ color: overYear ? "rgb(var(--ctp-red))" : remaining < 50 ? "rgb(var(--ctp-peach))" : undefined }}>
+                            Restpuffer: {remaining >= 0 ? "+" : ""}{fmt(remaining)} Std.
+                          </span>
+                        </div>
+                        <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${overYear ? "bg-red-500" : nearYear ? "bg-amber-400" : "bg-emerald-500"}`}
+                            style={{ width: `${Math.min(yearPct, 100)}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground">{fmt(yearPct, 0)}% des Jahrssoll erreicht</div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Minijob Jahresgrenze */}
           {isMinijob && entry.ytd_gross != null && (
             <div>
@@ -435,9 +509,15 @@ function EmployeeRow({
   onClick: () => void;
 }) {
   const isMinijob = employee?.contract_type === "minijob";
+  const hasJahressoll = (entry.monthly_hours_target ?? 0) > 0;
   const ytdPct = entry.ytd_gross != null ? Math.min((entry.ytd_gross / MINIJOB_ANNUAL) * 100, 100) : 0;
   const overLimit = (entry.ytd_gross ?? 0) > MINIJOB_ANNUAL;
   const nearLimit = !overLimit && ytdPct >= 90;
+  const annualTarget = entry.annual_hours_target ?? 0;
+  const paidThisYear = (entry.ytd_hours ?? 0) + (entry.paid_hours ?? 0);
+  const yearHoursPct = annualTarget > 0 ? Math.min((paidThisYear / annualTarget) * 100, 100) : 0;
+  const overYearH = (entry.annual_hours_remaining ?? 0) < 0;
+  const nearYearH = !overYearH && yearHoursPct >= 95;
 
   return (
     <div
@@ -463,7 +543,21 @@ function EmployeeRow({
       {/* Stunden */}
       <div className="hidden sm:block text-right shrink-0 w-20">
         <div className="text-sm font-medium text-foreground">{hrs(entry.paid_hours)}</div>
-        <div className="text-xs text-muted-foreground">Stunden</div>
+        {hasJahressoll ? (
+          <div className="mt-0.5">
+            <div className="h-1 rounded-full bg-muted overflow-hidden w-20 ml-auto">
+              <div
+                className={`h-full rounded-full ${overYearH ? "bg-red-500" : nearYearH ? "bg-amber-400" : "bg-emerald-500"}`}
+                style={{ width: `${yearHoursPct}%` }}
+              />
+            </div>
+            <div className={`text-xs mt-0.5 ${overYearH ? "text-red-500" : nearYearH ? "text-amber-500" : "text-muted-foreground"}`}>
+              {overYearH ? "Über Soll!" : `${fmt(yearHoursPct, 0)}% Soll`}
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground">Stunden</div>
+        )}
       </div>
 
       {/* Brutto */}
@@ -691,6 +785,49 @@ export default function PayrollPage() {
                 </div>
               </div>
             )}
+
+            {/* Jahressoll (eigene Ansicht) */}
+            {(ownEntry.monthly_hours_target ?? 0) > 0 && (() => {
+              const annual = ownEntry.annual_hours_target ?? 0;
+              const paidY = (ownEntry.ytd_hours ?? 0) + (ownEntry.paid_hours ?? 0);
+              const yearPct = annual > 0 ? Math.min((paidY / annual) * 100, 100) : 0;
+              const over = (ownEntry.annual_hours_remaining ?? 0) < 0;
+              return (
+                <div>
+                  <div className="text-sm font-medium text-foreground mb-2">Jahressoll</div>
+                  <div className="space-y-1 text-sm mb-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Monatssoll</span>
+                      <span>{fmt(ownEntry.monthly_hours_target)} Std.</span>
+                    </div>
+                    {annual > 0 && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Jahressoll gesamt</span>
+                          <span>{fmt(annual)} Std.</span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span className="text-muted-foreground">Geleistet YTD</span>
+                          <span>{fmt(paidY)} Std.</span>
+                        </div>
+                        <div className="flex justify-between" style={{ color: over ? "rgb(var(--ctp-red))" : "rgb(var(--ctp-green))" }}>
+                          <span>Restpuffer</span>
+                          <span>{(ownEntry.annual_hours_remaining ?? 0) >= 0 ? "+" : ""}{fmt(ownEntry.annual_hours_remaining)} Std.</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {annual > 0 && (
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${over ? "bg-red-500" : yearPct >= 95 ? "bg-amber-400" : "bg-emerald-500"}`}
+                        style={{ width: `${yearPct}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {ownEntry.notes && (
               <div>

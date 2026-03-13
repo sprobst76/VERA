@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import String, DateTime, ForeignKey, Numeric, Text, Date
+from sqlalchemy import JSON, String, DateTime, ForeignKey, Numeric, Text, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -56,9 +56,18 @@ class PayrollEntry(Base):
     holiday_surcharge: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     total_gross: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
-    # Minijob tracking
+    # Minijob tracking (€)
     ytd_gross: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     annual_limit_remaining: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+
+    # Jahressoll tracking (Stunden)
+    ytd_hours: Mapped[float] = mapped_column(Numeric(8, 2), default=0)
+    annual_hours_target: Mapped[float | None] = mapped_column(Numeric(7, 1), nullable=True)
+    annual_hours_remaining: Mapped[float | None] = mapped_column(Numeric(7, 2), nullable=True)
+    monthly_hours_target: Mapped[float | None] = mapped_column(Numeric(7, 2), nullable=True)
+
+    # Lohnaufteilung bei mehreren Vertragsperioden im Monat
+    wage_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(String(50), default="draft")  # draft | approved | paid

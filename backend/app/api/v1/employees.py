@@ -27,6 +27,7 @@ class ContractHistoryCreate(BaseModel):
     full_time_percentage: float | None = None
     monthly_hours_limit: float | None = None
     annual_salary_limit: float | None = None
+    annual_hours_target: float | None = None
     note: str | None = None
 
 
@@ -41,6 +42,7 @@ class ContractHistoryOut(BaseModel):
     full_time_percentage: Decimal | None
     monthly_hours_limit: Decimal | None
     annual_salary_limit: Decimal | None
+    annual_hours_target: Decimal | None
     note: str | None
     created_at: Any
 
@@ -278,6 +280,7 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
     employee.full_time_percentage = payload.full_time_percentage
     employee.monthly_hours_limit = payload.monthly_hours_limit
     employee.annual_salary_limit = payload.annual_salary_limit
+    employee.annual_hours_target = payload.annual_hours_target
 
     await db.commit()
     await db.refresh(entry)
