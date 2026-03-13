@@ -32,6 +32,7 @@ interface Employee {
   phone: string | null;
   contract_type: string;
   hourly_rate: number;
+  monthly_salary: number | null;
   monthly_hours_limit: number | null;
   annual_salary_limit: number | null;
   annual_hours_target: number | null;
@@ -365,6 +366,7 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
     phone: employee?.phone ?? "",
     contract_type: employee?.contract_type ?? "minijob",
     hourly_rate: employee?.hourly_rate?.toString() ?? "",
+    monthly_salary: employee?.monthly_salary?.toString() ?? "",
     monthly_hours_limit: employee?.monthly_hours_limit?.toString() ?? "",
     annual_salary_limit: employee?.annual_salary_limit?.toString() ?? "6672",
     annual_hours_target: employee?.annual_hours_target?.toString() ?? "",
@@ -410,6 +412,7 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const isMonthly = (form.contract_type === "part_time" || form.contract_type === "full_time") && !!form.monthly_salary;
     const payload: Record<string, unknown> = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -418,6 +421,7 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
       qualifications,
       contract_type: form.contract_type,
       hourly_rate: parseFloat(form.hourly_rate) || 0,
+      monthly_salary: isMonthly ? parseFloat(form.monthly_salary) : null,
       monthly_hours_limit: form.monthly_hours_limit ? parseFloat(form.monthly_hours_limit) : null,
       annual_salary_limit: form.annual_salary_limit ? parseFloat(form.annual_salary_limit) : null,
       annual_hours_target: form.annual_hours_target ? parseFloat(form.annual_hours_target) : null,
@@ -592,7 +596,9 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Stundenlohn (€)
+                  {(form.contract_type === "part_time" || form.contract_type === "full_time")
+                    ? "Stundensatz f. Zuschläge (€)"
+                    : "Stundenlohn (€)"}
                 </label>
                 <input
                   type="number"
@@ -605,6 +611,25 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
                 />
               </div>
             </div>
+            {(form.contract_type === "part_time" || form.contract_type === "full_time") && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Monatslohn (€) – fixer Grundlohn
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.monthly_salary}
+                  onChange={(e) => set("monthly_salary", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="z.B. 1850.00"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Wenn gesetzt: fixer Grundlohn statt Stunden × Stundensatz. Zuschläge kommen oben drauf.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
@@ -693,6 +718,7 @@ interface ContractEntry {
   monthly_hours_limit: number | null;
   annual_salary_limit: number | null;
   annual_hours_target: number | null;
+  monthly_salary: number | null;
   note: string | null;
 }
 
@@ -703,6 +729,7 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
     valid_from: new Date().toISOString().slice(0, 10),
     contract_type: employee.contract_type,
     hourly_rate: employee.hourly_rate.toString(),
+    monthly_salary: employee.monthly_salary?.toString() ?? "",
     weekly_hours: "",
     full_time_percentage: "",
     monthly_hours_limit: employee.monthly_hours_limit?.toString() ?? "",
@@ -717,18 +744,21 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
   });
 
   const addMutation = useMutation({
-    mutationFn: () =>
-      contractsApi.create(employee.id, {
+    mutationFn: () => {
+      const isMonthly = (form.contract_type === "part_time" || form.contract_type === "full_time") && !!form.monthly_salary;
+      return contractsApi.create(employee.id, {
         valid_from: form.valid_from,
         contract_type: form.contract_type,
         hourly_rate: parseFloat(form.hourly_rate),
+        monthly_salary: isMonthly ? parseFloat(form.monthly_salary) : null,
         weekly_hours: form.weekly_hours ? parseFloat(form.weekly_hours) : null,
         full_time_percentage: form.full_time_percentage ? parseFloat(form.full_time_percentage) : null,
         monthly_hours_limit: form.monthly_hours_limit ? parseFloat(form.monthly_hours_limit) : null,
         annual_salary_limit: form.annual_salary_limit ? parseFloat(form.annual_salary_limit) : null,
         annual_hours_target: form.annual_hours_target ? parseFloat(form.annual_hours_target) : null,
         note: form.note || null,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["contracts", employee.id] });
       qc.invalidateQueries({ queryKey: ["employees"] });
@@ -883,7 +913,9 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground block mb-1">
-                    Stundenlohn (€) *
+                    {(form.contract_type === "part_time" || form.contract_type === "full_time")
+                      ? "Stundensatz f. Zuschläge (€) *"
+                      : "Stundenlohn (€) *"}
                   </label>
                   <input
                     type="number"
@@ -911,6 +943,26 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
                   />
                 </div>
               </div>
+
+              {(form.contract_type === "part_time" || form.contract_type === "full_time") && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Monatslohn (€) – fixer Grundlohn
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.monthly_salary}
+                    onChange={(e) => setF("monthly_salary", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="z.B. 1850.00"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Fixer Grundlohn statt Stunden × Stundensatz
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 {form.contract_type === "part_time" && (

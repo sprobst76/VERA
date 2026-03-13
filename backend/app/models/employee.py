@@ -26,6 +26,7 @@ class Employee(Base):
     monthly_hours_limit: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     annual_salary_limit: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True, default=6672.0)
     annual_hours_target: Mapped[float | None] = mapped_column(Numeric(7, 1), nullable=True)
+    monthly_salary: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     vacation_days: Mapped[int] = mapped_column(Integer, default=30)
 
     qualifications: Mapped[list] = mapped_column(JSON, default=list)

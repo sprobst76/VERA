@@ -33,6 +33,7 @@ class ContractHistory(Base):
     monthly_hours_limit: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     annual_salary_limit: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     annual_hours_target: Mapped[Decimal | None] = mapped_column(Numeric(7, 1), nullable=True)
+    monthly_salary: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 

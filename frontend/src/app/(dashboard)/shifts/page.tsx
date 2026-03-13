@@ -266,10 +266,11 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
   );
 }
 
-// ── Update From Modal ─────────────────────────────────────────────────────────
+// ── Edit Recurring Shift Modal ────────────────────────────────────────────────
 
-function UpdateFromModal({ rs, employees, onClose, onDone }: { rs: any; employees: any[]; onClose: () => void; onDone: () => void }) {
-  const [fromDate,    setFromDate]   = useState("");
+function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; employees: any[]; onClose: () => void; onDone: () => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [fromDate,    setFromDate]   = useState(today);
   const [validUntil,  setValidUntil] = useState(rs.valid_until ?? "");
   const [startTime,   setStartTime]  = useState(rs.start_time?.slice(0, 5) ?? "");
   const [endTime,     setEndTime]    = useState(rs.end_time?.slice(0, 5) ?? "");
@@ -285,7 +286,7 @@ function UpdateFromModal({ rs, employees, onClose, onDone }: { rs: any; employee
     }),
     onSuccess: (res) => {
       const d = res.data;
-      toast.success(`Ab ${fromDate}: ${d.generated_count} Dienste neu generiert`);
+      toast.success(`${d.generated_count} Dienste aktualisiert`);
       onDone();
     },
     onError: (err: any) => toast.error(err?.response?.data?.detail || "Fehler"),
@@ -295,35 +296,40 @@ function UpdateFromModal({ rs, employees, onClose, onDone }: { rs: any; employee
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-sm" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <h2 className="font-semibold text-foreground">Ab Datum ändern</h2>
+          <div>
+            <h2 className="font-semibold text-foreground">Regeltermin bearbeiten</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Geplante Dienste ab dem gewählten Datum werden neu generiert. Bestätigte bleiben erhalten.
+            </p>
+          </div>
           <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
         </div>
         <div className="px-5 pb-5 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Geplante (nicht bestätigte) Dienste ab dem gewählten Datum werden neu generiert. Bestätigte Dienste bleiben erhalten.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Ab Datum</label><input type="date" className={inputCls} value={fromDate} onChange={e => setFromDate(e.target.value)} /></div>
-            <div>
-              <label className={labelCls}>Bis (Enddatum)</label>
-              <input type="date" className={inputCls} value={validUntil} onChange={e => setValidUntil(e.target.value)} />
-            </div>
+          <div>
+            <label className={labelCls}>Mitarbeiter</label>
+            <select className={inputCls} value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+              <option value="">– Offen –</option>
+              {employees.map((e: any) => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className={labelCls}>Von (Uhrzeit)</label><TimeInput value={startTime} onChange={setStartTime} /></div>
             <div><label className={labelCls}>Bis (Uhrzeit)</label><TimeInput value={endTime} onChange={setEndTime} /></div>
           </div>
-          <div>
-            <label className={labelCls}>Mitarbeiter</label>
-            <select className={inputCls} value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
-              <option value="">Offen</option>
-              {employees.map((e: any) => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Änderung ab</label>
+              <input type="date" className={inputCls} value={fromDate} onChange={e => setFromDate(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Regeltermin bis</label>
+              <input type="date" className={inputCls} value={validUntil} onChange={e => setValidUntil(e.target.value)} />
+            </div>
           </div>
           <button onClick={() => mut.mutate()} disabled={!fromDate || mut.isPending}
             className="w-full py-2.5 rounded-lg text-white text-sm font-medium disabled:opacity-50"
-            style={{ backgroundColor: "rgb(var(--ctp-peach))" }}>
-            {mut.isPending ? "Wird aktualisiert…" : "Neu generieren"}
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}>
+            {mut.isPending ? "Wird gespeichert…" : "Speichern & Dienste neu generieren"}
           </button>
         </div>
       </div>
@@ -336,7 +342,7 @@ function UpdateFromModal({ rs, employees, onClose, onDone }: { rs: any; employee
 function RegeltermineTab({ employees, templates }: { employees: any[]; templates: any[] }) {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [updateFromRs, setUpdateFromRs] = useState<any>(null);
+  const [editRs, setEditRs] = useState<any>(null);
 
   const { data: recurringShifts = [], isLoading } = useQuery({
     queryKey: ["recurring-shifts"],
@@ -410,12 +416,14 @@ function RegeltermineTab({ employees, templates }: { employees: any[]; templates
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => setUpdateFromRs(rs)}
-                    className="text-xs px-2.5 py-1.5 rounded-lg border border-border hover:bg-accent text-muted-foreground transition-colors">
-                    Ab Datum
+                  <button onClick={() => setEditRs(rs)}
+                    className="p-2 rounded hover:bg-accent text-muted-foreground transition-colors"
+                    title="Bearbeiten">
+                    <Pencil size={14} />
                   </button>
                   <button onClick={() => { if (confirm("Regeltermin deaktivieren und zukünftige Dienste löschen?")) deleteMut.mutate(rs.id); }}
-                    className="p-2 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                    className="p-2 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                    title="Löschen">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -432,11 +440,11 @@ function RegeltermineTab({ employees, templates }: { employees: any[]; templates
           onDone={() => { setShowCreate(false); refresh(); }}
         />
       )}
-      {updateFromRs && (
-        <UpdateFromModal
-          rs={updateFromRs} employees={employees}
-          onClose={() => setUpdateFromRs(null)}
-          onDone={() => { setUpdateFromRs(null); refresh(); }}
+      {editRs && (
+        <EditRecurringShiftModal
+          rs={editRs} employees={employees}
+          onClose={() => setEditRs(null)}
+          onDone={() => { setEditRs(null); refresh(); }}
         />
       )}
     </div>

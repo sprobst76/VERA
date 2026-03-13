@@ -28,6 +28,7 @@ class ContractHistoryCreate(BaseModel):
     monthly_hours_limit: float | None = None
     annual_salary_limit: float | None = None
     annual_hours_target: float | None = None
+    monthly_salary: float | None = None
     note: str | None = None
 
 
@@ -43,6 +44,7 @@ class ContractHistoryOut(BaseModel):
     monthly_hours_limit: Decimal | None
     annual_salary_limit: Decimal | None
     annual_hours_target: Decimal | None
+    monthly_salary: Decimal | None
     note: str | None
     created_at: Any
 
@@ -281,6 +283,7 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
     employee.monthly_hours_limit = payload.monthly_hours_limit
     employee.annual_salary_limit = payload.annual_salary_limit
     employee.annual_hours_target = payload.annual_hours_target
+    employee.monthly_salary = payload.monthly_salary
 
     await db.commit()
     await db.refresh(entry)

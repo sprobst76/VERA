@@ -224,6 +224,7 @@ export const contractsApi = {
     monthly_hours_limit?: number | null;
     annual_salary_limit?: number | null;
     annual_hours_target?: number | null;
+    monthly_salary?: number | null;
     note?: string | null;
   }) => api.post(`/employees/${employeeId}/contracts`, data),
 };

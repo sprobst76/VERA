@@ -35,6 +35,7 @@ class EmployeeOut(BaseModel):
     monthly_hours_limit: float | None
     annual_salary_limit: float | None
     annual_hours_target: float | None
+    monthly_salary: float | None
     vacation_days: int
     qualifications: list[str]
     notification_prefs: dict[str, Any]
@@ -63,6 +64,7 @@ class EmployeeCreate(BaseModel):
     monthly_hours_limit: float | None = None
     annual_salary_limit: float | None = 6672.0
     annual_hours_target: float | None = None
+    monthly_salary: float | None = None
     vacation_days: int = 30
     qualifications: list[str] = []
     notification_prefs: dict[str, Any] = {}
@@ -84,6 +86,7 @@ class EmployeeUpdate(BaseModel):
     monthly_hours_limit: float | None = None
     annual_salary_limit: float | None = None
     annual_hours_target: float | None = None
+    monthly_salary: float | None = None
     vacation_days: int | None = None
     qualifications: list[str] | None = None
     notification_prefs: dict[str, Any] | None = None

@@ -137,6 +137,13 @@ class PayrollService:
         # Primärvertrag = der letzte im Monat (für display-rate, annual_hours_target, limits)
         primary_contract = contract_periods[-1][0] if contract_periods else None
 
+        # Monatslohn (Teilzeit/Vollzeit): direkt als Grundlohn statt Stunden × Rate
+        primary_monthly_salary = (
+            float(primary_contract.monthly_salary)
+            if (primary_contract and primary_contract.monthly_salary)
+            else (float(employee.monthly_salary) if employee.monthly_salary else None)
+        )
+
         # Fallback auf Employee-Felder wenn kein Vertragseintrag vorhanden
         primary_rate = (
             float(primary_contract.hourly_rate) if primary_contract
@@ -158,11 +165,33 @@ class PayrollService:
             else (float(employee.annual_hours_target) if employee.annual_hours_target else None)
         )
 
+        # Effektiver Stundensatz für Zuschlagsberechnung bei Monatslohn
+        def _effective_surcharge_rate(monthly_sal: float, c_period=None) -> float:
+            """Berechnet effektiven Stundensatz für §3b-Zuschläge bei Monatslohn."""
+            wh = float(c_period.weekly_hours) if (c_period and c_period.weekly_hours) else (
+                float(employee.weekly_hours) if employee.weekly_hours else None
+            )
+            aht = float(c_period.annual_hours_target) if (c_period and c_period.annual_hours_target) else (
+                float(employee.annual_hours_target) if employee.annual_hours_target else None
+            )
+            if wh:
+                return monthly_sal / (wh * 52 / 12)
+            elif aht:
+                return monthly_sal / (aht / 12)
+            else:
+                return monthly_sal / 160  # Fallback: 160 h / Monat
+
         # Hilfsfunktion: Welcher Vertrag gilt an einem bestimmten Datum?
         def _rate_for_date(d: date) -> float:
             for c, ps, pe in contract_periods:
                 if ps <= d < pe:
+                    # Bei Monatslohn: effektiven Stundensatz für Zuschläge berechnen
+                    if c.monthly_salary:
+                        return _effective_surcharge_rate(float(c.monthly_salary), c)
                     return float(c.hourly_rate)
+            # Primärvertrag Fallback
+            if primary_monthly_salary:
+                return _effective_surcharge_rate(primary_monthly_salary, primary_contract)
             return primary_rate
 
         # Abgeschlossene Dienste des Monats
@@ -207,12 +236,15 @@ class PayrollService:
         for shift in shifts:
             rate = _rate_for_date(shift.date)
             net_hours = self._calc_net_hours(shift)
-            base_pay = net_hours * rate
             surcharges = self._calc_surcharges(shift, rate)
 
             total_hours += net_hours
-            base_wage_sum += base_pay
-            total_gross += base_pay + sum(surcharges["amounts"].values())
+            # Bei Monatslohn: Grundlohn wird separat gesetzt (kein Stunden × Rate)
+            if not primary_monthly_salary:
+                base_pay = net_hours * rate
+                base_wage_sum += base_pay
+                total_gross += base_pay
+            total_gross += sum(surcharges["amounts"].values())
 
             for k, v in surcharges["hours"].items():
                 surcharge_hours[k] += v
@@ -223,13 +255,29 @@ class PayrollService:
             for idx, (c, ps, pe) in enumerate(contract_periods):
                 if ps <= shift.date < pe:
                     period_stats[idx]["hours"] += net_hours
-                    period_stats[idx]["amount"] += base_pay
+                    if not c.monthly_salary:
+                        period_stats[idx]["amount"] += net_hours * float(c.hourly_rate)
                     break
+
+        # Monatslohn: Grundlohn fix (anteilig bei mehreren Perioden)
+        if primary_monthly_salary:
+            # Bei Monatslohn-Perioden: Grundlohn ist das monatliche Fixgehalt
+            # Bei mehreren Perioden: anteilig nach Kalendertagen
+            monthly_days = (month_end - month_start).days + 1
+            base_wage_sum = 0.0
+            for idx, (c, ps, pe) in enumerate(contract_periods):
+                if c.monthly_salary:
+                    days_in_period = (min(pe - timedelta(days=1), month_end) - ps).days + 1
+                    period_base = float(c.monthly_salary) * (days_in_period / monthly_days)
+                    base_wage_sum += period_base
+                    total_gross += period_base
+                    period_stats[idx]["amount"] = round(period_base, 2)
 
         paid_hours = total_hours + carryover_hours
         new_carryover = 0.0
 
-        if monthly_limit:
+        # Kein Stunden-Übertrag bei Monatslohn
+        if monthly_limit and not primary_monthly_salary:
             new_carryover = max(0.0, paid_hours - monthly_limit)
             paid_hours = min(paid_hours, monthly_limit)
 
