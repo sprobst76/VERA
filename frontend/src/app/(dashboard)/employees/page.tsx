@@ -362,6 +362,10 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
     last_name: employee?.last_name ?? "",
     email: employee?.email ?? "",
     phone: employee?.phone ?? "",
+    contract_type: employee?.contract_type ?? "minijob",
+    hourly_rate: employee?.hourly_rate?.toString() ?? "",
+    monthly_hours_limit: employee?.monthly_hours_limit?.toString() ?? "",
+    annual_salary_limit: employee?.annual_salary_limit?.toString() ?? "6672",
   });
   const [qualifications, setQualifications] = useState<string[]>(
     employee?.qualifications ?? []
@@ -410,13 +414,12 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       qualifications,
+      contract_type: form.contract_type,
+      hourly_rate: parseFloat(form.hourly_rate) || 0,
+      monthly_hours_limit: form.monthly_hours_limit ? parseFloat(form.monthly_hours_limit) : null,
+      annual_salary_limit: form.annual_salary_limit ? parseFloat(form.annual_salary_limit) : null,
     };
-    // Beim Anlegen: Vertragsdetails werden über den Vertragsverlauf gepflegt
     if (!isEdit) {
-      payload.contract_type = "minijob";
-      payload.hourly_rate = 0;
-      payload.monthly_hours_limit = null;
-      payload.annual_salary_limit = null;
       payload.vacation_days = 0;
     }
     mutation.mutate(payload);
@@ -555,14 +558,80 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
             </div>
           </div>
 
-          {/* Vertragsdetails-Hinweis */}
-          {isEdit && (
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
-              Vertragsdetails (Stundenlohn, Vertragstyp, Limits) über den{" "}
-              <span className="font-medium text-foreground">History-Button</span>{" "}
-              in der Mitarbeiterliste ändern.
-            </p>
-          )}
+          {/* Jobeinstellungen */}
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Jobeinstellungen
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Vertragsart
+                </label>
+                <select
+                  value={form.contract_type}
+                  onChange={(e) => {
+                    const ct = e.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      contract_type: ct,
+                      annual_salary_limit: ct === "minijob" ? "6672" : f.annual_salary_limit,
+                      monthly_hours_limit: ct === "minijob" && !f.monthly_hours_limit ? "43" : f.monthly_hours_limit,
+                    }));
+                  }}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  <option value="minijob">Minijob</option>
+                  <option value="part_time">Teilzeit</option>
+                  <option value="full_time">Vollzeit</option>
+                  <option value="ehrenamt">Ehrenamt</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Stundenlohn (€)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.hourly_rate}
+                  onChange={(e) => set("hourly_rate", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="12.41"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Std.-Limit / Monat
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.monthly_hours_limit}
+                  onChange={(e) => set("monthly_hours_limit", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder={form.contract_type === "minijob" ? "43" : ""}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Jahresgehaltsgrenze (€)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.annual_salary_limit}
+                  onChange={(e) => set("annual_salary_limit", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">
