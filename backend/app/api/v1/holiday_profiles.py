@@ -21,36 +21,30 @@ router = APIRouter(prefix="/holiday-profiles", tags=["holiday-profiles"])
 
 @router.get("", response_model=list[HolidayProfileListOut])
 async def list_profiles(current_user: ManagerOrAdmin, db: DB):
+    # Lade Profile + Relations in einer Query statt N+1
     result = await db.execute(
         select(HolidayProfile)
+        .options(
+            selectinload(HolidayProfile.vacation_periods),
+            selectinload(HolidayProfile.custom_holidays),
+        )
         .where(HolidayProfile.tenant_id == current_user.tenant_id)
         .order_by(HolidayProfile.created_at.desc())
     )
-    profiles = result.scalars().all()
+    profiles = result.unique().scalars().all()
 
-    # Load period + holiday counts
-    out = []
-    for p in profiles:
-        # Load related data
-        vp_result = await db.execute(
-            select(VacationPeriod).where(VacationPeriod.profile_id == p.id)
-        )
-        ch_result = await db.execute(
-            select(CustomHoliday).where(CustomHoliday.profile_id == p.id)
-        )
-        vp_count = len(vp_result.scalars().all())
-        ch_count = len(ch_result.scalars().all())
-
-        out.append(HolidayProfileListOut(
+    return [
+        HolidayProfileListOut(
             id=p.id,
             name=p.name,
             state=p.state,
             is_active=p.is_active,
             created_at=p.created_at,
-            vacation_period_count=vp_count,
-            custom_holiday_count=ch_count,
-        ))
-    return out
+            vacation_period_count=len(p.vacation_periods),
+            custom_holiday_count=len(p.custom_holidays),
+        )
+        for p in profiles
+    ]
 
 
 @router.post("", response_model=HolidayProfileOut, status_code=status.HTTP_201_CREATED)

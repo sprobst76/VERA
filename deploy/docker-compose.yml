@@ -69,6 +69,15 @@ services:
     labels:
       - "traefik.enable=true"
       # ── Router: /auth/login – strenger Brute-Force-Schutz (Prio 30) ──────────
+      - "traefik.http.routers.vera-superadmin.rule=Host(`vera.lab.${DOMAIN}`) && Path(`/api/v1/superadmin/login`)"
+      - "traefik.http.routers.vera-superadmin.entrypoints=websecure"
+      - "traefik.http.routers.vera-superadmin.tls.certresolver=cloudflare"
+      - "traefik.http.routers.vera-superadmin.priority=35"
+      - "traefik.http.routers.vera-superadmin.middlewares=vera-superadmin-ratelimit@docker,vera-security@docker"
+      - "traefik.http.routers.vera-superadmin.service=vera-api"
+      - "traefik.http.middlewares.vera-superadmin-ratelimit.ratelimit.average=5"
+      - "traefik.http.middlewares.vera-superadmin-ratelimit.ratelimit.burst=2"
+      - "traefik.http.middlewares.vera-superadmin-ratelimit.ratelimit.period=1m"
       - "traefik.http.routers.vera-auth.rule=Host(`vera.lab.${DOMAIN}`) && Path(`/api/v1/auth/login`)"
       - "traefik.http.routers.vera-auth.entrypoints=websecure"
       - "traefik.http.routers.vera-auth.tls.certresolver=cloudflare"

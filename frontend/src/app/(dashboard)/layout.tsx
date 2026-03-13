@@ -52,8 +52,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     queryKey: ["absences", "pending"],
     queryFn: () => absencesApi.list({ status: "pending" }).then(r => r.data),
     enabled: isPrivileged,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: 5 * 60_000,
+    staleTime: 4 * 60_000,
   });
   const pendingCount = (pendingAbsences as any[]).length;
 

@@ -39,7 +39,9 @@ export const useAuthStore = create<AuthState>()(
           const meResponse = await authApi.me();
           set({ user: meResponse.data, isAuthenticated: true, isLoading: false });
         } catch (error) {
-          set({ isLoading: false });
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          set({ user: null, isAuthenticated: false, isLoading: false });
           throw error;
         }
       },

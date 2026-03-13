@@ -1,7 +1,11 @@
 """
 Celery-Tasks für Dienst-Erinnerungen.
 """
+import logging
+
 from app.tasks.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="app.tasks.reminder_tasks.send_daily_reminders")
@@ -24,17 +28,20 @@ async def _send_reminders_for_date(target_date):
     from app.core.database import AsyncSessionLocal
     from app.models.shift import Shift
 
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Shift).where(
-                Shift.date == target_date,
-                Shift.status.in_(["planned", "confirmed"]),
-                Shift.employee_id.isnot(None),
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Shift).where(
+                    Shift.date == target_date,
+                    Shift.status.in_(["planned", "confirmed"]),
+                    Shift.employee_id.isnot(None),
+                )
             )
-        )
-        shifts = result.scalars().all()
-        for shift in shifts:
-            send_shift_reminder.delay(str(shift.id), hours_before=24)
+            shifts = result.scalars().all()
+            for shift in shifts:
+                send_shift_reminder.delay(str(shift.id), hours_before=24)
+    except Exception as e:
+        logger.error("Tageserinnerungen fehlgeschlagen für %s: %s", target_date, e, exc_info=True)
 
 
 async def _send_reminder_2h():
@@ -46,19 +53,22 @@ async def _send_reminder_2h():
     now = datetime.now(timezone.utc)
     in_2h = now + timedelta(hours=2)
 
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Shift).where(
-                Shift.date == in_2h.date(),
-                Shift.status.in_(["planned", "confirmed"]),
-                Shift.employee_id.isnot(None),
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Shift).where(
+                    Shift.date == in_2h.date(),
+                    Shift.status.in_(["planned", "confirmed"]),
+                    Shift.employee_id.isnot(None),
+                )
             )
-        )
-        shifts = result.scalars().all()
-        for shift in shifts:
-            shift_start_hour = shift.start_time.hour
-            if shift_start_hour == in_2h.hour:
-                send_shift_reminder.delay(str(shift.id), hours_before=2)
+            shifts = result.scalars().all()
+            for shift in shifts:
+                shift_start_hour = shift.start_time.hour
+                if shift_start_hour == in_2h.hour:
+                    send_shift_reminder.delay(str(shift.id), hours_before=2)
+    except Exception as e:
+        logger.error("2h-Erinnerungen fehlgeschlagen: %s", e, exc_info=True)
 
 
 @celery_app.task(name="app.tasks.reminder_tasks.send_shift_reminder")

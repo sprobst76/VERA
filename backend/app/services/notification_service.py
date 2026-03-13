@@ -81,61 +81,41 @@ class NotificationService:
         prefs    = employee.notification_prefs or {}
         channels = prefs.get("channels", {})
 
-        # ── Telegram ──────────────────────────────────────────────────────────
+        # Alle aktiven Kanäle parallel versenden
+        tasks: list[tuple[str, any]] = []
         if channels.get("telegram", False) and employee.telegram_chat_id:
-            ok, err = await self._send_telegram(employee.telegram_chat_id, message)
-            self.db.add(NotificationLog(
-                tenant_id=tid,
-                employee_id=employee.id,
-                channel="telegram",
-                event_type=event_type,
-                subject=subject,
-                body=message,
-                status="sent" if ok else "failed",
-                sent_at=datetime.now(timezone.utc) if ok else None,
-                error=err,
-            ))
-
-        # ── E-Mail ────────────────────────────────────────────────────────────
+            tasks.append(("telegram", self._send_telegram(employee.telegram_chat_id, message)))
         if channels.get("email", True) and employee.email:
-            ok, err = await self._send_email(
+            tasks.append(("email", self._send_email(
                 to=employee.email,
                 subject=subject or "VERA – Benachrichtigung",
                 body=message,
                 smtp_cfg=smtp_cfg,
-            )
-            self.db.add(NotificationLog(
-                tenant_id=tid,
-                employee_id=employee.id,
-                channel="email",
-                event_type=event_type,
-                subject=subject,
-                body=message,
-                status="sent" if ok else "failed",
-                sent_at=datetime.now(timezone.utc) if ok else None,
-                error=err,
-            ))
-
-        # ── Web Push ──────────────────────────────────────────────────────────
+            )))
         if channels.get("push", False):
-            ok, err = await self._send_push(
+            tasks.append(("push", self._send_push(
                 employee_id=employee.id,
                 title=subject or "VERA",
                 body=message,
-            )
-            self.db.add(NotificationLog(
-                tenant_id=tid,
-                employee_id=employee.id,
-                channel="push",
-                event_type=event_type,
-                subject=subject,
-                body=message,
-                status="sent" if ok else "failed",
-                sent_at=datetime.now(timezone.utc) if ok else None,
-                error=err,
-            ))
+            )))
 
-        await self.db.commit()
+        if tasks:
+            channel_names = [t[0] for t in tasks]
+            results = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
+            for channel, result in zip(channel_names, results):
+                ok, err = result if not isinstance(result, Exception) else (False, str(result)[:200])
+                self.db.add(NotificationLog(
+                    tenant_id=tid,
+                    employee_id=employee.id,
+                    channel=channel,
+                    event_type=event_type,
+                    subject=subject,
+                    body=message,
+                    status="sent" if ok else "failed",
+                    sent_at=datetime.now(timezone.utc) if ok else None,
+                    error=err,
+                ))
+            await self.db.commit()
 
     async def _send_telegram(self, chat_id: str, message: str) -> tuple[bool, str | None]:
         token = settings.TELEGRAM_BOT_TOKEN
@@ -144,9 +124,12 @@ class NotificationService:
         try:
             from telegram import Bot
             bot = Bot(token=token)
-            async with bot:
-                await bot.send_message(chat_id=chat_id, text=message)
+            async with asyncio.timeout(10):
+                async with bot:
+                    await bot.send_message(chat_id=chat_id, text=message)
             return True, None
+        except TimeoutError:
+            return False, "Telegram-Timeout (10s)"
         except Exception as e:
             return False, str(e)[:200]
 
@@ -202,8 +185,10 @@ class NotificationService:
                     smtp.login(user, password)
                     smtp.sendmail(from_addr, [to], msg.as_string())
 
-            await asyncio.to_thread(_send)
+            await asyncio.wait_for(asyncio.to_thread(_send), timeout=15)
             return True, None
+        except TimeoutError:
+            return False, "SMTP-Timeout (15s)"
         except Exception as e:
             return False, str(e)[:200]
 

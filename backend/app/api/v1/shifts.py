@@ -1,8 +1,11 @@
+import logging
 import uuid
 from datetime import date, timedelta, datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Query
 from sqlalchemy import select, and_
+
+logger = logging.getLogger(__name__)
 
 from app.api.deps import DB, AdminUser, CurrentUser, ManagerOrAdmin
 from app.models.audit import AuditLog
@@ -106,8 +109,8 @@ async def _run_compliance(shift: "Shift", db) -> None:
         shift.minijob_limit_ok = not any("Minijob"  in v for v in cr.violations)
         await db.commit()
         await db.refresh(shift)
-    except Exception:
-        pass  # Compliance-Fehler nie die eigentliche Operation blockieren
+    except Exception as e:
+        logger.warning("Compliance-Check fehlgeschlagen für Shift %s: %s", shift.id, e)
 
 
 # ── Shifts ───────────────────────────────────────────────────────────────────
