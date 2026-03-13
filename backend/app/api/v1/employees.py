@@ -4,9 +4,9 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 
 from app.api.deps import DB, AdminUser, CurrentUser, ManagerOrAdmin
 from app.models.employee import Employee
@@ -285,6 +285,82 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
     await db.commit()
     await db.refresh(entry)
     return entry
+
+
+# ── Urlaubskonto ─────────────────────────────────────────────────────────────
+
+@router.get("/vacation-balances", response_model=list[dict])
+async def get_vacation_balances(
+    current_user: CurrentUser,
+    db: DB,
+    year: int = Query(default=None),
+):
+    """
+    Gibt Urlaubskonto aller Mitarbeiter zurück (Admin) bzw. nur das eigene (Employee).
+    year: Kalenderjahr (Standard: aktuelles Jahr)
+    """
+    from app.models.absence import EmployeeAbsence
+    from datetime import date as date_
+
+    target_year = year or date_.today().year
+    year_start = date_(target_year, 1, 1)
+    year_end   = date_(target_year, 12, 31)
+
+    # Welche Mitarbeiter darf man sehen?
+    if current_user.role == "admin":
+        emp_result = await db.execute(
+            select(Employee).where(
+                Employee.tenant_id == current_user.tenant_id,
+                Employee.is_active == True,
+            ).order_by(Employee.last_name)
+        )
+        employees = emp_result.scalars().all()
+    else:
+        emp_result = await db.execute(
+            select(Employee).where(
+                Employee.user_id == current_user.id,
+                Employee.tenant_id == current_user.tenant_id,
+            )
+        )
+        emp = emp_result.scalar_one_or_none()
+        employees = [emp] if emp else []
+
+    if not employees:
+        return []
+
+    emp_ids = [e.id for e in employees]
+
+    # Genommene Urlaubstage (approved vacation absences)
+    taken_result = await db.execute(
+        select(
+            EmployeeAbsence.employee_id,
+            func.sum(EmployeeAbsence.days_count).label("taken"),
+        )
+        .where(
+            EmployeeAbsence.employee_id.in_(emp_ids),
+            EmployeeAbsence.type == "vacation",
+            EmployeeAbsence.status == "approved",
+            EmployeeAbsence.start_date >= year_start,
+            EmployeeAbsence.start_date <= year_end,
+        )
+        .group_by(EmployeeAbsence.employee_id)
+    )
+    taken_map: dict[uuid.UUID, float] = {
+        row.employee_id: float(row.taken or 0) for row in taken_result.all()
+    }
+
+    return [
+        {
+            "employee_id":   str(e.id),
+            "first_name":    e.first_name,
+            "last_name":     e.last_name,
+            "entitlement":   e.vacation_days,
+            "taken":         taken_map.get(e.id, 0.0),
+            "remaining":     e.vacation_days - taken_map.get(e.id, 0.0),
+            "year":          target_year,
+        }
+        for e in employees
+    ]
 
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)

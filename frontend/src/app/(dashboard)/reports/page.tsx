@@ -10,8 +10,24 @@ import {
 import { de } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Clock, AlertTriangle,
-  CheckCircle2, Users, TrendingUp, CalendarOff,
+  CheckCircle2, Users, TrendingUp, CalendarOff, Download,
 } from "lucide-react";
+
+// ── CSV helpers ───────────────────────────────────────────────────────────────
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const bom = "\uFEFF"; // Excel-compatible UTF-8 BOM
+  const content = bom + rows.map(r =>
+    r.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(";")
+  ).join("\r\n");
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,8 +69,8 @@ function Section({ title, icon: Icon, color, children }: {
 
 // ── 1. Stundenbericht ─────────────────────────────────────────────────────────
 
-function HoursReport({ shifts, employees, isPrivileged }: {
-  shifts: any[]; employees: any[]; isPrivileged: boolean;
+function HoursReport({ shifts, employees, isPrivileged, monthLabel }: {
+  shifts: any[]; employees: any[]; isPrivileged: boolean; monthLabel: string;
 }) {
   const empMap = useMemo(() =>
     Object.fromEntries(employees.map((e: any) => [e.id, e])),
@@ -98,6 +114,22 @@ function HoursReport({ shifts, employees, isPrivileged }: {
     (acc, r) => ({ planned: acc.planned + r.planned, count: acc.count + r.count }),
     { planned: 0, count: 0 }
   ), [rows]);
+
+  const exportCsv = () => {
+    const CONTRACT_LABELS: Record<string, string> = {
+      minijob: "Minijob", part_time: "Teilzeit", full_time: "Vollzeit",
+    };
+    const header = ["Mitarbeiter", "Vertragsart", "Dienste", "Soll-Stunden", "Ist-Stunden", "Differenz"];
+    const dataRows = rows.map(r => [
+      r.name,
+      CONTRACT_LABELS[r.contract] ?? r.contract,
+      String(r.count),
+      r.planned.toFixed(2).replace(".", ","),
+      r.actual > 0 ? r.actual.toFixed(2).replace(".", ",") : "",
+      r.diff != null ? r.diff.toFixed(2).replace(".", ",") : "",
+    ]);
+    downloadCsv(`stundenbericht_${monthLabel.replace(" ", "_")}.csv`, [header, ...dataRows]);
+  };
 
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Keine Dienste in diesem Monat.</p>;
@@ -167,6 +199,17 @@ function HoursReport({ shifts, employees, isPrivileged }: {
           </tfoot>
         )}
       </table>
+      {isPrivileged && rows.length > 0 && (
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:bg-accent transition-colors"
+          >
+            <Download size={13} />
+            CSV exportieren
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -503,6 +546,7 @@ export default function ReportsPage() {
           shifts={shifts as any[]}
           employees={employees as any[]}
           isPrivileged={isPrivileged}
+          monthLabel={monthLabel}
         />
       </Section>
 

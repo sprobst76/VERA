@@ -80,6 +80,8 @@ export const employeesApi = {
   update: (id: string, data: Record<string, unknown>) =>
     api.put(`/employees/${id}`, data),
   deactivate: (id: string) => api.delete(`/employees/${id}`),
+  vacationBalances: (year?: number) =>
+    api.get("/employees/vacation-balances", { params: year ? { year } : {} }),
 };
 
 // Shifts

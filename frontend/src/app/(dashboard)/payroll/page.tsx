@@ -881,6 +881,46 @@ export default function PayrollPage() {
             </button>
           </div>
 
+          {/* CSV Export */}
+          {entries.length > 0 && (
+            <button
+              onClick={() => {
+                const header = ["Mitarbeiter", "Monat", "Stunden", "Grundlohn", "Zuschläge", "Brutto", "Status"];
+                const rows = entries.map((e) => {
+                  const emp = empMap[e.employee_id];
+                  const name = emp ? `${emp.last_name} ${emp.first_name}` : e.employee_id;
+                  const surcharges = (e.early_surcharge ?? 0) + (e.late_surcharge ?? 0) +
+                    (e.night_surcharge ?? 0) + (e.weekend_surcharge ?? 0) +
+                    (e.sunday_surcharge ?? 0) + (e.holiday_surcharge ?? 0);
+                  return [
+                    name,
+                    e.month.slice(0, 7),
+                    (e.paid_hours ?? 0).toFixed(2).replace(".", ","),
+                    (e.base_wage ?? 0).toFixed(2).replace(".", ","),
+                    surcharges.toFixed(2).replace(".", ","),
+                    (e.total_gross ?? 0).toFixed(2).replace(".", ","),
+                    e.status,
+                  ];
+                });
+                const bom = "\uFEFF";
+                const content = bom + [header, ...rows].map(r =>
+                  r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")
+                ).join("\r\n");
+                const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `abrechnung_${monthLabel.replace(" ", "_")}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">CSV</span>
+            </button>
+          )}
+
           {/* Calculate all */}
           <button
             onClick={() => {

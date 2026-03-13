@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { absencesApi, employeesApi } from "@/lib/api";
-import { format, parseISO, addDays, differenceInCalendarDays } from "date-fns";
+import { format, parseISO, addDays, differenceInCalendarDays, getYear } from "date-fns";
 import { de } from "date-fns/locale";
-import { CalendarOff, Plus, X, Check, Ban, Clock, Info } from "lucide-react";
+import { CalendarOff, Plus, X, Check, Ban, Clock, Info, Umbrella } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "@/store/auth";
 
@@ -221,6 +221,8 @@ export default function AbsencesPage() {
   const [filterEmployee, setFilterEmployee] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
+  const currentYear = getYear(new Date());
+
   const { data: absences = [], isLoading } = useQuery({
     queryKey: ["absences", filterEmployee, filterStatus],
     queryFn: () => absencesApi.list({
@@ -238,6 +240,12 @@ export default function AbsencesPage() {
   const { data: ownProfile } = useQuery({
     queryKey: ["employees", "me"],
     queryFn: () => employeesApi.me().then(r => r.data),
+  });
+
+  // Vacation balances (admin: all employees; employee: own via same endpoint)
+  const { data: vacationBalances = [] } = useQuery({
+    queryKey: ["vacation-balances", currentYear],
+    queryFn: () => employeesApi.vacationBalances(currentYear).then(r => r.data),
   });
 
   const empMap = Object.fromEntries((employees as any[]).map((e: any) => [e.id, e]));
@@ -317,6 +325,45 @@ export default function AbsencesPage() {
           <span className="hidden sm:inline">Abwesenheit eintragen</span>
         </button>
       </div>
+
+      {/* Admin: Vacation balances overview */}
+      {isPrivileged && (vacationBalances as any[]).length > 0 && (
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
+            <Umbrella size={15} style={{ color: "rgb(var(--ctp-blue))" }} />
+            <h2 className="text-sm font-semibold text-foreground">Urlaubskonten {currentYear}</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {(vacationBalances as any[]).map((b: any) => {
+              const pct = b.entitlement > 0 ? Math.min(100, (b.taken / b.entitlement) * 100) : 0;
+              const color = b.remaining <= 3
+                ? "rgb(var(--ctp-red))"
+                : b.remaining <= 7
+                  ? "rgb(var(--ctp-yellow))"
+                  : "rgb(var(--ctp-teal))";
+              return (
+                <div key={b.employee_id} className="flex items-center gap-4 px-5 py-2.5">
+                  <div className="w-32 shrink-0 text-sm font-medium text-foreground truncate">
+                    {b.first_name} {b.last_name}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="w-full rounded-full h-1.5" style={{ backgroundColor: "rgb(var(--ctp-surface1))" }}>
+                      <div
+                        className="h-1.5 rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: color }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-sm tabular-nums shrink-0 text-right w-24">
+                    <span className="font-semibold" style={{ color }}>{b.remaining}</span>
+                    <span className="text-muted-foreground"> / {b.entitlement} Tage</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Vacation balance (employees only: own) */}
       {!isPrivileged && totalVacationDays > 0 && (
