@@ -221,6 +221,7 @@ export const contractsApi = {
     full_time_percentage?: number | null;
     monthly_hours_limit?: number | null;
     annual_salary_limit?: number | null;
+    annual_hours_target?: number | null;
     note?: string | null;
   }) => api.post(`/employees/${employeeId}/contracts`, data),
 };
