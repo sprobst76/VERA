@@ -109,7 +109,7 @@ async def test_add_contract_closes_previous(client, admin_token, admin_user, ten
     resp = await client.post(
         f"{EMPLOYEES_URL}/{emp_id}/contracts",
         json={
-            "valid_from": "2025-10-01",
+            "valid_from": "2027-01-01",  # Zukunft: schließt den auto-today-Eintrag
             "contract_type": "part_time",
             "hourly_rate": 15.0,
             "monthly_hours_limit": None,
@@ -131,7 +131,7 @@ async def test_add_contract_closes_previous(client, admin_token, admin_user, ten
     current = next(c for c in contracts if c["valid_to"] is None)
     old = next(c for c in contracts if c["valid_to"] is not None)
     assert current["contract_type"] == "part_time"
-    assert old["valid_to"] == "2025-10-01"
+    assert old["valid_to"] == "2027-01-01"
 
 
 # ── GET /employees/me ──────────────────────────────────────────────────────────

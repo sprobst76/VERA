@@ -19,6 +19,7 @@ import {
   EyeOff,
   History,
   ChevronLeft,
+  Trash2,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -395,6 +396,7 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
     last_name: employee?.last_name ?? "",
     email: employee?.email ?? "",
     phone: employee?.phone ?? "",
+    start_date: (employee as any)?.start_date ?? "",
     contract_type: employee?.contract_type ?? "minijob",
     hourly_rate: employee?.hourly_rate?.toString() ?? "",
     monthly_salary: employee?.monthly_salary?.toString() ?? "",
@@ -466,6 +468,7 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
       last_name: form.last_name.trim(),
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
+      start_date: form.start_date || null,
       qualifications,
       contract_type: form.contract_type,
       hourly_rate: parseFloat(form.hourly_rate) || 0,
@@ -539,6 +542,17 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                 onChange={(e) => set("phone", e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 placeholder="+49 170 1234567"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Eintrittsdatum
+              </label>
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => set("start_date", e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               />
             </div>
           </div>
@@ -925,6 +939,17 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                 placeholder="+49 170 1234567"
               />
             </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Eintrittsdatum
+              </label>
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => set("start_date", e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              />
+            </div>
           </div>
 
           {/* Qualifikationen */}
@@ -1286,6 +1311,18 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
     annual_hours_target: employee.annual_hours_target?.toString() ?? "",
     note: "",
   });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    contract_type: "",
+    hourly_rate: "",
+    monthly_salary: "",
+    weekly_hours: "",
+    full_time_percentage: "",
+    monthly_hours_limit: "",
+    annual_salary_limit: "",
+    annual_hours_target: "",
+    note: "",
+  });
 
   const { data: contracts = [], isLoading } = useQuery<ContractEntry[]>({
     queryKey: ["contracts", employee.id],
@@ -1319,6 +1356,64 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
       toast.error(msg ?? "Fehler beim Speichern");
     },
   });
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      contractsApi.update(employee.id, editingId!, {
+        contract_type: editForm.contract_type || undefined,
+        hourly_rate: editForm.hourly_rate ? parseFloat(editForm.hourly_rate) : undefined,
+        monthly_salary: editForm.monthly_salary ? parseFloat(editForm.monthly_salary) : null,
+        weekly_hours: editForm.weekly_hours ? parseFloat(editForm.weekly_hours) : null,
+        full_time_percentage: editForm.full_time_percentage ? parseFloat(editForm.full_time_percentage) : null,
+        monthly_hours_limit: editForm.monthly_hours_limit ? parseFloat(editForm.monthly_hours_limit) : null,
+        annual_salary_limit: editForm.annual_salary_limit ? parseFloat(editForm.annual_salary_limit) : null,
+        annual_hours_target: editForm.annual_hours_target ? parseFloat(editForm.annual_hours_target) : null,
+        note: editForm.note || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contracts", employee.id] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      toast.success("Vertragsperiode aktualisiert");
+      setEditingId(null);
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Fehler beim Aktualisieren");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (contractId: string) => contractsApi.delete(employee.id, contractId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contracts", employee.id] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      toast.success("Vertragsperiode gelöscht");
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Fehler beim Löschen");
+    },
+  });
+
+  function startEdit(c: ContractEntry) {
+    setEditingId(c.id);
+    setShowForm(false);
+    setEditForm({
+      contract_type: c.contract_type,
+      hourly_rate: c.hourly_rate.toString(),
+      monthly_salary: c.monthly_salary?.toString() ?? "",
+      weekly_hours: c.weekly_hours?.toString() ?? "",
+      full_time_percentage: c.full_time_percentage?.toString() ?? "",
+      monthly_hours_limit: c.monthly_hours_limit?.toString() ?? "",
+      annual_salary_limit: c.annual_salary_limit?.toString() ?? "",
+      annual_hours_target: c.annual_hours_target?.toString() ?? "",
+      note: c.note ?? "",
+    });
+  }
+
+  function setEF(field: string, value: string) {
+    setEditForm((f) => ({ ...f, [field]: value }));
+  }
 
   function setF(field: string, value: string) {
     setForm((f) => {
@@ -1355,6 +1450,7 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                     <th className="text-right pb-2 pr-3 font-medium">% VZ</th>
                     <th className="text-right pb-2 pr-3 font-medium">Jahressoll</th>
                     <th className="text-left pb-2 font-medium">Notiz</th>
+                    <th className="pb-2 font-medium w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1393,6 +1489,25 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                           {c.annual_hours_target != null ? `${Number(c.annual_hours_target).toFixed(0)} h` : "—"}
                         </td>
                         <td className="py-2 text-muted-foreground text-xs">{c.note ?? ""}</td>
+                        <td className="py-2">
+                          <div className="flex gap-1 justify-end">
+                            <button
+                              onClick={() => startEdit(c)}
+                              className={`p-1 rounded hover:bg-muted transition-colors ${editingId === c.id ? "text-blue-500" : "text-muted-foreground hover:text-foreground"}`}
+                              title="Bearbeiten"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => { if (window.confirm(`Vertragsperiode ab ${fmtDate(c.valid_from)} löschen?`)) deleteMutation.mutate(c.id); }}
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-red-500 transition-colors"
+                              title="Löschen"
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -1401,8 +1516,95 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
             </div>
           )}
 
+          {/* Edit existing period */}
+          {editingId && (
+            <div className="border border-blue-400/40 rounded-xl p-4 space-y-4 bg-blue-500/5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Vertragsperiode bearbeiten</h3>
+                  <p className="text-xs text-muted-foreground mt-1">Ändert nur diese Periode. Das Gültig-ab-Datum bleibt unverändert.</p>
+                </div>
+                <button onClick={() => setEditingId(null)} className="p-1 rounded hover:bg-muted text-muted-foreground">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Vertragsart</label>
+                  <select value={editForm.contract_type} onChange={(e) => setEF("contract_type", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                    <option value="minijob">Minijob</option>
+                    <option value="part_time">Teilzeit</option>
+                    <option value="full_time">Vollzeit</option>
+                    <option value="ehrenamt">Ehrenamt</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Stundenlohn (€)</label>
+                  <input type="number" min="0" step="0.01" value={editForm.hourly_rate} onChange={(e) => setEF("hourly_rate", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Std./Woche</label>
+                  <input type="number" min="0" step="0.01" value={editForm.weekly_hours} onChange={(e) => setEF("weekly_hours", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Std.-Limit / Monat</label>
+                  <input type="number" min="0" step="0.01" value={editForm.monthly_hours_limit} onChange={(e) => setEF("monthly_hours_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Jahresgehaltsgrenze (€)</label>
+                  <input type="number" min="0" step="0.01" value={editForm.annual_salary_limit} onChange={(e) => setEF("annual_salary_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Jahressoll (h)</label>
+                  <input type="number" min="0" step="0.5" value={editForm.annual_hours_target} onChange={(e) => setEF("annual_hours_target", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                </div>
+              </div>
+              {(editForm.contract_type === "part_time" || editForm.contract_type === "full_time") && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">Monatslohn (€)</label>
+                    <input type="number" min="0" step="0.01" value={editForm.monthly_salary} onChange={(e) => setEF("monthly_salary", e.target.value)}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">Vollzeit-% (z.B. 50)</label>
+                    <input type="number" min="0" max="100" step="0.5" value={editForm.full_time_percentage} onChange={(e) => setEF("full_time_percentage", e.target.value)}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Notiz</label>
+                <input type="text" value={editForm.note} onChange={(e) => setEF("note", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => editMutation.mutate()}
+                  disabled={editMutation.isPending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+                >
+                  {editMutation.isPending ? "Speichern…" : "Änderungen speichern"}
+                </button>
+                <button type="button" onClick={() => setEditingId(null)}
+                  className="px-4 py-2.5 rounded-xl text-sm border border-border text-muted-foreground hover:bg-muted">
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Add new period */}
-          {!showForm ? (
+          {!editingId && (!showForm ? (
             <button
               onClick={() => setShowForm(true)}
               className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-dashed border-border text-muted-foreground hover:border-blue-400 hover:text-foreground transition-colors"
@@ -1634,7 +1836,7 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                 </button>
               </div>
             </div>
-          )}
+          ))}
         </div>
   );
 

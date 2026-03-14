@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Any
 import uuid
-from datetime import datetime, time
+from datetime import date, datetime, time
 
 
 # ── Öffentliches Profil (für alle Mitarbeiter sichtbar) ──────────────────────
@@ -43,6 +43,7 @@ class EmployeeOut(BaseModel):
     qualifications: list[str]
     notification_prefs: dict[str, Any]
     availability_prefs: dict | None
+    start_date: date | None
     ical_token: str | None
     telegram_chat_id: str | None
     matrix_user_id: str | None
@@ -61,6 +62,7 @@ class EmployeeCreate(BaseModel):
     last_name: str
     email: EmailStr | None = None
     phone: str | None = None
+    start_date: date | None = None
     contract_type: str  # minijob | part_time | full_time
     hourly_rate: float
     weekly_hours: float | None = None
@@ -85,6 +87,7 @@ class EmployeeUpdate(BaseModel):
     last_name: str | None = None
     email: EmailStr | None = None
     phone: str | None = None
+    start_date: date | None = None
     contract_type: str | None = None
     hourly_rate: float | None = None
     weekly_hours: float | None = None

@@ -230,12 +230,12 @@ async def create_employee(payload: EmployeeCreate, current_user: AdminUser, db: 
     db.add(employee)
     await db.flush()  # ID generieren ohne commit
 
-    # Ersten Vertragseintrag anlegen
+    # Ersten Vertragseintrag anlegen – valid_from = Eintrittsdatum oder heute
     contract = ContractHistory(
         tenant_id=current_user.tenant_id,
         employee_id=employee.id,
         created_by_user_id=current_user.id,
-        valid_from=date.today(),
+        valid_from=payload.start_date or date.today(),
         valid_to=None,
         contract_type=payload.contract_type,
         hourly_rate=payload.hourly_rate,
@@ -325,7 +325,15 @@ async def list_contracts(employee_id: uuid.UUID, current_user: ManagerOrAdmin, d
 
 @router.post("/{employee_id}/contracts", response_model=ContractHistoryOut, status_code=status.HTTP_201_CREATED)
 async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, current_user: ManagerOrAdmin, db: DB):
-    """Neue Vertragsperiode anlegen. Schließt automatisch den aktuell offenen Eintrag."""
+    """
+    Neue Vertragsperiode anlegen – retroaktiv-sicher.
+
+    Sucht den Eintrag, dessen Zeitraum das neue valid_from enthält, und splittet ihn:
+      - Bestehender Eintrag: valid_to = payload.valid_from
+      - Neuer Eintrag:       valid_from = payload.valid_from, valid_to = alter valid_to
+    So bleibt die Kette lückenlos, auch bei Einfügungen in der Vergangenheit.
+    """
+    from sqlalchemy import or_
     emp_result = await db.execute(
         select(Employee).where(
             Employee.id == employee_id,
@@ -336,40 +344,185 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
     if not employee:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
 
-    # Aktuell offenen Eintrag schließen
-    await db.execute(
-        update(ContractHistory)
-        .where(
+    # Den Eintrag finden, der den neuen Zeitpunkt "enthält"
+    containing_result = await db.execute(
+        select(ContractHistory).where(
             ContractHistory.employee_id == employee_id,
-            ContractHistory.valid_to.is_(None),
-        )
-        .values(valid_to=payload.valid_from)
+            ContractHistory.valid_from <= payload.valid_from,
+            or_(
+                ContractHistory.valid_to > payload.valid_from,
+                ContractHistory.valid_to.is_(None),
+            ),
+        ).order_by(ContractHistory.valid_from.desc()).limit(1)
     )
+    containing = containing_result.scalar_one_or_none()
 
-    # Neuen Eintrag anlegen
+    if containing and containing.valid_from == payload.valid_from:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Es existiert bereits ein Eintrag mit valid_from={payload.valid_from}.",
+        )
+
+    # Bestehenden Eintrag schließen (valid_to übernehmen für neuen Eintrag)
+    inherited_valid_to = None
+    if containing:
+        inherited_valid_to = containing.valid_to
+        containing.valid_to = payload.valid_from
+
+    # Neuen Eintrag einfügen
     entry = ContractHistory(
         tenant_id=current_user.tenant_id,
         employee_id=employee_id,
         created_by_user_id=current_user.id,
-        valid_to=None,
+        valid_to=inherited_valid_to,
         **payload.model_dump(),
     )
     db.add(entry)
 
-    # Mirror-Felder auf Employee aktualisieren
-    employee.contract_type = payload.contract_type
-    employee.hourly_rate = payload.hourly_rate
-    employee.weekly_hours = payload.weekly_hours
-    employee.full_time_percentage = payload.full_time_percentage
-    employee.monthly_hours_limit = payload.monthly_hours_limit
-    employee.annual_salary_limit = payload.annual_salary_limit
-    employee.annual_hours_target = payload.annual_hours_target
-    employee.monthly_salary = payload.monthly_salary
+    # Mirror-Felder auf Employee nur aktualisieren wenn neuer Eintrag der aktuelle ist
+    if inherited_valid_to is None:
+        employee.contract_type = payload.contract_type
+        employee.hourly_rate = payload.hourly_rate
+        employee.weekly_hours = payload.weekly_hours
+        employee.full_time_percentage = payload.full_time_percentage
+        employee.monthly_hours_limit = payload.monthly_hours_limit
+        employee.annual_salary_limit = payload.annual_salary_limit
+        employee.annual_hours_target = payload.annual_hours_target
+        employee.monthly_salary = payload.monthly_salary
 
     await db.commit()
     await db.refresh(entry)
     return entry
 
+
+class ContractHistoryUpdate(BaseModel):
+    """Felder eines bestehenden ContractHistory-Eintrags bearbeiten."""
+    contract_type: str | None = None
+    hourly_rate: float | None = None
+    weekly_hours: float | None = None
+    full_time_percentage: float | None = None
+    monthly_hours_limit: float | None = None
+    annual_salary_limit: float | None = None
+    annual_hours_target: float | None = None
+    monthly_salary: float | None = None
+    note: str | None = None
+
+
+@router.put("/{employee_id}/contracts/{contract_id}", response_model=ContractHistoryOut)
+async def update_contract(
+    employee_id: uuid.UUID,
+    contract_id: uuid.UUID,
+    payload: ContractHistoryUpdate,
+    current_user: ManagerOrAdmin,
+    db: DB,
+):
+    """Finanziellen Inhalt eines bestehenden Vertragseintrags bearbeiten (valid_from/to unverändert)."""
+    result = await db.execute(
+        select(ContractHistory).where(
+            ContractHistory.id == contract_id,
+            ContractHistory.employee_id == employee_id,
+            ContractHistory.tenant_id == current_user.tenant_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Vertragseintrag nicht gefunden")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(entry, field, value)
+
+    # Mirror auf Employee wenn aktueller Eintrag
+    if entry.valid_to is None:
+        emp_result = await db.execute(
+            select(Employee).where(Employee.id == employee_id)
+        )
+        emp = emp_result.scalar_one_or_none()
+        if emp:
+            if payload.contract_type is not None:
+                emp.contract_type = payload.contract_type
+            if payload.hourly_rate is not None:
+                emp.hourly_rate = payload.hourly_rate
+            if payload.weekly_hours is not None:
+                emp.weekly_hours = payload.weekly_hours
+            if payload.monthly_hours_limit is not None:
+                emp.monthly_hours_limit = payload.monthly_hours_limit
+            if payload.annual_salary_limit is not None:
+                emp.annual_salary_limit = payload.annual_salary_limit
+            if payload.annual_hours_target is not None:
+                emp.annual_hours_target = payload.annual_hours_target
+            if payload.monthly_salary is not None:
+                emp.monthly_salary = payload.monthly_salary
+
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.delete("/{employee_id}/contracts/{contract_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_contract(
+    employee_id: uuid.UUID,
+    contract_id: uuid.UUID,
+    current_user: ManagerOrAdmin,
+    db: DB,
+):
+    """
+    Vertragseintrag löschen und Kette reparieren:
+    Der vorherige Eintrag (valid_to == gelöschter.valid_from) übernimmt gelöschter.valid_to.
+    """
+    result = await db.execute(
+        select(ContractHistory).where(
+            ContractHistory.id == contract_id,
+            ContractHistory.employee_id == employee_id,
+            ContractHistory.tenant_id == current_user.tenant_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Vertragseintrag nicht gefunden")
+
+    # Prüfen ob es der einzige Eintrag ist
+    count_result = await db.execute(
+        select(ContractHistory).where(
+            ContractHistory.employee_id == employee_id,
+            ContractHistory.tenant_id == current_user.tenant_id,
+        )
+    )
+    all_entries = count_result.scalars().all()
+    if len(all_entries) <= 1:
+        raise HTTPException(status_code=422, detail="Mindestens ein Vertragseintrag muss erhalten bleiben")
+
+    # Vorherigen Eintrag suchen (valid_to == entry.valid_from)
+    prev = None
+    if entry.valid_from:
+        prev_result = await db.execute(
+            select(ContractHistory).where(
+                ContractHistory.employee_id == employee_id,
+                ContractHistory.valid_to == entry.valid_from,
+            )
+        )
+        prev = prev_result.scalar_one_or_none()
+
+    # Wenn gelöschter Eintrag der aktuelle war, Mirror auf Employee zurücksetzen
+    # (MUSS vor prev.valid_to-Änderung passieren, damit prev noch findbar ist)
+    if entry.valid_to is None and prev:
+        emp_result = await db.execute(select(Employee).where(Employee.id == employee_id))
+        emp = emp_result.scalar_one_or_none()
+        if emp:
+            emp.contract_type = prev.contract_type
+            emp.hourly_rate = float(prev.hourly_rate)
+            if prev.weekly_hours is not None:
+                emp.weekly_hours = float(prev.weekly_hours)
+            if prev.monthly_hours_limit is not None:
+                emp.monthly_hours_limit = float(prev.monthly_hours_limit)
+            if prev.annual_salary_limit is not None:
+                emp.annual_salary_limit = float(prev.annual_salary_limit)
+
+    # Kette reparieren: Vorgänger übernimmt valid_to des gelöschten Eintrags
+    if prev:
+        prev.valid_to = entry.valid_to
+
+    await db.delete(entry)
+    await db.commit()
 
 
 @router.post("/{employee_id}/assign-contract-type", response_model=EmployeeOut)

@@ -152,16 +152,12 @@ async def test_clara_lohnerhoehung_dann_kuendigung(client, admin_token, db):
     """
     clara = await mk_employee(client, admin_token,
         first_name="Clara", last_name="Vogel",
-        contract_type="minijob", hourly_rate=13.00)
+        contract_type="minijob", hourly_rate=13.00,
+        start_date="2026-01-01")  # Initialeintrag = Jan 2026
     eid = clara["id"]
 
-    # Startvertrag explizit auf 01.01.2026 setzen
-    await add_contract(client, admin_token, eid,
-        valid_from="2026-01-01", contract_type="minijob",
-        hourly_rate=13.00, monthly_hours_limit=38.0)
-
     h = await history(db, eid)
-    # Erster auto-Eintrag (today) wurde durch den manuellen Eintrag geschlossen
+    # Initialeintrag via start_date = Jan 2026
     assert any(str(e.valid_from) == "2026-01-01" for e in h), "Kein Jan-Eintrag"
 
     # Lohnerhöhung ab April
@@ -203,13 +199,9 @@ async def test_marc_minijob_zu_vollzeit(client, admin_token, db):
     """
     marc = await mk_employee(client, admin_token,
         first_name="Marc", last_name="Becker",
-        contract_type="minijob", hourly_rate=13.00)
+        contract_type="minijob", hourly_rate=13.00,
+        start_date="2026-03-01")  # Initialeintrag = März 2026
     eid = marc["id"]
-
-    await add_contract(client, admin_token, eid,
-        valid_from="2026-03-01", contract_type="minijob",
-        hourly_rate=13.00, monthly_hours_limit=43.0,
-        annual_salary_limit=6672.0)
 
     await add_contract(client, admin_token, eid,
         valid_from="2026-09-01", contract_type="full_time",
@@ -245,12 +237,9 @@ async def test_sophie_drei_vertragsaenderungen(client, admin_token, db):
     """
     sophie = await mk_employee(client, admin_token,
         first_name="Sophie", last_name="Kramer",
-        contract_type="minijob", hourly_rate=13.00)
+        contract_type="minijob", hourly_rate=13.00,
+        start_date="2026-01-01")  # Initialeintrag = Jan 2026
     eid = sophie["id"]
-
-    await add_contract(client, admin_token, eid,
-        valid_from="2026-01-01", contract_type="minijob",
-        hourly_rate=13.00, monthly_hours_limit=43.0)
 
     await add_contract(client, admin_token, eid,
         valid_from="2026-05-01", contract_type="part_time",
@@ -394,16 +383,20 @@ async def test_gregor_retroaktiv(client, admin_token, db):
     Retroaktiver Eintrag ab 01.01.2026 schließt den alten Eintrag.
     Älterer Eintrag (auto-today) bekommt valid_to=01.01.2026.
     """
+    # start_date="2025-12-01" → Initialeintrag in der Vergangenheit
+    # Retroaktiver Eintrag 2026-01-01 liegt NACH dem Initialeintrag → Chain-Split korrekt
     gregor = await mk_employee(client, admin_token,
         first_name="Gregor", last_name="Fischer",
-        contract_type="minijob", hourly_rate=13.00)
+        contract_type="minijob", hourly_rate=13.00,
+        start_date="2025-12-01")
     eid = gregor["id"]
 
     h_before = await history(db, eid)
     assert len(h_before) == 1
     auto_entry = h_before[0]
+    assert str(auto_entry.valid_from) == "2025-12-01"
 
-    # Retroaktiver Eintrag: 01.01.2026 (in der Vergangenheit wenn today > 2026-01-01)
+    # Retroaktiver Eintrag: 01.01.2026 (nach start_date, aber vor "heute")
     await add_contract(client, admin_token, eid,
         valid_from="2026-01-01", contract_type="minijob",
         hourly_rate=13.70, monthly_hours_limit=38.0,
@@ -416,10 +409,10 @@ async def test_gregor_retroaktiv(client, admin_token, db):
     assert jan_entry.valid_to is None, "Neuer (aktueller) Eintrag soll offen sein"
     assert jan_entry.note == "Nachkorrektur: höherer Satz ab Jan 2026"
 
-    # Der auto-Eintrag (today) muss geschlossen worden sein
+    # Der Dezember-Eintrag muss auf 2026-01-01 geschlossen worden sein
     await db.refresh(auto_entry)
-    assert auto_entry.valid_to is not None or str(auto_entry.valid_from) == "2026-01-01", \
-        "Auto-Eintrag soll geschlossen sein oder durch den retroaktiven Eintrag ersetzt werden"
+    assert str(auto_entry.valid_to) == "2026-01-01", \
+        f"Dez-Eintrag soll valid_to=2026-01-01 haben, ist {auto_entry.valid_to}"
 
 
 # ─── Personas 7a+7b: Lena + Kai – Geteilter Typ, Lena kündigt ────────────────
@@ -491,14 +484,9 @@ async def test_patricia_manuell_dann_typ_dann_update(client, admin_token, db):
 
     patricia = await mk_employee(client, admin_token,
         first_name="Patricia", last_name="Hagen",
-        contract_type="minijob", hourly_rate=12.80)
+        contract_type="minijob", hourly_rate=12.80,
+        start_date="2026-01-01")  # Initialeintrag = Jan 2026
     eid = patricia["id"]
-
-    # Manueller Vertrag ab 01.01.2026
-    await add_contract(client, admin_token, eid,
-        valid_from="2026-01-01", contract_type="minijob",
-        hourly_rate=12.80, monthly_hours_limit=35.0,
-        note="Manuell verhandelt")
 
     # Typ zuweisen ab 01.04.2026 (schließt Jan-Eintrag, legt Apr-Eintrag an)
     await assign_type(client, admin_token, eid, typ["id"], "2026-04-01")
@@ -550,12 +538,9 @@ async def test_emma_payroll_mit_schichten(client, admin_token, db):
     emma = await mk_employee(client, admin_token,
         first_name="Emma", last_name="Braun",
         contract_type="minijob", hourly_rate=13.00,
-        monthly_hours_limit=50.0)
+        monthly_hours_limit=50.0,
+        start_date="2026-03-01")  # Initialeintrag = März 2026
     eid = emma["id"]
-
-    await add_contract(client, admin_token, eid,
-        valid_from="2026-03-01", contract_type="minijob",
-        hourly_rate=13.00, monthly_hours_limit=50.0)
 
     await add_contract(client, admin_token, eid,
         valid_from="2026-04-01", contract_type="minijob",
@@ -659,23 +644,26 @@ async def test_rand_gleiches_datum_zweimal(client, admin_token, db):
     """
     emp = await mk_employee(client, admin_token,
         first_name="Rand", last_name="Gleich",
-        contract_type="minijob", hourly_rate=13.00)
+        contract_type="minijob", hourly_rate=13.00,
+        start_date="2026-05-01")  # Initialeintrag = Mai 2026
     eid = emp["id"]
 
-    await add_contract(client, admin_token, eid,
-        valid_from="2026-05-01", contract_type="minijob",
-        hourly_rate=13.00)
+    # Zweiter Eintrag mit gleichem Datum (Duplikat) → 422
+    r_dup = await client.post(
+        f"/api/v1/employees/{eid}/contracts",
+        json={"valid_from": "2026-05-01", "contract_type": "minijob",
+              "hourly_rate": 13.25, "note": "Korrektur"},
+        headers=auth_headers(admin_token),
+    )
+    assert r_dup.status_code == 422, (
+        f"Doppelter valid_from soll 422 geben, war {r_dup.status_code}: {r_dup.text}"
+    )
 
-    # Zweiter Eintrag mit gleichem Datum (Korrektur)
-    await add_contract(client, admin_token, eid,
-        valid_from="2026-05-01", contract_type="minijob",
-        hourly_rate=13.25, note="Korrektur")
-
+    # Nur 1 Eintrag soll existieren (der aus start_date)
     h = await history(db, eid)
     open_entries = [e for e in h if e.valid_to is None]
-    assert len(open_entries) == 1, \
-        f"Genau 1 offener Eintrag erwartet, {len(open_entries)} gefunden"
-    assert float(open_entries[0].hourly_rate) == 13.25
+    assert len(open_entries) == 1, f"Genau 1 offener Eintrag erwartet, {len(open_entries)} gefunden"
+    assert float(open_entries[0].hourly_rate) == 13.00  # Original, nicht Duplikat
 
 
 @pytest.mark.asyncio

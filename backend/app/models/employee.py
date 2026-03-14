@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timezone
 
-from sqlalchemy import String, DateTime, Boolean, ForeignKey, Numeric, Integer, Time, JSON
+from sqlalchemy import String, DateTime, Boolean, Date, ForeignKey, Numeric, Integer, Time, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import uuid as _uuid_mod
 
@@ -38,6 +38,8 @@ class Employee(Base):
     # Wöchentliche Verfügbarkeit: {"0": {"available": true, "from_time": "08:00", "to_time": "20:00", "note": ""}, ...}
     # Keys 0–6 (Montag–Sonntag, Python-Konvention)
     availability_prefs: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     ical_token: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(100), nullable=True)

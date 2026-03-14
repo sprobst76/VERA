@@ -363,21 +363,11 @@ async def test_szenario4_payroll_korrekter_historischer_satz(client, admin_token
         hourly_rate=13.50,
         monthly_hours_limit=40.0,
         annual_salary_limit=6672.0,
+        start_date="2026-03-01",  # Initialeintrag = März 2026
     )
     emp_id = maria["id"]
 
-    # Ersten Eintrag auf März setzen
-    r1 = await client.post(
-        f"/api/v1/employees/{emp_id}/contracts",
-        json={
-            "valid_from": "2026-03-01",
-            "contract_type": "minijob",
-            "hourly_rate": 13.50,
-            "monthly_hours_limit": 40.0,
-        },
-        headers=auth_headers(admin_token),
-    )
-    assert r1.status_code == 201, r1.text
+    # Erster Eintrag wurde via start_date bereits angelegt (valid_from=2026-03-01)
 
     # Ab April: Lohnerhöhung auf 14.00 €
     r2 = await client.post(
