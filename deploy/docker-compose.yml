@@ -95,6 +95,7 @@ services:
       - "traefik.http.routers.vera-api.priority=20"
       - "traefik.http.routers.vera-api.middlewares=vera-security@docker"
       - "traefik.http.services.vera-api.loadbalancer.server.port=8000"
+      - "traefik.docker.network=ai-lab_ai-lab"
       # Security headers
       - "traefik.http.middlewares.vera-security.headers.stsSeconds=31536000"
       - "traefik.http.middlewares.vera-security.headers.stsIncludeSubdomains=true"
@@ -170,6 +171,7 @@ services:
       - "traefik.http.routers.vera-web.priority=10"
       - "traefik.http.routers.vera-web.middlewares=vera-web-security@docker"
       - "traefik.http.services.vera-web.loadbalancer.server.port=3000"
+      - "traefik.docker.network=ai-lab_ai-lab"
       # Security headers (eigenständig definiert, nicht von vera-api abhängig)
       - "traefik.http.middlewares.vera-web-security.headers.stsSeconds=31536000"
       - "traefik.http.middlewares.vera-web-security.headers.stsIncludeSubdomains=true"
