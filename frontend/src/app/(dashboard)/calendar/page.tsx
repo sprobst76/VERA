@@ -149,9 +149,11 @@ export default function CalendarPage() {
     const shiftType = shiftTypeMap[s.shift_type_id];
     const empName   = emp ? `${emp.first_name} ${emp.last_name[0]}.` : "Offen";
     const typeLabel = shiftType ? ` [${shiftType.name}]` : "";
+    const baseTitle = tpl ? `${tpl.name}${typeLabel} – ${empName}` : empName;
+    const prefix = s.status === "completed" ? "✓ " : s.status === "confirmed" ? "• " : "";
     return {
       id: s.id,
-      title: tpl ? `${tpl.name}${typeLabel} – ${empName}` : empName,
+      title: prefix + baseTitle,
       start: new Date(`${s.date}T${s.start_time}`),
       end:   new Date(`${s.date}T${s.end_time}`),
       resource: { shift: s, template: tpl, employee: emp, shiftType },
@@ -276,14 +278,25 @@ export default function CalendarPage() {
     const isOpen = !shift.employee_id;
     const c = isOpen ? "#ef4444" : (shiftType?.color ?? template?.color ?? "#1E3A5F");
     const isCancelled = shift.status.startsWith("cancelled");
+    const isCompleted = shift.status === "completed";
+    const isConfirmed = shift.status === "confirmed";
     return {
       style: {
-        backgroundColor: c,
+        backgroundColor: isCompleted ? "transparent" : c,
         borderColor: c,
-        opacity: isCancelled ? 0.35 : 1,
+        opacity: isCancelled ? 0.35 : isCompleted ? 0.8 : 1,
         textDecoration: isCancelled ? "line-through" : "none",
         fontSize: "0.75rem",
-        border: shift.notes ? `2px dashed ${c}` : `1px solid ${c}`,
+        border: isCancelled
+          ? `1px solid ${c}`
+          : isCompleted
+          ? `2px solid ${c}`
+          : isConfirmed
+          ? `2px solid ${c}`
+          : shift.notes
+          ? `2px dashed ${c}`
+          : `1px solid ${c}`,
+        color: isCompleted ? c : undefined,
         cursor: isPrivileged ? (dragging ? "grabbing" : "grab") : "pointer",
       },
     };
