@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi, shiftTypesApi } from "@/lib/api";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck, ClockArrowUp } from "lucide-react";
 import { TimeInput } from "@/components/shared/TimeInput";
 import { useSwipe } from "@/hooks/useSwipe";
 import toast from "react-hot-toast";
@@ -124,6 +124,122 @@ function ActualTimeModal({ shift, onClose, onDone }: { shift: any; onClose: () =
             className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
             {updateMutation.isPending ? "Wird gespeichert…" : "Zeiten speichern"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Time Correction Modal (Mitarbeiter) ───────────────────────────────────────
+
+function TimeCorrectionModal({ shift, onClose, onDone }: { shift: any; onClose: () => void; onDone: () => void }) {
+  const [actualStart,  setActualStart]  = useState(shift.actual_start?.slice(0, 5) ?? shift.start_time?.slice(0, 5) ?? "");
+  const [actualEnd,    setActualEnd]    = useState(shift.actual_end?.slice(0, 5) ?? shift.end_time?.slice(0, 5) ?? "");
+  const [breakMin,     setBreakMin]     = useState<string>(
+    shift.actual_break_minutes != null ? String(shift.actual_break_minutes) : String(shift.break_minutes ?? "")
+  );
+  const [note,         setNote]         = useState(shift.time_correction_note ?? "");
+
+  const mutation = useMutation({
+    mutationFn: () => shiftsApi.submitTimeCorrection(shift.id, {
+      actual_start: actualStart,
+      actual_end: actualEnd,
+      actual_break_minutes: breakMin !== "" ? parseInt(breakMin) : undefined,
+      note: note || undefined,
+    }),
+    onSuccess: () => { toast.success("Zeitkorrektur eingereicht – wartet auf Bestätigung"); onDone(); },
+    onError: (err: any) => toast.error(err?.response?.data?.detail ?? "Fehler"),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h2 className="text-base font-semibold text-foreground">Ist-Zeit nacherfassen</h2>
+          <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
+        </div>
+        <div className="px-5 pb-5 space-y-3">
+          <p className="text-sm text-muted-foreground">Geplant: {shift.start_time?.slice(0,5)} – {shift.end_time?.slice(0,5)} Uhr</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelCls}>Tatsächlich von</label><TimeInput value={actualStart} onChange={setActualStart} /></div>
+            <div><label className={labelCls}>Tatsächlich bis</label><TimeInput value={actualEnd} onChange={setActualEnd} /></div>
+          </div>
+          <div>
+            <label className={labelCls}>Tatsächliche Pause (min)</label>
+            <input type="number" min={0} className={inputCls} value={breakMin}
+              onChange={e => setBreakMin(e.target.value)} placeholder={String(shift.break_minutes ?? 0)} />
+          </div>
+          <div><label className={labelCls}>Hinweis (optional)</label>
+            <input type="text" className={inputCls} value={note} onChange={e => setNote(e.target.value)} placeholder="z.B. Verlängerung wegen Übergabe" />
+          </div>
+          <p className="text-xs text-muted-foreground">Deine Eingabe wird dem Admin zur Bestätigung vorgelegt.</p>
+          <button onClick={() => mutation.mutate()} disabled={mutation.isPending || !actualStart || !actualEnd}
+            className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            {mutation.isPending ? "Wird eingereicht…" : "Korrektur einreichen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Time Correction Review Modal (Admin) ──────────────────────────────────────
+
+function TimeCorrectionReviewModal({ shift, onClose, onDone }: { shift: any; onClose: () => void; onDone: () => void }) {
+  const [note, setNote] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: (approved: boolean) => shiftsApi.reviewTimeCorrection(shift.id, { approved, note: note || undefined }),
+    onSuccess: (_, approved) => {
+      toast.success(approved ? "Zeitkorrektur bestätigt" : "Zeitkorrektur abgelehnt");
+      onDone();
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail ?? "Fehler"),
+  });
+
+  const breakPlanned  = shift.break_minutes ?? 0;
+  const breakActual   = shift.actual_break_minutes != null ? shift.actual_break_minutes : breakPlanned;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h2 className="text-base font-semibold text-foreground">Zeitkorrektur prüfen</h2>
+          <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
+          <div className="bg-muted/40 rounded-lg p-3 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Geplant</span>
+              <span className="font-medium">{shift.start_time?.slice(0,5)} – {shift.end_time?.slice(0,5)} ({breakPlanned} min Pause)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Eingetragen</span>
+              <span className="font-medium" style={{ color: "rgb(var(--ctp-teal))" }}>
+                {shift.actual_start?.slice(0,5)} – {shift.actual_end?.slice(0,5)} ({breakActual} min Pause)
+              </span>
+            </div>
+            {shift.time_correction_note && (
+              <div className="pt-1 border-t border-border text-muted-foreground italic">
+                „{shift.time_correction_note}"
+              </div>
+            )}
+          </div>
+          <div><label className={labelCls}>Anmerkung (optional)</label>
+            <input type="text" className={inputCls} value={note} onChange={e => setNote(e.target.value)} placeholder="optional" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => mutation.mutate(false)} disabled={mutation.isPending}
+              className="py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              style={{ backgroundColor: "rgb(var(--ctp-red) / 0.15)", color: "rgb(var(--ctp-red))" }}>
+              Ablehnen
+            </button>
+            <button onClick={() => mutation.mutate(true)} disabled={mutation.isPending}
+              className="py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              style={{ backgroundColor: "rgb(var(--ctp-green))", color: "white" }}>
+              Bestätigen
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -622,9 +738,11 @@ export default function ShiftsPage() {
   const [filterEmployee, setFilterEmployee] = useState("");
   const [statusFilter,   setStatusFilter]   = useState<StatusFilter>("open");
   const [showCreate,     setShowCreate]     = useState(false);
-  const [confirmShift,   setConfirmShift]   = useState<any>(null);
-  const [actualShift,    setActualShift]    = useState<any>(null);
-  const [suggestShift,   setSuggestShift]   = useState<any>(null);
+  const [confirmShift,      setConfirmShift]      = useState<any>(null);
+  const [actualShift,       setActualShift]       = useState<any>(null);
+  const [suggestShift,      setSuggestShift]       = useState<any>(null);
+  const [correctionShift,   setCorrectionShift]   = useState<any>(null);
+  const [reviewShift,       setReviewShift]       = useState<any>(null);
 
   const monthStart = format(startOfMonth(month), "yyyy-MM-dd");
   const monthEnd   = format(endOfMonth(month), "yyyy-MM-dd");
@@ -702,6 +820,8 @@ export default function ShiftsPage() {
   const handleCreated  = () => { setShowCreate(false); qc.invalidateQueries({ queryKey: ["shifts"] }); };
   const handleConfirmed= () => { setConfirmShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
   const handleActualSaved = () => { setActualShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
+  const handleCorrectionDone = () => { setCorrectionShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
+  const handleReviewDone = () => { setReviewShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
 
   return (
     <div className="space-y-4" {...swipeHandlers}>
@@ -880,9 +1000,23 @@ export default function ShiftsPage() {
                                 )}
                               </span>
                               {hasActualTime && (
-                                <span className="text-xs shrink-0 flex items-center gap-1" style={{ color: "rgb(var(--ctp-teal))" }}>
+                                <span className="text-xs shrink-0 flex items-center gap-1" style={{
+                                  color: shift.time_correction_status === "confirmed"
+                                    ? "rgb(var(--ctp-green))"
+                                    : shift.time_correction_status === "rejected"
+                                    ? "rgb(var(--ctp-red))"
+                                    : "rgb(var(--ctp-teal))"
+                                }}>
                                   <Clock size={10} />
                                   Ist: {shift.actual_start?.slice(0,5) ?? "–"} – {shift.actual_end?.slice(0,5) ?? "–"}
+                                  {shift.time_correction_status === "confirmed" && " ✓"}
+                                  {shift.time_correction_status === "rejected" && " (abgel.)"}
+                                </span>
+                              )}
+                              {shift.time_correction_status === "pending" && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0"
+                                  style={{ backgroundColor: "rgb(var(--ctp-yellow) / 0.15)", color: "rgb(var(--ctp-yellow))" }}>
+                                  ⏳ Korrektur ausstehend
                                 </span>
                               )}
                               {shift.status === "confirmed" && shift.confirmed_at && (
@@ -925,6 +1059,23 @@ export default function ShiftsPage() {
                                 <Pencil size={14} />
                               </button>
                             )}
+                            {/* Time correction: employee submits for confirmed/completed shifts */}
+                            {isOwnShift && ["confirmed", "completed"].includes(shift.status) &&
+                              !["pending"].includes(shift.time_correction_status) && (
+                              <button onClick={() => setCorrectionShift(shift)} title="Ist-Zeit nacherfassen"
+                                className="p-2.5 rounded hover:bg-accent transition-colors"
+                                style={{ color: "rgb(var(--ctp-teal))" }}>
+                                <ClockArrowUp size={14} />
+                              </button>
+                            )}
+                            {/* Time correction review: admin approves/rejects pending corrections */}
+                            {isPrivileged && shift.time_correction_status === "pending" && (
+                              <button onClick={() => setReviewShift(shift)} title="Zeitkorrektur prüfen"
+                                className="p-2.5 rounded hover:bg-accent transition-colors"
+                                style={{ color: "rgb(var(--ctp-yellow))" }}>
+                                <ClockArrowUp size={14} />
+                              </button>
+                            )}
                             {isPrivileged && shift.status === "planned" && (
                               <button onClick={() => { if (confirm("Dienst wirklich löschen?")) deleteMutation.mutate(shift.id); }}
                                 className="p-2.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
@@ -953,6 +1104,8 @@ export default function ShiftsPage() {
       )}
       {confirmShift && <ConfirmModal shift={confirmShift} onClose={() => setConfirmShift(null)} onDone={handleConfirmed} />}
       {actualShift && <ActualTimeModal shift={actualShift} onClose={() => setActualShift(null)} onDone={handleActualSaved} />}
+      {correctionShift && <TimeCorrectionModal shift={correctionShift} onClose={() => setCorrectionShift(null)} onDone={handleCorrectionDone} />}
+      {reviewShift && <TimeCorrectionReviewModal shift={reviewShift} onClose={() => setReviewShift(null)} onDone={handleReviewDone} />}
       {suggestShift && <SuggestionsModal shift={suggestShift} onClose={() => setSuggestShift(null)} onAssigned={() => setSuggestShift(null)} />}
     </div>
   );

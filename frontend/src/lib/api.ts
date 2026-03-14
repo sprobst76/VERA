@@ -111,6 +111,16 @@ export const shiftsApi = {
   }) => api.post(`/shifts/${id}/confirm`, data),
   claim: (id: string) => api.post(`/shifts/${id}/claim`, {}),
   suggestions: (id: string) => api.get(`/shifts/${id}/suggestions`),
+  submitTimeCorrection: (id: string, data: {
+    actual_start: string;
+    actual_end: string;
+    actual_break_minutes?: number;
+    note?: string;
+  }) => api.post(`/shifts/${id}/time-correction`, data),
+  reviewTimeCorrection: (id: string, data: {
+    approved: boolean;
+    note?: string;
+  }) => api.put(`/shifts/${id}/time-correction`, data),
 };
 
 // Shift Templates

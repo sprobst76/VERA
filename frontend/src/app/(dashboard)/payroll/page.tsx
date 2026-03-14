@@ -243,7 +243,7 @@ function DetailModal({
             <div className="space-y-1 text-sm">
               {[
                 { label: "Geplant (Soll)", value: hrs(entry.planned_hours) },
-                { label: "Ist-Zeit (erfasst)", value: hrs(entry.actual_hours) },
+                { label: "Tatsächliche Stunden", value: hrs(entry.actual_hours) },
                 { label: "Übertrag Vormonat", value: hrs(entry.carryover_hours) },
                 { label: "Bezahlte Stunden", value: hrs(entry.paid_hours), bold: true },
               ].map((r) => (

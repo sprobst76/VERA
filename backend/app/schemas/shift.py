@@ -112,6 +112,20 @@ class ShiftConfirm(BaseModel):
     confirmation_note: Optional[str] = None
 
 
+class TimeCorrectionCreate(BaseModel):
+    """Employee submits actual worked times for admin review."""
+    actual_start: Time
+    actual_end: Time
+    actual_break_minutes: Optional[int] = None
+    note: Optional[str] = None
+
+
+class TimeCorrectionReview(BaseModel):
+    """Admin approves or rejects a pending time correction."""
+    approved: bool
+    note: Optional[str] = None
+
+
 class ShiftOut(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
@@ -128,6 +142,10 @@ class ShiftOut(BaseModel):
     cancellation_reason: Optional[str]
     actual_start: Optional[Time]
     actual_end: Optional[Time]
+    actual_break_minutes: Optional[int]
+    time_correction_status: Optional[str]
+    time_correction_note: Optional[str]
+    time_correction_confirmed_at: Optional[DateTime]
     confirmed_by: Optional[uuid.UUID]
     confirmed_at: Optional[DateTime]
     confirmation_note: Optional[str]

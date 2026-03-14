@@ -56,6 +56,13 @@ class Shift(Base):
 
     actual_start: Mapped[time | None] = mapped_column(Time, nullable=True)
     actual_end: Mapped[time | None] = mapped_column(Time, nullable=True)
+    actual_break_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Time correction workflow
+    time_correction_status: Mapped[str | None] = mapped_column(String(20), nullable=True, default="none")
+    time_correction_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    time_correction_confirmed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    time_correction_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Confirmation tracking
     confirmed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)

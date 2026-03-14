@@ -20,6 +20,7 @@ from app.api.v1.webhooks import dispatch_event
 from app.schemas.shift import (
     ShiftCreate, ShiftUpdate, ShiftOut, ShiftActualTime, ShiftConfirm,
     ShiftTemplateCreate, ShiftTemplateOut, BulkShiftCreate,
+    TimeCorrectionCreate, TimeCorrectionReview,
 )
 
 router = APIRouter(tags=["shifts"])
@@ -386,6 +387,112 @@ async def claim_shift(shift_id: uuid.UUID, current_user: CurrentUser, db: DB):
     if claiming_emp:
         await notify_shift_claimed(shift, claiming_emp, db)
 
+    return shift
+
+
+@shifts_router.post("/{shift_id}/time-correction", response_model=ShiftOut)
+async def submit_time_correction(
+    shift_id: uuid.UUID,
+    payload: TimeCorrectionCreate,
+    current_user: CurrentUser,
+    db: DB,
+):
+    """
+    Employee (own shift) or Admin/Manager submits actual worked times for review.
+    Allowed when shift status is 'confirmed' or 'completed'.
+    Sets time_correction_status = 'pending'.
+    """
+    result = await db.execute(
+        select(Shift).where(Shift.id == shift_id, Shift.tenant_id == current_user.tenant_id)
+    )
+    shift = result.scalar_one_or_none()
+    if not shift:
+        raise HTTPException(status_code=404, detail="Dienst nicht gefunden")
+
+    is_privileged = current_user.role in PRIVILEGED_ROLES
+
+    if not is_privileged:
+        own_id = await _own_employee_id(current_user, db)
+        if own_id is None or shift.employee_id != own_id:
+            raise HTTPException(status_code=403, detail="Zugriff verweigert")
+
+    if shift.status not in ("confirmed", "completed"):
+        raise HTTPException(
+            status_code=400,
+            detail="Zeitkorrektur nur für bestätigte oder abgeschlossene Dienste möglich",
+        )
+
+    if shift.time_correction_status == "pending":
+        raise HTTPException(status_code=400, detail="Korrektur wartet bereits auf Bestätigung")
+
+    old_actual_start = str(shift.actual_start)
+    shift.actual_start = payload.actual_start
+    shift.actual_end = payload.actual_end
+    shift.actual_break_minutes = payload.actual_break_minutes
+    shift.time_correction_note = payload.note
+    shift.time_correction_status = "pending"
+    # Clear previous confirmation
+    shift.time_correction_confirmed_by = None
+    shift.time_correction_confirmed_at = None
+
+    await _write_audit(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                        entity_id=shift_id, action="time_correction_submit",
+                        old_values={"actual_start": old_actual_start},
+                        new_values={
+                            "actual_start": str(payload.actual_start),
+                            "actual_end": str(payload.actual_end),
+                            "actual_break_minutes": str(payload.actual_break_minutes),
+                            "note": payload.note,
+                        })
+
+    await db.commit()
+    await db.refresh(shift)
+    return shift
+
+
+@shifts_router.put("/{shift_id}/time-correction", response_model=ShiftOut)
+async def review_time_correction(
+    shift_id: uuid.UUID,
+    payload: TimeCorrectionReview,
+    current_user: ManagerOrAdmin,
+    db: DB,
+):
+    """
+    Admin/Manager approves or rejects a pending time correction.
+    approved=True  → time_correction_status = 'confirmed' (payroll uses actual times)
+    approved=False → time_correction_status = 'rejected'
+    """
+    result = await db.execute(
+        select(Shift).where(Shift.id == shift_id, Shift.tenant_id == current_user.tenant_id)
+    )
+    shift = result.scalar_one_or_none()
+    if not shift:
+        raise HTTPException(status_code=404, detail="Dienst nicht gefunden")
+
+    if shift.time_correction_status != "pending":
+        raise HTTPException(status_code=400, detail="Keine ausstehende Korrektur für diesen Dienst")
+
+    if payload.approved:
+        shift.time_correction_status = "confirmed"
+        shift.time_correction_confirmed_by = current_user.id
+        shift.time_correction_confirmed_at = datetime.now(timezone.utc)
+        if payload.note:
+            shift.time_correction_note = payload.note
+    else:
+        shift.time_correction_status = "rejected"
+        if payload.note:
+            shift.time_correction_note = payload.note
+
+    await _write_audit(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                        entity_id=shift_id, action="time_correction_review",
+                        new_values={
+                            "approved": str(payload.approved),
+                            "status": shift.time_correction_status,
+                            "note": payload.note,
+                        })
+
+    await db.commit()
+    await db.refresh(shift)
     return shift
 
 

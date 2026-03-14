@@ -374,13 +374,31 @@ class PayrollService:
 
     # ── Dienst-Berechnungen ───────────────────────────────────────────────────
 
+    def _use_actual_times(self, shift) -> bool:
+        """True wenn bestätigte Ist-Zeiten für Abrechnung verwendet werden sollen."""
+        return (
+            getattr(shift, "time_correction_status", None) == "confirmed"
+            and shift.actual_start is not None
+            and shift.actual_end is not None
+        )
+
     def _calc_net_hours(self, shift) -> float:
-        start = datetime.combine(shift.date, shift.start_time)
-        end = datetime.combine(shift.date, shift.end_time)
+        if self._use_actual_times(shift):
+            start = datetime.combine(shift.date, shift.actual_start)
+            end = datetime.combine(shift.date, shift.actual_end)
+            break_min = (
+                shift.actual_break_minutes
+                if shift.actual_break_minutes is not None
+                else shift.break_minutes
+            )
+        else:
+            start = datetime.combine(shift.date, shift.start_time)
+            end = datetime.combine(shift.date, shift.end_time)
+            break_min = shift.break_minutes
         if end < start:
             end += timedelta(days=1)
         gross_minutes = (end - start).total_seconds() / 60
-        net_minutes = gross_minutes - shift.break_minutes
+        net_minutes = gross_minutes - break_min
         return max(0, net_minutes / 60)
 
     def _calc_surcharges(self, shift, hourly_rate: float) -> dict:
@@ -392,8 +410,12 @@ class PayrollService:
         is_sunday = shift.date.weekday() == 6
         is_saturday = shift.date.weekday() == 5
 
-        start_dt = datetime.combine(shift.date, shift.start_time)
-        end_dt = datetime.combine(shift.date, shift.end_time)
+        if self._use_actual_times(shift):
+            start_dt = datetime.combine(shift.date, shift.actual_start)
+            end_dt = datetime.combine(shift.date, shift.actual_end)
+        else:
+            start_dt = datetime.combine(shift.date, shift.start_time)
+            end_dt = datetime.combine(shift.date, shift.end_time)
         if end_dt < start_dt:
             end_dt += timedelta(days=1)
 
