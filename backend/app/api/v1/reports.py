@@ -5,6 +5,7 @@ GET /reports/hours-summary       – Stunden pro Mitarbeiter und Zeitraum
 GET /reports/minijob-limit-status – Minijob-Jahres-€-Status aller Minijobber
 GET /reports/compliance-violations – Compliance-Verstöße im Zeitraum
 GET /reports/surcharge-breakdown  – Zuschlagsaufschlüsselung nach Monat
+GET /reports/absences             – Abwesenheits-Jahresbericht
 GET /reports/export/csv           – CSV-Export für hours-summary
 """
 import csv
@@ -23,6 +24,7 @@ from app.api.deps import DB, CurrentUser
 from app.models.employee import Employee
 from app.models.shift import Shift
 from app.models.payroll import PayrollEntry
+from app.models.absence import EmployeeAbsence
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -366,3 +368,65 @@ async def export_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/absences")
+async def absences_report(
+    current_user: CurrentUser,
+    db: DB,
+    year: int = Query(default=None, description="Jahr (z.B. 2026); Standard: aktuelles Jahr"),
+):
+    """
+    Abwesenheits-Jahresbericht: Alle Abwesenheiten eines Jahres mit Tagen-Summe pro Typ.
+    Mitarbeiter sehen nur ihre eigenen Abwesenheiten.
+    """
+    from datetime import datetime
+    if year is None:
+        year = datetime.now().year
+
+    year_start = date(year, 1, 1)
+    year_end   = date(year, 12, 31)
+
+    query = (
+        select(EmployeeAbsence, Employee)
+        .join(Employee, Employee.id == EmployeeAbsence.employee_id)
+        .where(
+            Employee.tenant_id == current_user.tenant_id,
+            EmployeeAbsence.start_date <= year_end,
+            EmployeeAbsence.end_date >= year_start,
+        )
+    )
+
+    if current_user.role == "employee":
+        emp_result = await db.execute(
+            select(Employee.id).where(Employee.user_id == current_user.id)
+        )
+        own_id = emp_result.scalar_one_or_none()
+        if own_id is None:
+            return []
+        query = query.where(EmployeeAbsence.employee_id == own_id)
+
+    query = query.order_by(EmployeeAbsence.start_date)
+    result = await db.execute(query)
+    rows = result.fetchall()
+
+    items = []
+    for absence, emp in rows:
+        # Clamp auf das Jahr
+        eff_start = max(absence.start_date, year_start)
+        eff_end   = min(absence.end_date,   year_end)
+        days = (eff_end - eff_start).days + 1
+        items.append({
+            "id":             str(absence.id),
+            "employee_id":    str(emp.id),
+            "first_name":     emp.first_name,
+            "last_name":      emp.last_name,
+            "absence_type":   absence.absence_type,
+            "start_date":     str(absence.start_date),
+            "end_date":       str(absence.end_date),
+            "days_in_year":   days,
+            "status":         absence.status,
+            "reason":         absence.reason or "",
+        })
+
+    return items

@@ -279,6 +279,8 @@ export const reportsApi = {
     api.get("/reports/surcharge-breakdown", { params: { month, ...(employee_id ? { employee_id } : {}) } }),
   exportCsv: (params: { from: string; to: string; employee_id?: string }) =>
     api.get("/reports/export/csv", { params, responseType: "blob" }),
+  absences: (year?: number) =>
+    api.get("/reports/absences", { params: year ? { year } : {} }),
 };
 
 // Webhooks

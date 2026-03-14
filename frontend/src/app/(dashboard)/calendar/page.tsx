@@ -195,8 +195,6 @@ export default function CalendarPage() {
     return hevents;
   }, [vacationData]);
 
-  const allEvents = useMemo(() => [...events, ...holidayEvents, ...recurringEvents], [events, holidayEvents, recurringEvents]);
-
   // Recurring shift events (clickable, visually distinct)
   const recurringEvents = useMemo(() => {
     const evts: any[] = [];
@@ -230,6 +228,8 @@ export default function CalendarPage() {
     return evts;
   }, [recurringShifts, templateMap, rangeStart, rangeEnd, view]);
 
+  const allEvents = useMemo(() => [...events, ...holidayEvents, ...recurringEvents], [events, holidayEvents, recurringEvents]);
+
   // Event color / style
   const eventPropGetter = useCallback((event: any) => {
     const { shift, template, shiftType, type, color: labelColor } = event.resource ?? {};
@@ -244,14 +244,14 @@ export default function CalendarPage() {
           fontWeight: "600",
           opacity: 0.88,
           borderRadius: "3px",
-          pointerEvents: "none",
+          pointerEvents: "none" as const,
           cursor: "default",
         },
       };
     }
 
     if (type === "recurring_shift") {
-      const c = color ?? "#1E3A5F";
+      const c = labelColor ?? "#1E3A5F";
       return {
         style: {
           backgroundColor: "transparent",

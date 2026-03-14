@@ -10,7 +10,7 @@ import {
 import { de } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Clock, AlertTriangle,
-  CheckCircle2, TrendingUp, Download, Layers,
+  CheckCircle2, TrendingUp, Download, Layers, CalendarOff,
 } from "lucide-react";
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
@@ -503,6 +503,100 @@ function ComplianceWarnings({ shifts, employees }: { shifts: any[]; employees: a
   );
 }
 
+// ── Absences Report ───────────────────────────────────────────────────────────
+
+const ABSENCE_TYPE_LABELS: Record<string, string> = {
+  vacation:   "Urlaub",
+  sick:       "Krank",
+  unpaid:     "Unbezahlt",
+  other:      "Sonstiges",
+  compensatory: "Ausgleich",
+};
+
+const ABSENCE_STATUS_STYLE: Record<string, string> = {
+  pending:  "text-ctp-yellow",
+  approved: "text-ctp-green",
+  rejected: "text-ctp-red",
+};
+
+function AbsencesReport({ absences, isPrivileged, year }: {
+  absences: any[]; isPrivileged: boolean; year: number;
+}) {
+  if (absences.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground py-2">
+        Keine Abwesenheiten im Jahr {year}.
+      </p>
+    );
+  }
+
+  // Gruppiere nach Typ für Zusammenfassung
+  const byType: Record<string, number> = {};
+  for (const a of absences) {
+    byType[a.absence_type] = (byType[a.absence_type] ?? 0) + a.days_in_year;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Zusammenfassung */}
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(byType).map(([type, days]) => (
+          <span key={type} className="text-xs bg-accent rounded-full px-2.5 py-1 text-foreground border border-border">
+            {ABSENCE_TYPE_LABELS[type] ?? type}: <strong>{days}</strong> Tage
+          </span>
+        ))}
+      </div>
+
+      {/* Tabelle */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground">
+              {isPrivileged && <th className="text-left pb-2 pr-4 font-medium">Mitarbeiter</th>}
+              <th className="text-left pb-2 pr-4 font-medium">Typ</th>
+              <th className="text-left pb-2 pr-4 font-medium">Von</th>
+              <th className="text-left pb-2 pr-4 font-medium">Bis</th>
+              <th className="text-right pb-2 pr-4 font-medium">Tage</th>
+              <th className="text-left pb-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {absences.map((a) => (
+              <tr key={a.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
+                {isPrivileged && (
+                  <td className="py-2 pr-4 text-foreground">
+                    {a.first_name} {a.last_name}
+                  </td>
+                )}
+                <td className="py-2 pr-4 text-muted-foreground">
+                  {ABSENCE_TYPE_LABELS[a.absence_type] ?? a.absence_type}
+                </td>
+                <td className="py-2 pr-4 tabular-nums">{a.start_date}</td>
+                <td className="py-2 pr-4 tabular-nums">{a.end_date}</td>
+                <td className="py-2 pr-4 text-right tabular-nums font-medium">{a.days_in_year}</td>
+                <td className={`py-2 text-xs ${ABSENCE_STATUS_STYLE[a.status] ?? "text-muted-foreground"}`}>
+                  {a.status}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={isPrivileged ? 4 : 3} className="pt-3 text-muted-foreground text-xs">
+                Gesamt {year}
+              </td>
+              <td className="pt-3 text-right font-semibold">
+                {absences.reduce((s, a) => s + a.days_in_year, 0)} Tage
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Hauptseite ────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
@@ -534,6 +628,12 @@ export default function ReportsPage() {
   const { data: shiftTypes = [] } = useQuery({
     queryKey: ["shift-types"],
     queryFn: () => shiftTypesApi.list().then((r) => r.data),
+  });
+
+  const selectedYear = selectedMonth.getFullYear();
+  const { data: absences = [] } = useQuery({
+    queryKey: ["report-absences", selectedYear],
+    queryFn: () => reportsApi.absences(selectedYear).then((r) => r.data),
   });
 
   const handleCsvExport = async () => {
@@ -669,6 +769,15 @@ export default function ReportsPage() {
       {/* Section 4: Compliance */}
       <Section title="Compliance-Warnungen" icon={AlertTriangle} color="--ctp-peach">
         <ComplianceWarnings shifts={shifts as any[]} employees={employees as any[]} />
+      </Section>
+
+      {/* Section 5: Abwesenheiten */}
+      <Section title={`Abwesenheiten ${selectedYear}`} icon={CalendarOff} color="--ctp-teal">
+        <AbsencesReport
+          absences={absences as any[]}
+          isPrivileged={isPrivileged}
+          year={selectedYear}
+        />
       </Section>
     </div>
   );
