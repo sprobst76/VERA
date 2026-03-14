@@ -830,12 +830,102 @@ function KalenderfreigabeSection() {
       <details className="group">
         <summary className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5 hover:text-foreground transition-colors select-none">
           <ChevronDown size={13} className="group-open:rotate-180 transition-transform" />
-          Anleitung: Kalender abonnieren
+          Schritt-für-Schritt: Kalender in deiner App einbinden
         </summary>
-        <div className="mt-2 text-xs text-muted-foreground space-y-1.5 pl-4 border-l border-border">
-          <p><strong className="text-foreground">Google Calendar:</strong> Einstellungen → Weitere Kalender → Per URL hinzufügen → URL einfügen</p>
-          <p><strong className="text-foreground">Apple Kalender:</strong> Ablage → Neues Kalenderabonnement → URL einfügen</p>
-          <p><strong className="text-foreground">Outlook:</strong> Kalender hinzufügen → Aus dem Internet abonnieren → URL einfügen</p>
+        <div className="mt-3 space-y-3">
+
+          {/* Apple Kalender – macOS */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🍎</span>
+              <span className="text-xs font-semibold text-foreground">Apple Kalender – Mac</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside pl-1">
+              <li>Kalender-App öffnen</li>
+              <li>Menü <strong className="text-foreground">Ablage → Neues Kalenderabonnement…</strong></li>
+              <li>Den kopierten Link einfügen → <strong className="text-foreground">Abonnieren</strong> klicken</li>
+              <li>Name vergeben, unter <em>Speicherort</em> „iCloud" wählen (dann auch auf iPhone sichtbar)</li>
+              <li>Aktualisierungsintervall: <strong className="text-foreground">Stündlich</strong> empfohlen</li>
+            </ol>
+          </div>
+
+          {/* Apple Kalender – iPhone/iPad */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📱</span>
+              <span className="text-xs font-semibold text-foreground">iPhone / iPad (iOS)</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside pl-1">
+              <li>Link oben kopieren (Kopiersymbol)</li>
+              <li><strong className="text-foreground">Einstellungen → Kalender → Accounts → Account hinzufügen</strong></li>
+              <li><strong className="text-foreground">Anderen Account hinzufügen → Abonnierter Kalender hinzufügen</strong></li>
+              <li>Link einfügen → <strong className="text-foreground">Weiter</strong> → <strong className="text-foreground">Sichern</strong></li>
+            </ol>
+            <p className="text-xs text-muted-foreground/70 italic">Alternativ: Link in Safari öffnen → iOS fragt automatisch, ob du abonnieren möchtest.</p>
+          </div>
+
+          {/* Google Calendar */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📅</span>
+              <span className="text-xs font-semibold text-foreground">Google Calendar (Web)</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside pl-1">
+              <li>calendar.google.com öffnen</li>
+              <li>Links neben „Andere Kalender" auf <strong className="text-foreground">+</strong> klicken</li>
+              <li><strong className="text-foreground">Per URL</strong> auswählen</li>
+              <li>Link einfügen → <strong className="text-foreground">Kalender hinzufügen</strong></li>
+            </ol>
+            <p className="text-xs text-muted-foreground/70 italic">Hinweis: Google aktualisiert abonnierte Kalender nur alle 8–24 h (nicht konfigurierbar).</p>
+          </div>
+
+          {/* Outlook Desktop */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📧</span>
+              <span className="text-xs font-semibold text-foreground">Microsoft Outlook (Desktop, Windows/Mac)</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside pl-1">
+              <li>Kalender-Ansicht öffnen</li>
+              <li>Menü <strong className="text-foreground">Startseite → Kalender öffnen → Aus dem Internet…</strong><br />
+                <span className="text-muted-foreground/70">(Mac: Ablage → Neu → Kalenderabonnement)</span>
+              </li>
+              <li>Link einfügen → <strong className="text-foreground">OK</strong> → Name vergeben</li>
+              <li>Aktualisierungsintervall nach Wunsch einstellen</li>
+            </ol>
+          </div>
+
+          {/* Outlook Web */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🌐</span>
+              <span className="text-xs font-semibold text-foreground">Outlook Web (outlook.com / Microsoft 365)</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside pl-1">
+              <li>Kalender öffnen → links unten <strong className="text-foreground">Kalender hinzufügen</strong></li>
+              <li><strong className="text-foreground">Aus dem Internet abonnieren</strong> wählen</li>
+              <li>Link einfügen, Namen vergeben → <strong className="text-foreground">Importieren</strong></li>
+            </ol>
+          </div>
+
+          {/* Thunderbird */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚡</span>
+              <span className="text-xs font-semibold text-foreground">Mozilla Thunderbird (mit Kalender)</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside pl-1">
+              <li>Kalender-Reiter öffnen (unten in der Navigationsleiste)</li>
+              <li>Links in der Kalenderliste <strong className="text-foreground">Rechtsklick → Neuer Kalender…</strong></li>
+              <li><strong className="text-foreground">Im Netzwerk</strong> auswählen → <strong className="text-foreground">Weiter</strong></li>
+              <li>Format: <strong className="text-foreground">iCalendar (ICS)</strong> auswählen</li>
+              <li>Link einfügen → <strong className="text-foreground">Weiter</strong> → Namen vergeben → <strong className="text-foreground">Fertig</strong></li>
+            </ol>
+          </div>
+
+          <p className="text-xs text-muted-foreground/60 pt-1">
+            Der Link enthält einen privaten Token – teile ihn nicht öffentlich. Bei Verlust kann oben ein neuer Link generiert werden.
+          </p>
         </div>
       </details>
     </div>
