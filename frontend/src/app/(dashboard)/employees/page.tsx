@@ -18,8 +18,11 @@ import {
   Eye,
   EyeOff,
   History,
+  ChevronLeft,
 } from "lucide-react";
-import { employeesApi, usersApi, contractsApi } from "@/lib/api";
+import { format, parseISO } from "date-fns";
+import { de } from "date-fns/locale";
+import { employeesApi, usersApi, contractsApi, payrollApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 
@@ -352,11 +355,12 @@ function LinkAccountModal({ employee, onClose, onSaved }: LinkModalProps) {
 /* ── EmployeeModal ────────────────────────────────────────────────── */
 interface ModalProps {
   employee?: Employee;
+  inline?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
+function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProps) {
   const isEdit = !!employee;
 
   const [form, setForm] = useState({
@@ -430,6 +434,252 @@ function EmployeeModal({ employee, onClose, onSaved }: ModalProps) {
       payload.vacation_days = 0;
     }
     mutation.mutate(payload);
+  }
+
+  if (inline) {
+    return (
+      <div className="bg-card rounded-xl border border-border p-5">
+        <h3 className="text-base font-semibold text-foreground mb-4">Stammdaten bearbeiten</h3>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Name */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Vorname *
+              </label>
+              <input
+                required
+                value={form.first_name}
+                onChange={(e) => set("first_name", e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                placeholder="Anna"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Nachname *
+              </label>
+              <input
+                required
+                value={form.last_name}
+                onChange={(e) => set("last_name", e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                placeholder="Müller"
+              />
+            </div>
+          </div>
+
+          {/* Kontakt */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                E-Mail
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => set("email", e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                placeholder="anna@beispiel.de"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Telefon
+              </label>
+              <input
+                value={form.phone}
+                onChange={(e) => set("phone", e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                placeholder="+49 170 1234567"
+              />
+            </div>
+          </div>
+
+          {/* Qualifikationen */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+              Qualifikationen
+            </label>
+            {qualifications.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {qualifications.map((q) => (
+                  <span
+                    key={q}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+                    style={{
+                      backgroundColor: "rgb(var(--ctp-blue) / 0.12)",
+                      color: "rgb(var(--ctp-blue))",
+                    }}
+                  >
+                    {q}
+                    <button
+                      type="button"
+                      onClick={() => removeQual(q)}
+                      className="opacity-70 hover:opacity-100"
+                    >
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={qualInput}
+                onChange={(e) => setQualInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addQual(qualInput);
+                  }
+                }}
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                placeholder="Qualifikation eingeben + Enter"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {QUALIFICATION_SUGGESTIONS.filter(
+                (q) => !qualifications.includes(q)
+              ).map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => addQual(q)}
+                  className="text-xs px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground hover:border-blue-400 hover:text-foreground transition-colors"
+                >
+                  + {q}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Jobeinstellungen */}
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Jobeinstellungen
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Vertragsart
+                </label>
+                <select
+                  value={form.contract_type}
+                  onChange={(e) => {
+                    const ct = e.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      contract_type: ct,
+                      annual_salary_limit: ct === "minijob" ? "6672" : f.annual_salary_limit,
+                      monthly_hours_limit: ct === "minijob" && !f.monthly_hours_limit ? "43" : f.monthly_hours_limit,
+                    }));
+                  }}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  <option value="minijob">Minijob</option>
+                  <option value="part_time">Teilzeit</option>
+                  <option value="full_time">Vollzeit</option>
+                  <option value="ehrenamt">Ehrenamt</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  {(form.contract_type === "part_time" || form.contract_type === "full_time")
+                    ? "Stundensatz f. Zuschläge (€)"
+                    : "Stundenlohn (€)"}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.hourly_rate}
+                  onChange={(e) => set("hourly_rate", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="12.41"
+                />
+              </div>
+            </div>
+            {(form.contract_type === "part_time" || form.contract_type === "full_time") && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Monatslohn (€) – fixer Grundlohn
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.monthly_salary}
+                  onChange={(e) => set("monthly_salary", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="z.B. 1850.00"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Wenn gesetzt: fixer Grundlohn statt Stunden × Stundensatz. Zuschläge kommen oben drauf.
+                </p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Std.-Limit / Monat
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.monthly_hours_limit}
+                  onChange={(e) => set("monthly_hours_limit", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder={form.contract_type === "minijob" ? "43" : ""}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Jahresgehaltsgrenze (€)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.annual_salary_limit}
+                  onChange={(e) => set("annual_salary_limit", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+            </div>
+            {(form.contract_type === "full_time" || form.contract_type === "part_time") && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Jahressoll (Std./Jahr)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.annual_hours_target}
+                  onChange={(e) => set("annual_hours_target", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="z.B. 1800"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+            >
+              {mutation.isPending ? "Speichern…" : "Änderungen speichern"}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
   }
 
   return (
@@ -722,7 +972,7 @@ interface ContractEntry {
   note: string | null;
 }
 
-function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+function ContractHistoryModal({ employee, onClose, inline = false }: { employee: Employee; onClose: () => void; inline?: boolean }) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -785,24 +1035,8 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
 
   const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("de-DE");
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-card rounded-2xl border border-border w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
-          <div>
-            <h2 className="font-semibold text-foreground">Vertragsverlauf</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {employee.first_name} {employee.last_name}
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+  const contractContent = (
+    <div className={inline ? "space-y-4" : "overflow-y-auto flex-1 p-5 space-y-4"}>
           {isLoading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Lade Verlauf…</p>
           ) : contracts.length === 0 ? (
@@ -1103,7 +1337,200 @@ function ContractHistoryModal({ employee, onClose }: { employee: Employee; onClo
             </div>
           )}
         </div>
+  );
+
+  if (inline) {
+    return contractContent;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-card rounded-2xl border border-border w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
+          <div>
+            <h2 className="font-semibold text-foreground">Vertragsverlauf</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {employee.first_name} {employee.last_name}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
+            <X size={18} />
+          </button>
+        </div>
+        {contractContent}
       </div>
+    </div>
+  );
+}
+
+/* ── EmployeeStatistik ───────────────────────────────────────────── */
+function EmployeeStatistik({ employee, payrolls }: { employee: Employee; payrolls: any[] }) {
+  const recent = [...payrolls]
+    .sort((a, b) => b.month.localeCompare(a.month))
+    .slice(0, 6)
+    .reverse();
+
+  const totalHours = recent.reduce((s: number, p: any) => s + (p.paid_hours ?? 0), 0);
+  const totalGross = recent.reduce((s: number, p: any) => s + (p.gross_wage ?? 0), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Stunden gesamt", value: `${totalHours.toFixed(1)} h`, sub: "letzte 6 Monate" },
+          { label: "Brutto gesamt", value: `${totalGross.toFixed(2)} €`, sub: "letzte 6 Monate" },
+          { label: "Ø Std./Monat", value: recent.length ? `${(totalHours / recent.length).toFixed(1)} h` : "–", sub: "" },
+          { label: "Urlaubstage", value: String(employee.vacation_days ?? 0), sub: "Anspruch/Jahr" },
+        ].map(s => (
+          <div key={s.label} className="bg-card rounded-xl border border-border p-4">
+            <div className="text-xs text-muted-foreground">{s.label}</div>
+            <div className="text-xl font-bold text-foreground mt-1">{s.value}</div>
+            {s.sub && <div className="text-xs text-muted-foreground mt-0.5">{s.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Monthly breakdown table */}
+      {recent.length > 0 ? (
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-5 py-3 border-b border-border text-sm font-semibold text-foreground">
+            Monatliche Abrechnung
+          </div>
+          <div className="divide-y divide-border">
+            {recent.map((p: any) => {
+              const month = format(parseISO(p.month), "MMMM yyyy", { locale: de });
+              return (
+                <div key={p.id} className="flex items-center gap-4 px-5 py-3">
+                  <div className="text-sm font-medium text-foreground w-32 shrink-0">{month}</div>
+                  <div className="flex-1 text-sm text-muted-foreground">
+                    {(p.paid_hours ?? 0).toFixed(1)} h
+                  </div>
+                  <div className="text-sm font-medium text-foreground">
+                    {(p.gross_wage ?? 0).toFixed(2)} €
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    p.status === "paid" ? "text-green-600 bg-green-500/10" :
+                    p.status === "approved" ? "text-blue-600 bg-blue-500/10" :
+                    "text-muted-foreground bg-muted"
+                  }`}>
+                    {p.status === "paid" ? "Bezahlt" : p.status === "approved" ? "Genehmigt" : "Entwurf"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-card rounded-xl border border-border p-8 text-center text-muted-foreground text-sm">
+          Noch keine Abrechnungen vorhanden
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── EmployeeDetailView ──────────────────────────────────────────── */
+type DetailTab = "stammdaten" | "verlauf" | "statistik";
+
+function EmployeeDetailView({ emp, isAdmin, onBack, onUpdate }: {
+  emp: Employee;
+  isAdmin: boolean;
+  onBack: () => void;
+  onUpdate: () => void;
+}) {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<DetailTab>("stammdaten");
+
+  const { data: employee = emp, refetch } = useQuery<Employee>({
+    queryKey: ["employee", emp.id],
+    queryFn: () => employeesApi.get(emp.id).then(r => r.data),
+    initialData: emp,
+  });
+
+  const { data: payrolls = [] } = useQuery({
+    queryKey: ["payroll-employee", emp.id],
+    queryFn: () => payrollApi.list({ employee_id: emp.id }).then(r => r.data),
+    enabled: tab === "statistik",
+  });
+
+  const color = CONTRACT_COLORS[employee.contract_type] ?? "rgb(var(--ctp-overlay0))";
+
+  const tabs: [DetailTab, string][] = [
+    ["stammdaten", "Stammdaten"],
+    ["verlauf", "Vertragsverlauf"],
+    ["statistik", "Statistik"],
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft size={16} /> Alle Mitarbeiter
+        </button>
+        <div className="flex items-center gap-3 flex-1">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
+            style={{ backgroundColor: color }}
+          >
+            {employee.first_name[0]}{employee.last_name[0]}
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">{employee.first_name} {employee.last_name}</h1>
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ color, backgroundColor: color.replace(")", " / 0.12)").replace("rgb(", "rgb(") }}>
+              {CONTRACT_LABELS[employee.contract_type] ?? employee.contract_type}
+            </span>
+          </div>
+        </div>
+        {!employee.is_active && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Inaktiv</span>
+        )}
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-border">
+        {tabs.map(([t, label]) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              tab === t
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {tab === "stammdaten" && (
+        <EmployeeModal
+          employee={employee}
+          inline={true}
+          onClose={onBack}
+          onSaved={() => { refetch(); onUpdate(); }}
+        />
+      )}
+
+      {tab === "verlauf" && (
+        <ContractHistoryModal
+          employee={employee}
+          inline={true}
+          onClose={onBack}
+        />
+      )}
+
+      {tab === "statistik" && (
+        <EmployeeStatistik employee={employee} payrolls={payrolls as any[]} />
+      )}
     </div>
   );
 }
@@ -1119,6 +1546,7 @@ export default function EmployeesPage() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [linking, setLinking] = useState<Employee | null>(null);
   const [contractsEmployee, setContractsEmployee] = useState<Employee | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
     queryKey: ["employees", showInactive],
@@ -1155,6 +1583,17 @@ export default function EmployeesPage() {
     contractGroups[ct].push(emp);
   }
   const contractOrder = ["full_time", "part_time", "minijob"];
+
+  if (selectedEmployee) {
+    return (
+      <EmployeeDetailView
+        emp={selectedEmployee}
+        isAdmin={isAdmin}
+        onBack={() => setSelectedEmployee(null)}
+        onUpdate={() => qc.invalidateQueries({ queryKey: ["employees"] })}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -1227,6 +1666,7 @@ export default function EmployeesPage() {
                       key={emp.id}
                       emp={emp}
                       isAdmin={isAdmin}
+                      onOpen={() => setSelectedEmployee(emp)}
                       onEdit={() => setEditing(emp)}
                       onLink={() => setLinking(emp)}
                       onContracts={() => setContractsEmployee(emp)}
@@ -1280,6 +1720,7 @@ export default function EmployeesPage() {
                     emp={emp}
                     isAdmin={isAdmin}
                     inactive
+                    onOpen={() => setSelectedEmployee(emp)}
                     onEdit={() => setEditing(emp)}
                     onContracts={() => setContractsEmployee(emp)}
                     onReactivate={() => reactivateMutation.mutate(emp.id)}
@@ -1327,6 +1768,7 @@ function EmployeeCard({
   emp,
   isAdmin,
   inactive,
+  onOpen,
   onEdit,
   onLink,
   onContracts,
@@ -1336,6 +1778,7 @@ function EmployeeCard({
   emp: Employee;
   isAdmin: boolean;
   inactive?: boolean;
+  onOpen: () => void;
   onEdit: () => void;
   onLink?: () => void;
   onContracts?: () => void;
@@ -1346,9 +1789,10 @@ function EmployeeCard({
 
   return (
     <div
-      className={`bg-card rounded-xl border border-border p-4 space-y-3 transition-opacity ${
+      className={`bg-card rounded-xl border border-border p-4 space-y-3 transition-opacity cursor-pointer hover:border-primary/50 ${
         inactive ? "opacity-60" : ""
       }`}
+      onClick={onOpen}
     >
       {/* Header */}
       <div className="flex items-start gap-3">
@@ -1378,7 +1822,7 @@ function EmployeeCard({
 
         {/* Action buttons (Admin only) */}
         {isAdmin && (
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={onEdit}
               className="p-2 rounded-lg hover:bg-muted text-muted-foreground"

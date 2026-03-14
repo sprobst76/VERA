@@ -71,13 +71,17 @@ def _build_calendar(shifts: list, emp_map: dict, cal_name: str) -> bytes:
         ev.add("dtend", end_dt)
 
         template_name = shift.template.name if shift.template else "Dienst"
-        ev.add("summary", vText(template_name))
+        emp = emp_map.get(shift.employee_id)
+        if emp:
+            summary = f"{template_name} – {emp.first_name} {emp.last_name}"
+        else:
+            summary = template_name
+        ev.add("summary", vText(summary))
 
         if shift.location:
             ev.add("location", vText(shift.location))
 
         lines = []
-        emp = emp_map.get(shift.employee_id)
         if emp:
             lines.append(f"Mitarbeiter: {emp.first_name} {emp.last_name}")
         lines.append(f"Status: {STATUS_LABELS.get(shift.status, shift.status)}")
@@ -129,7 +133,7 @@ async def get_ical_feed(token: str):
                     shift.template = None
 
             cal_name = f"VERA – {employee.first_name} {employee.last_name}"
-            ical_bytes = _build_calendar(shifts, {}, cal_name)
+            ical_bytes = _build_calendar(shifts, {employee.id: employee}, cal_name)
 
             return Response(
                 content=ical_bytes,
