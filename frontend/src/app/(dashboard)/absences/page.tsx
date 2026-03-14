@@ -404,7 +404,7 @@ export default function AbsencesPage() {
       const days = a.days_count ?? differenceInCalendarDays(parseISO(a.end_date), parseISO(a.start_date)) + 1;
       return sum + days;
     }, 0);
-  const totalVacationDays = (ownProfile as any)?.vacation_days ?? 0;
+  const totalVacationDays = ((ownProfile as any)?.vacation_days ?? 0) + ((ownProfile as any)?.vacation_carryover ?? 0);
   const remainingVacationDays = totalVacationDays - usedVacationDays;
 
   const handleCreated = () => {
@@ -495,7 +495,8 @@ export default function AbsencesPage() {
           </div>
           <div className="divide-y divide-border">
             {(vacationBalances as any[]).map((b: any) => {
-              const pct = b.entitlement > 0 ? Math.min(100, (b.taken / b.entitlement) * 100) : 0;
+              const total = b.total ?? b.entitlement;
+              const pct = total > 0 ? Math.min(100, (b.taken / total) * 100) : 0;
               const color = b.remaining <= 3
                 ? "rgb(var(--ctp-red))"
                 : b.remaining <= 7
@@ -503,8 +504,11 @@ export default function AbsencesPage() {
                   : "rgb(var(--ctp-teal))";
               return (
                 <div key={b.employee_id} className="flex items-center gap-4 px-5 py-2.5">
-                  <div className="w-32 shrink-0 text-sm font-medium text-foreground truncate">
-                    {b.first_name} {b.last_name}
+                  <div className="w-32 shrink-0">
+                    <div className="text-sm font-medium text-foreground truncate">{b.first_name} {b.last_name}</div>
+                    {b.carryover > 0 && (
+                      <div className="text-xs text-muted-foreground">{b.entitlement} + {b.carryover} Übertrag</div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="w-full rounded-full h-1.5" style={{ backgroundColor: "rgb(var(--ctp-surface1))" }}>
@@ -516,7 +520,7 @@ export default function AbsencesPage() {
                   </div>
                   <div className="text-sm tabular-nums shrink-0 text-right w-24">
                     <span className="font-semibold" style={{ color }}>{b.remaining}</span>
-                    <span className="text-muted-foreground"> / {b.entitlement} Tage</span>
+                    <span className="text-muted-foreground"> / {total} Tage</span>
                   </div>
                 </div>
               );

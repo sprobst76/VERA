@@ -28,6 +28,7 @@ class Employee(Base):
     annual_hours_target: Mapped[float | None] = mapped_column(Numeric(7, 1), nullable=True)
     monthly_salary: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     vacation_days: Mapped[int] = mapped_column(Integer, default=30)
+    vacation_carryover: Mapped[int] = mapped_column(Integer, default=0)
 
     qualifications: Mapped[list] = mapped_column(JSON, default=list)
     notification_prefs: Mapped[dict] = mapped_column(JSON, default=dict)

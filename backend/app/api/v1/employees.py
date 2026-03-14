@@ -160,8 +160,10 @@ async def get_vacation_balances(
             "first_name":    e.first_name,
             "last_name":     e.last_name,
             "entitlement":   e.vacation_days,
+            "carryover":     e.vacation_carryover,
+            "total":         e.vacation_days + e.vacation_carryover,
             "taken":         taken_map.get(e.id, 0.0),
-            "remaining":     e.vacation_days - taken_map.get(e.id, 0.0),
+            "remaining":     e.vacation_days + e.vacation_carryover - taken_map.get(e.id, 0.0),
             "year":          target_year,
         }
         for e in employees

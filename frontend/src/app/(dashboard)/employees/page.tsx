@@ -40,6 +40,7 @@ interface Employee {
   annual_salary_limit: number | null;
   annual_hours_target: number | null;
   vacation_days: number;
+  vacation_carryover: number;
   qualifications: string[];
   is_active: boolean;
   user_id: string | null;
@@ -374,6 +375,8 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
     monthly_hours_limit: employee?.monthly_hours_limit?.toString() ?? "",
     annual_salary_limit: employee?.annual_salary_limit?.toString() ?? "6672",
     annual_hours_target: employee?.annual_hours_target?.toString() ?? "",
+    vacation_days: employee?.vacation_days?.toString() ?? "20",
+    vacation_carryover: employee?.vacation_carryover?.toString() ?? "0",
   });
   const [qualifications, setQualifications] = useState<string[]>(
     employee?.qualifications ?? []
@@ -429,10 +432,9 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
       monthly_hours_limit: form.monthly_hours_limit ? parseFloat(form.monthly_hours_limit) : null,
       annual_salary_limit: form.annual_salary_limit ? parseFloat(form.annual_salary_limit) : null,
       annual_hours_target: form.annual_hours_target ? parseFloat(form.annual_hours_target) : null,
+      vacation_days: parseInt(form.vacation_days) || 20,
+      vacation_carryover: parseInt(form.vacation_carryover) || 0,
     };
-    if (!isEdit) {
-      payload.vacation_days = 0;
-    }
     mutation.mutate(payload);
   }
 
@@ -551,6 +553,39 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                   + {q}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Urlaubsverwaltung */}
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Urlaub
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Jahresanspruch (Tage)
+                </label>
+                <input
+                  type="number" min={0} max={365}
+                  value={form.vacation_days}
+                  onChange={(e) => set("vacation_days", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="20"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Resturlaub Vorjahr (Tage)
+                </label>
+                <input
+                  type="number" min={0} max={365}
+                  value={form.vacation_carryover}
+                  onChange={(e) => set("vacation_carryover", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="0"
+                />
+              </div>
             </div>
           </div>
 
@@ -821,6 +856,39 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                   + {q}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Urlaubsverwaltung */}
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Urlaub
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Jahresanspruch (Tage)
+                </label>
+                <input
+                  type="number" min={0} max={365}
+                  value={form.vacation_days}
+                  onChange={(e) => set("vacation_days", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="20"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Resturlaub Vorjahr (Tage)
+                </label>
+                <input
+                  type="number" min={0} max={365}
+                  value={form.vacation_carryover}
+                  onChange={(e) => set("vacation_carryover", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="0"
+                />
+              </div>
             </div>
           </div>
 

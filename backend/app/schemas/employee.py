@@ -37,6 +37,7 @@ class EmployeeOut(BaseModel):
     annual_hours_target: float | None
     monthly_salary: float | None
     vacation_days: int
+    vacation_carryover: int
     qualifications: list[str]
     notification_prefs: dict[str, Any]
     ical_token: str | None
@@ -66,6 +67,7 @@ class EmployeeCreate(BaseModel):
     annual_hours_target: float | None = None
     monthly_salary: float | None = None
     vacation_days: int = 30
+    vacation_carryover: int = 0
     qualifications: list[str] = []
     notification_prefs: dict[str, Any] = {}
     telegram_chat_id: str | None = None
@@ -88,6 +90,7 @@ class EmployeeUpdate(BaseModel):
     annual_hours_target: float | None = None
     monthly_salary: float | None = None
     vacation_days: int | None = None
+    vacation_carryover: int | None = None
     qualifications: list[str] | None = None
     notification_prefs: dict[str, Any] | None = None
     telegram_chat_id: str | None = None
