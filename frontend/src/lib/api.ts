@@ -255,6 +255,8 @@ export const adminSettingsApi = {
 export const calendarDataApi = {
   vacationData: (from: string, to: string) =>
     api.get("/calendar/vacation-data", { params: { from, to } }),
+  icalLinks: () => api.get("/calendar/ical-links"),
+  regenerateToken: () => api.post("/calendar/regenerate-token"),
 };
 
 // API Keys

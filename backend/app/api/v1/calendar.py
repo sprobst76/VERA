@@ -3,19 +3,22 @@ Calendar endpoints:
 
 GET /calendar/{token}.ics            – public iCal feed (no JWT)
 GET /api/v1/calendar/vacation-data   – vacation/holiday data for calendar display (JWT required)
+POST /api/v1/calendar/regenerate-token – regenerate iCal token for current user
 """
+import secrets
 from datetime import datetime, timezone, timedelta, date, time as dtime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
-from icalendar import Calendar, Event, vText
+from icalendar import Calendar, Event, vText, Alarm
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.employee import Employee
 from app.models.holiday_profile import HolidayProfile, VacationPeriod, CustomHoliday
 from app.models.shift import Shift, ShiftTemplate
+from app.models.shift_type import ShiftType
 from app.models.user import User
 from app.api.deps import CurrentUser, DB
 from app.utils.german_holidays import get_bw_holidays
@@ -42,7 +45,7 @@ def _dt(d: date, t: dtime) -> datetime:
     return datetime(d.year, d.month, d.day, t.hour, t.minute, tzinfo=TZ)
 
 
-def _build_calendar(shifts: list, emp_map: dict, cal_name: str) -> bytes:
+def _build_calendar(shifts: list, emp_map: dict, cal_name: str, shift_type_map: dict | None = None) -> bytes:
     cal = Calendar()
     cal.add("prodid", "-//VERA//Schichtkalender//DE")
     cal.add("version", "2.0")
@@ -96,6 +99,16 @@ def _build_calendar(shifts: list, emp_map: dict, cal_name: str) -> bytes:
         ev.add("status", "CONFIRMED" if shift.status in ("confirmed", "completed") else "TENTATIVE")
         ev.add("last-modified", datetime.now(timezone.utc))
 
+        # VALARM – reminder based on shift type settings
+        if shift_type_map and shift.shift_type_id:
+            st = shift_type_map.get(shift.shift_type_id)
+            if st and st.reminder_enabled and st.reminder_minutes_before > 0:
+                alarm = Alarm()
+                alarm.add("action", "DISPLAY")
+                alarm.add("description", vText(f"Erinnerung: {summary}"))
+                alarm.add("trigger", timedelta(minutes=-st.reminder_minutes_before))
+                ev.add_component(alarm)
+
         cal.add_component(ev)
 
     return cal.to_ical()
@@ -132,8 +145,13 @@ async def get_ical_feed(token: str):
                 else:
                     shift.template = None
 
+            st_result = await db.execute(
+                select(ShiftType).where(ShiftType.tenant_id == employee.tenant_id)
+            )
+            shift_type_map = {st.id: st for st in st_result.scalars().all()}
+
             cal_name = f"VERA – {employee.first_name} {employee.last_name}"
-            ical_bytes = _build_calendar(shifts, {employee.id: employee}, cal_name)
+            ical_bytes = _build_calendar(shifts, {employee.id: employee}, cal_name, shift_type_map)
 
             return Response(
                 content=ical_bytes,
@@ -171,8 +189,13 @@ async def get_ical_feed(token: str):
             )
             emp_map = {e.id: e for e in emps_result.scalars().all()}
 
+            st_result = await db.execute(
+                select(ShiftType).where(ShiftType.tenant_id == user.tenant_id)
+            )
+            shift_type_map = {st.id: st for st in st_result.scalars().all()}
+
             cal_name = "VERA – Alle Dienste"
-            ical_bytes = _build_calendar(shifts, emp_map, cal_name)
+            ical_bytes = _build_calendar(shifts, emp_map, cal_name, shift_type_map)
 
             return Response(
                 content=ical_bytes,
@@ -184,6 +207,69 @@ async def get_ical_feed(token: str):
             )
 
     raise HTTPException(status_code=404, detail="Kalender nicht gefunden")
+
+
+# ── Token management ─────────────────────────────────────────────────────────
+
+@vacation_router.post("/regenerate-token")
+async def regenerate_ical_token(current_user: CurrentUser, db: DB):
+    """Regenerate the iCal token for the current user (and linked employee if any)."""
+    new_token = secrets.token_urlsafe(32)
+    current_user.ical_token = new_token
+
+    # Also regenerate linked employee token if exists
+    emp_result = await db.execute(
+        select(Employee).where(Employee.user_id == current_user.id)
+    )
+    employee = emp_result.scalar_one_or_none()
+    if employee:
+        employee.ical_token = secrets.token_urlsafe(32)
+
+    await db.commit()
+    return {
+        "ical_token": new_token,
+        "employee_ical_token": employee.ical_token if employee else None,
+    }
+
+
+@vacation_router.get("/ical-links")
+async def get_ical_links(current_user: CurrentUser, db: DB):
+    """
+    Return iCal feed URLs for the current user.
+    Admin/Manager: own URL (all shifts) + all employee URLs.
+    Employee: own URL only.
+    """
+    base_url = "https://vera.lab.halbewahrheit21.de"
+
+    result = {"own_url": f"{base_url}/calendar/{current_user.ical_token}.ics"}
+
+    if current_user.role in ("admin", "manager"):
+        emps_result = await db.execute(
+            select(Employee).where(
+                Employee.tenant_id == current_user.tenant_id,
+                Employee.is_active == True,
+                Employee.ical_token.isnot(None),
+            ).order_by(Employee.first_name, Employee.last_name)
+        )
+        employees = emps_result.scalars().all()
+        result["employee_links"] = [
+            {
+                "id": str(e.id),
+                "name": f"{e.first_name} {e.last_name}",
+                "url": f"{base_url}/calendar/{e.ical_token}.ics",
+            }
+            for e in employees
+        ]
+    else:
+        # Employee: own employee ical_token (for personal feed)
+        emp_result = await db.execute(
+            select(Employee).where(Employee.user_id == current_user.id)
+        )
+        emp = emp_result.scalar_one_or_none()
+        if emp and emp.ical_token:
+            result["own_url"] = f"{base_url}/calendar/{emp.ical_token}.ics"
+
+    return result
 
 
 # ── Vacation/Holiday data for calendar display ────────────────────────────────

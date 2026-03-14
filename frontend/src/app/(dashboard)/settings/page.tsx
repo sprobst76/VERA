@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi, shiftTypesApi, usersApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi, shiftTypesApi, usersApi, calendarDataApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff, Users, UserPlus, Lock, Power, Shield } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff, Users, UserPlus, Lock, Power, Shield, Link, RefreshCw, ExternalLink } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -689,6 +689,160 @@ function SMTPSection() {
     </div>
   );
 }
+
+// ── Kalenderfreigabe Section ──────────────────────────────────────────────────
+
+function ICalLinkRow({ label, url, accent }: { label: string; url: string; accent?: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className={`rounded-xl border p-3 space-y-2 ${accent ? "border-blue-500/30 bg-blue-500/5" : "border-border"}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-foreground">{label}</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={copy}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+            title="URL kopieren"
+          >
+            {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+            {copied ? "Kopiert!" : "Kopieren"}
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1 rounded-lg hover:bg-muted text-muted-foreground"
+            title="In neuem Tab öffnen"
+          >
+            <ExternalLink size={12} />
+          </a>
+        </div>
+      </div>
+      <div className="font-mono text-xs text-muted-foreground break-all bg-muted/50 rounded-lg px-2.5 py-1.5 select-all">
+        {url}
+      </div>
+    </div>
+  );
+}
+
+function KalenderfreigabeSection() {
+  const qc = useQueryClient();
+  const { user } = useAuthStore();
+  const isPrivileged = user?.role === "admin" || user?.role === "manager";
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const { data: links, isLoading } = useQuery<any>({
+    queryKey: ["ical-links"],
+    queryFn: () => calendarDataApi.icalLinks().then(r => r.data),
+  });
+
+  const regenerateMut = useMutation({
+    mutationFn: () => calendarDataApi.regenerateToken(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ical-links"] });
+      setShowConfirm(false);
+      toast.success("Neuer Kalender-Link generiert – der alte Link ist ungültig");
+    },
+    onError: () => toast.error("Fehler beim Generieren"),
+  });
+
+  return (
+    <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CalendarDays size={18} className="text-muted-foreground" />
+          <h2 className="font-semibold text-foreground">Kalenderfreigabe</h2>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Abonniere deinen Dienstkalender in Google Calendar, Apple Kalender oder Outlook.
+        Der Link funktioniert ohne Login — halte ihn geheim.
+        Erinnerungen werden automatisch eingebaut, sofern der Dienst einem Typ mit aktivierter Erinnerung zugewiesen ist.
+      </p>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Lade…</p>
+      ) : links ? (
+        <div className="space-y-3">
+          <ICalLinkRow
+            label={isPrivileged ? "Dein Kalender (alle Dienste im Betrieb)" : "Dein persönlicher Kalender"}
+            url={links.own_url}
+            accent
+          />
+
+          {isPrivileged && links.employee_links?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-1">
+                Mitarbeiter-Kalender
+              </p>
+              {links.employee_links.map((el: any) => (
+                <ICalLinkRow key={el.id} label={el.name} url={el.url} />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      <div className="pt-1 border-t border-border">
+        {showConfirm ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground flex items-start gap-2">
+              <AlertTriangle size={13} className="shrink-0 mt-0.5" style={{ color: "rgb(var(--ctp-peach))" }} />
+              Der bestehende Link wird ungültig. Alle Kalender-Abonnements müssen neu eingerichtet werden.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => regenerateMut.mutate()}
+                disabled={regenerateMut.isPending}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium text-white disabled:opacity-50"
+                style={{ backgroundColor: "rgb(var(--ctp-peach))" }}
+              >
+                <RefreshCw size={12} /> {regenerateMut.isPending ? "Generiere…" : "Ja, neu generieren"}
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <RefreshCw size={13} /> Link neu generieren (invalidiert bisherigen Link)
+          </button>
+        )}
+      </div>
+
+      {/* Anleitung */}
+      <details className="group">
+        <summary className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5 hover:text-foreground transition-colors select-none">
+          <ChevronDown size={13} className="group-open:rotate-180 transition-transform" />
+          Anleitung: Kalender abonnieren
+        </summary>
+        <div className="mt-2 text-xs text-muted-foreground space-y-1.5 pl-4 border-l border-border">
+          <p><strong className="text-foreground">Google Calendar:</strong> Einstellungen → Weitere Kalender → Per URL hinzufügen → URL einfügen</p>
+          <p><strong className="text-foreground">Apple Kalender:</strong> Ablage → Neues Kalenderabonnement → URL einfügen</p>
+          <p><strong className="text-foreground">Outlook:</strong> Kalender hinzufügen → Aus dem Internet abonnieren → URL einfügen</p>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// ── Ferienprofile Section ─────────────────────────────────────────────────────
 
 function FerienprofileSection() {
   const qc = useQueryClient();
@@ -1857,6 +2011,9 @@ export default function SettingsPage() {
 
       {/* Mein Profil (employee only) */}
       {role === "employee" && <MeinProfilSection />}
+
+      {/* Kalenderfreigabe (alle) */}
+      <KalenderfreigabeSection />
 
       {/* SMTP-Konfiguration (admin only) */}
       {role === "admin" && <SMTPSection />}
