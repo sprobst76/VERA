@@ -254,13 +254,12 @@ export default function CalendarPage() {
       const c = labelColor ?? "#1E3A5F";
       return {
         style: {
-          backgroundColor: "transparent",
+          backgroundColor: c,
           borderColor: c,
-          border: `2px dashed ${c}`,
-          color: c,
-          opacity: 0.6,
+          opacity: 0.25,
           fontSize: "0.7rem",
           cursor: "pointer",
+          borderRadius: "3px",
         },
       };
     }
