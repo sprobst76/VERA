@@ -1755,9 +1755,13 @@ function ShiftTypesSection() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">{st.name}</span>
                   {st.reminder_enabled ? (
-                    <Bell size={12} className="text-muted-foreground" title={`Erinnerung ${st.reminder_minutes_before} Min. vorher`} />
+                    <span title={`Erinnerung ${st.reminder_minutes_before} Min. vorher`}>
+                      <Bell size={12} className="text-muted-foreground" />
+                    </span>
                   ) : (
-                    <BellOff size={12} className="text-muted-foreground/40" title="Keine Erinnerung" />
+                    <span title="Keine Erinnerung">
+                      <BellOff size={12} className="text-muted-foreground/40" />
+                    </span>
                   )}
                 </div>
                 {st.description && (
