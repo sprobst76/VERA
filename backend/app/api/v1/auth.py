@@ -192,10 +192,12 @@ async def forgot_password(payload: ForgotPasswordRequest, db: DB):
         # Best-effort email – failures are silently ignored
         try:
             from app.services.notification_service import NotificationService
-            ns = NotificationService()
+            ns = NotificationService(db)
+            smtp_cfg = await ns._load_smtp_cfg(user.tenant_id)
             await ns._send_email(
                 to=user.email,
                 subject="VERA – Passwort zurücksetzen",
+                smtp_cfg=smtp_cfg,
                 body=(
                     f"Hallo,\n\n"
                     f"du hast eine Anfrage zum Zurücksetzen deines Passworts gestellt.\n\n"

@@ -141,10 +141,12 @@ async def send_invite(user_id: uuid.UUID, current_user: AdminUser, db: DB):
     email_sent = False
     try:
         from app.services.notification_service import NotificationService
-        ns = NotificationService()
+        ns = NotificationService(db)
+        smtp_cfg = await ns._load_smtp_cfg(current_user.tenant_id)
         ok, _ = await ns._send_email(
             to=user.email,
             subject="Einladung zu VERA",
+            smtp_cfg=smtp_cfg,
             body=(
                 f"Hallo,\n\n"
                 f"du wurdest zu VERA eingeladen. Klicke auf den folgenden Link, "
