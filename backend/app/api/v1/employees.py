@@ -1,8 +1,8 @@
 import secrets
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, status, Query
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from sqlalchemy import select, update, func
 from app.api.deps import DB, AdminUser, CurrentUser, ManagerOrAdmin
 from app.models.employee import Employee
 from app.models.contract_history import ContractHistory
+from app.models.employee_contract_type_membership import EmployeeContractTypeMembership
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, EmployeePublicOut
 
 
@@ -49,6 +50,19 @@ class ContractHistoryOut(BaseModel):
     contract_type_id: uuid.UUID | None = None
     note: str | None
     created_at: Any
+
+    model_config = {"from_attributes": True}
+
+
+class MembershipOut(BaseModel):
+    id: uuid.UUID
+    employee_id: uuid.UUID
+    contract_type_id: Optional[uuid.UUID]
+    contract_type_name: Optional[str] = None
+    valid_from: date
+    valid_to: Optional[date]
+    note: Optional[str]
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -526,6 +540,51 @@ async def delete_contract(
     await db.commit()
 
 
+@router.get("/{employee_id}/memberships", response_model=list[MembershipOut])
+async def list_memberships(employee_id: uuid.UUID, current_user: ManagerOrAdmin, db: DB):
+    """Verlauf der Gruppenmitgliedschaften (ContractType-Zugehörigkeit) eines Mitarbeiters."""
+    from app.models.contract_type import ContractType
+
+    result = await db.execute(
+        select(Employee).where(
+            Employee.id == employee_id,
+            Employee.tenant_id == current_user.tenant_id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
+
+    mem_result = await db.execute(
+        select(EmployeeContractTypeMembership)
+        .where(EmployeeContractTypeMembership.employee_id == employee_id)
+        .order_by(EmployeeContractTypeMembership.valid_from.desc())
+    )
+    memberships = mem_result.scalars().all()
+
+    # ContractType-Namen auflösen
+    ct_ids = {m.contract_type_id for m in memberships if m.contract_type_id}
+    ct_names: dict[uuid.UUID, str] = {}
+    if ct_ids:
+        ct_result = await db.execute(
+            select(ContractType).where(ContractType.id.in_(ct_ids))
+        )
+        ct_names = {ct.id: ct.name for ct in ct_result.scalars().all()}
+
+    return [
+        MembershipOut(
+            id=m.id,
+            employee_id=m.employee_id,
+            contract_type_id=m.contract_type_id,
+            contract_type_name=ct_names.get(m.contract_type_id) if m.contract_type_id else None,
+            valid_from=m.valid_from,
+            valid_to=m.valid_to,
+            note=m.note,
+            created_at=m.created_at,
+        )
+        for m in memberships
+    ]
+
+
 @router.post("/{employee_id}/assign-contract-type", response_model=EmployeeOut)
 async def assign_contract_type(
     employee_id: uuid.UUID,
@@ -567,6 +626,28 @@ async def assign_contract_type(
             raise HTTPException(status_code=404, detail="Vertragstyp nicht gefunden")
 
         employee.contract_type_id = ct_id
+
+        # Membership-History: offenen Eintrag schließen + neuen anlegen
+        from datetime import date as _date_cls
+        mem_from = _date_cls.fromisoformat(str(valid_from_raw)) if valid_from_raw else _date_cls.today()
+        prev_mem_result = await db.execute(
+            select(EmployeeContractTypeMembership).where(
+                EmployeeContractTypeMembership.employee_id == employee_id,
+                EmployeeContractTypeMembership.valid_to.is_(None),
+            )
+        )
+        prev_mem = prev_mem_result.scalar_one_or_none()
+        if prev_mem:
+            prev_mem.valid_to = mem_from
+        new_mem = EmployeeContractTypeMembership(
+            tenant_id=current_user.tenant_id,
+            employee_id=employee_id,
+            contract_type_id=ct_id,
+            valid_from=mem_from,
+            note=f"Zugewiesen: {ct.name}",
+            created_by_user_id=current_user.id,
+        )
+        db.add(new_mem)
 
         # Wenn valid_from angegeben: ContractHistory anlegen
         if valid_from_raw:
@@ -618,6 +699,17 @@ async def assign_contract_type(
                 employee.weekly_hours = float(ct.weekly_hours)
     else:
         employee.contract_type_id = None
+        # Offene Membership schließen
+        from datetime import date as _date_cls
+        prev_mem_result = await db.execute(
+            select(EmployeeContractTypeMembership).where(
+                EmployeeContractTypeMembership.employee_id == employee_id,
+                EmployeeContractTypeMembership.valid_to.is_(None),
+            )
+        )
+        prev_mem = prev_mem_result.scalar_one_or_none()
+        if prev_mem:
+            prev_mem.valid_to = _date_cls.today()
 
     await db.commit()
     await db.refresh(employee)

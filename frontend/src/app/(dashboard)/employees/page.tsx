@@ -380,21 +380,6 @@ interface ContractTypeItem {
 function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProps) {
   const isEdit = !!employee;
 
-  const [contractTypeId, setContractTypeId] = useState<string | null>(
-    employee?.contract_type_id ?? null
-  );
-  const [contractTypeValidFrom, setContractTypeValidFrom] = useState<string>("");
-
-  const { data: contractTypes = [] } = useQuery<ContractTypeItem[]>({
-    queryKey: ["contract-types"],
-    queryFn: () => contractTypesApi.list().then((r) => r.data),
-    enabled: isEdit,
-  });
-
-  const assignMutation = useMutation({
-    mutationFn: ({ ctId, validFrom }: { ctId: string | null; validFrom?: string }) =>
-      contractTypesApi.assignToEmployee(employee!.id, ctId, validFrom || undefined),
-  });
 
   const [form, setForm] = useState({
     first_name: employee?.first_name ?? "",
@@ -442,12 +427,6 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
     mutationFn: async (data: Record<string, unknown>) => {
       if (isEdit) {
         await employeesApi.update(employee!.id, data);
-        if (contractTypeId !== (employee?.contract_type_id ?? null)) {
-          await assignMutation.mutateAsync({
-            ctId: contractTypeId,
-            validFrom: contractTypeValidFrom || undefined,
-          });
-        }
       } else {
         await employeesApi.create(data);
       }
@@ -813,42 +792,6 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
             </p>
           )}
 
-          {isEdit && contractTypes.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Vertragsvorlage
-              </div>
-              <select
-                value={contractTypeId ?? ""}
-                onChange={(e) => setContractTypeId(e.target.value || null)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              >
-                <option value="">— Keine Vorlage —</option>
-                {contractTypes.filter((ct) => ct.is_active).map((ct) => (
-                  <option key={ct.id} value={ct.id}>{ct.name}</option>
-                ))}
-              </select>
-              {contractTypeId !== (employee?.contract_type_id ?? null) && contractTypeId && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">
-                    Gültig ab (legt neuen Vertragseintrag an)
-                  </label>
-                  <input
-                    type="date"
-                    value={contractTypeValidFrom}
-                    onChange={(e) => setContractTypeValidFrom(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Optional – wenn leer: nur FK-Verknüpfung ohne neuen Vertragseintrag.
-                  </p>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Gruppenvertrag zuweisen – Änderungen an der Vorlage gelten dann automatisch für diesen Mitarbeiter.
-              </p>
-            </div>
-          )}
 
           {/* Verfügbarkeit */}
           <div className="space-y-2">
@@ -1211,42 +1154,6 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
             </p>
           )}
 
-          {isEdit && contractTypes.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Vertragsvorlage
-              </div>
-              <select
-                value={contractTypeId ?? ""}
-                onChange={(e) => setContractTypeId(e.target.value || null)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              >
-                <option value="">— Keine Vorlage —</option>
-                {contractTypes.filter((ct) => ct.is_active).map((ct) => (
-                  <option key={ct.id} value={ct.id}>{ct.name}</option>
-                ))}
-              </select>
-              {contractTypeId !== (employee?.contract_type_id ?? null) && contractTypeId && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">
-                    Gültig ab (legt neuen Vertragseintrag an)
-                  </label>
-                  <input
-                    type="date"
-                    value={contractTypeValidFrom}
-                    onChange={(e) => setContractTypeValidFrom(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Optional – wenn leer: nur FK-Verknüpfung ohne neuen Vertragseintrag.
-                  </p>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Gruppenvertrag zuweisen – Änderungen an der Vorlage gelten dann automatisch für diesen Mitarbeiter.
-              </p>
-            </div>
-          )}
 
           {/* Verfügbarkeit */}
           <div className="space-y-2">
@@ -1340,6 +1247,51 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
   const { data: contracts = [], isLoading } = useQuery<ContractEntry[]>({
     queryKey: ["contracts", employee.id],
     queryFn: () => contractsApi.list(employee.id).then((r) => r.data),
+  });
+
+  // Gruppenmitgliedschaft
+  const [showMembershipForm, setShowMembershipForm] = useState(false);
+  const [membershipForm, setMembershipForm] = useState({
+    contract_type_id: employee.contract_type_id ?? "",
+    valid_from: new Date().toISOString().slice(0, 10),
+    note: "",
+    with_contract_history: true,
+  });
+
+  interface MembershipEntry {
+    id: string;
+    contract_type_id: string | null;
+    contract_type_name: string | null;
+    valid_from: string;
+    valid_to: string | null;
+    note: string | null;
+  }
+
+  const { data: memberships = [] } = useQuery<MembershipEntry[]>({
+    queryKey: ["memberships", employee.id],
+    queryFn: () => employeesApi.getMemberships(employee.id).then((r) => r.data),
+  });
+
+  const currentMembership = memberships.find((m) => m.valid_to === null) ?? null;
+
+  const assignMembershipMutation = useMutation({
+    mutationFn: () =>
+      contractTypesApi.assignToEmployee(
+        employee.id,
+        membershipForm.contract_type_id || null,
+        membershipForm.with_contract_history ? membershipForm.valid_from : undefined,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["memberships", employee.id] });
+      qc.invalidateQueries({ queryKey: ["contracts", employee.id] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      toast.success("Gruppenmitgliedschaft aktualisiert");
+      setShowMembershipForm(false);
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Fehler beim Speichern");
+    },
   });
 
   const addMutation = useMutation({
@@ -1460,6 +1412,117 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
 
   const contractContent = (
     <div className={inline ? "space-y-4" : "overflow-y-auto flex-1 p-5 space-y-4"}>
+
+          {/* ── Gruppenzugehörigkeit ─────────────────────────────────────── */}
+          <div className="border border-border rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">Gruppenzugehörigkeit</span>
+                {currentMembership?.contract_type_name ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                    style={{ backgroundColor: "rgb(var(--ctp-green) / 0.12)", color: "rgb(var(--ctp-green))" }}>
+                    ● {currentMembership.contract_type_name}
+                  </span>
+                ) : (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
+                    Kein Gruppenvertrag
+                  </span>
+                )}
+                {currentMembership && (
+                  <span className="text-xs text-muted-foreground">
+                    seit {fmtDate(currentMembership.valid_from)}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowMembershipForm((v) => !v)}
+                className="text-xs px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
+              >
+                {showMembershipForm ? "Abbrechen" : "Ändern"}
+              </button>
+            </div>
+
+            {showMembershipForm && (
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Vertragstyp</label>
+                  <select
+                    value={membershipForm.contract_type_id}
+                    onChange={(e) => setMembershipForm((f) => ({ ...f, contract_type_id: e.target.value }))}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="">— Kein Gruppenvertrag —</option>
+                    {contractTypes.filter((ct) => ct.is_active).map((ct) => (
+                      <option key={ct.id} value={ct.id}>{ct.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">Gültig ab *</label>
+                    <input type="date" value={membershipForm.valid_from}
+                      onChange={(e) => setMembershipForm((f) => ({ ...f, valid_from: e.target.value }))}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">Notiz</label>
+                    <input type="text" value={membershipForm.note}
+                      onChange={(e) => setMembershipForm((f) => ({ ...f, note: e.target.value }))}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50" placeholder="optional" />
+                  </div>
+                </div>
+                {membershipForm.contract_type_id && (
+                  <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                    <input type="checkbox" checked={membershipForm.with_contract_history}
+                      onChange={(e) => setMembershipForm((f) => ({ ...f, with_contract_history: e.target.checked }))}
+                      className="rounded" />
+                    Konditionen vom Typ als neue Vertragsperiode übernehmen
+                  </label>
+                )}
+                <button
+                  onClick={() => assignMembershipMutation.mutate()}
+                  disabled={assignMembershipMutation.isPending}
+                  className="w-full py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+                >
+                  {assignMembershipMutation.isPending ? "Speichern…" : "Gruppenmitgliedschaft speichern"}
+                </button>
+              </div>
+            )}
+
+            {memberships.length > 1 && (
+              <details className="text-xs">
+                <summary className="text-muted-foreground cursor-pointer hover:text-foreground select-none">
+                  Verlauf ({memberships.length} Einträge)
+                </summary>
+                <table className="w-full mt-2">
+                  <thead>
+                    <tr className="text-muted-foreground border-b border-border/50">
+                      <th className="text-left pb-1 pr-3 font-medium">Ab</th>
+                      <th className="text-left pb-1 pr-3 font-medium">Bis</th>
+                      <th className="text-left pb-1 font-medium">Vertragstyp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {memberships.map((m) => (
+                      <tr key={m.id} className="border-b border-border/30 last:border-0"
+                        style={!m.valid_to ? { backgroundColor: "rgb(var(--ctp-green) / 0.06)" } : {}}>
+                        <td className="py-1 pr-3 whitespace-nowrap">{fmtDate(m.valid_from)}</td>
+                        <td className="py-1 pr-3 whitespace-nowrap text-muted-foreground">
+                          {m.valid_to ? fmtDate(m.valid_to) : (
+                            <span style={{ color: "rgb(var(--ctp-green))" }} className="font-medium">aktuell</span>
+                          )}
+                        </td>
+                        <td className="py-1">{m.contract_type_name ?? <span className="text-muted-foreground italic">Kein Typ</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
+            )}
+          </div>
+
+          {/* ── Konditionen-Verlauf ──────────────────────────────────────── */}
           {isLoading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Lade Verlauf…</p>
           ) : contracts.length === 0 ? (

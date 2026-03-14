@@ -92,6 +92,7 @@ export const employeesApi = {
   deactivate: (id: string) => api.delete(`/employees/${id}`),
   vacationBalances: (year?: number) =>
     api.get("/employees/vacation-balances", { params: year ? { year } : {} }),
+  getMemberships: (id: string) => api.get(`/employees/${id}/memberships`),
 };
 
 // Shifts

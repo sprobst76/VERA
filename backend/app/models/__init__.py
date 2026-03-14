@@ -13,6 +13,7 @@ from app.models.push_subscription import PushSubscription
 from app.models.audit import ComplianceCheck, AuditLog, ApiKey, Webhook
 from app.models.contract_history import ContractHistory
 from app.models.contract_type_history import ContractTypeHistory
+from app.models.employee_contract_type_membership import EmployeeContractTypeMembership
 from app.models.shift_type import ShiftType
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "Webhook",
     "ContractHistory",
     "ContractTypeHistory",
+    "EmployeeContractTypeMembership",
     "ShiftType",
     "ContractType",
 ]
