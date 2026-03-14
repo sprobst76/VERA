@@ -18,6 +18,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.employee import Employee
 from app.models.holiday_profile import HolidayProfile, VacationPeriod, CustomHoliday
 from app.models.shift import Shift, ShiftTemplate
+from app.models.absence import CareRecipientAbsence
 from app.models.shift_type import ShiftType
 from app.models.user import User
 from app.api.deps import CurrentUser, DB
@@ -338,8 +339,38 @@ async def get_vacation_data(
                     "name": name,
                 })
 
+    # Care recipient absences
+    care_result = await db.execute(
+        select(CareRecipientAbsence).where(
+            CareRecipientAbsence.tenant_id == current_user.tenant_id,
+            CareRecipientAbsence.end_date >= from_date,
+            CareRecipientAbsence.start_date <= to_date,
+        ).order_by(CareRecipientAbsence.start_date)
+    )
+    care_absences = []
+    type_labels = {
+        "vacation": "Urlaub (betreute Person)",
+        "rehab": "Reha",
+        "hospital": "Krankenhausaufenthalt",
+        "sick": "Krank",
+        "other": "Abwesenheit",
+    }
+    for ca in care_result.scalars().all():
+        label = type_labels.get(ca.type, ca.type)
+        if ca.description:
+            label = f"{label}: {ca.description}"
+        care_absences.append({
+            "id": str(ca.id),
+            "type": ca.type,
+            "label": label,
+            "start_date": ca.start_date.isoformat(),
+            "end_date": ca.end_date.isoformat(),
+            "shift_handling": ca.shift_handling,
+        })
+
     return {
         "vacation_periods": vacation_periods,
         "custom_holidays": custom_holidays,
         "public_holidays": public_holidays,
+        "care_absences": care_absences,
     }

@@ -192,6 +192,16 @@ export default function CalendarPage() {
           resource: { type: "holiday_label", color: ch.color },
         });
       }
+      for (const ca of vacationData.care_absences ?? []) {
+        hevents.push({
+          id: `ca-${ca.id}`,
+          title: `🏠 ${ca.label}`,
+          start: parseISO(ca.start_date),
+          end: new Date(parseISO(ca.end_date).getTime() + 86400000),
+          allDay: true,
+          resource: { type: "care_absence", color: "#cba6f7", careAbsence: ca },
+        });
+      }
     }
     return hevents;
   }, [vacationData]);
@@ -225,6 +235,22 @@ export default function CalendarPage() {
           fontSize: "0.65rem",
           fontWeight: "600",
           opacity: 0.88,
+          borderRadius: "3px",
+          pointerEvents: "none" as const,
+          cursor: "default",
+        },
+      };
+    }
+
+    if (type === "care_absence") {
+      return {
+        style: {
+          backgroundColor: "#cba6f7",
+          borderColor: "#cba6f7",
+          color: "rgba(0,0,0,0.80)",
+          fontSize: "0.65rem",
+          fontWeight: "600",
+          opacity: 0.85,
           borderRadius: "3px",
           pointerEvents: "none" as const,
           cursor: "default",
@@ -268,9 +294,13 @@ export default function CalendarPage() {
     const isPublicHoliday = (vacationData?.public_holidays ?? []).some((ph: any) => ph.date === ds);
     const isVacation = (vacationData?.vacation_periods ?? []).some((vp: any) => ds >= vp.start_date && ds <= vp.end_date);
     const isCustom = (vacationData?.custom_holidays ?? []).some((ch: any) => ch.date === ds);
+    const isCareAbsence = (vacationData?.care_absences ?? []).some(
+      (ca: any) => ds >= ca.start_date && ds <= ca.end_date
+    );
     if (isPublicHoliday) return { style: { backgroundColor: "rgba(243, 139, 168, 0.18)" } };
-    if (isVacation) return { style: { backgroundColor: "rgba(166, 227, 161, 0.15)" } };
-    if (isCustom) return { style: { backgroundColor: "rgba(250, 179, 135, 0.16)" } };
+    if (isVacation)      return { style: { backgroundColor: "rgba(166, 227, 161, 0.15)" } };
+    if (isCustom)        return { style: { backgroundColor: "rgba(250, 179, 135, 0.16)" } };
+    if (isCareAbsence)   return { style: { backgroundColor: "rgba(203, 166, 247, 0.18)" } };
     return {};
   }, [vacationData]);
 
@@ -353,6 +383,12 @@ export default function CalendarPage() {
             Beweglicher Tag
           </span>
         )}
+        {(vacationData?.care_absences ?? []).length > 0 && (
+          <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "#cba6f7" }} />
+            Abwesenheit betreute Person
+          </span>
+        )}
         {isPrivileged && (
           <span className="ml-auto text-muted-foreground italic">
             Dienste verschieben per Drag &amp; Drop
@@ -394,7 +430,7 @@ export default function CalendarPage() {
           onSelectEvent={(e: any) => {
             if (dragging) return;
             const t = e.resource?.type;
-            if (t === "vacation_label" || t === "holiday_label") return;
+            if (t === "vacation_label" || t === "holiday_label" || t === "care_absence") return;
             if (t === "recurring_shift") { setSelectedRecurring(e.resource); return; }
             setSelectedShift(e.resource);
           }}
