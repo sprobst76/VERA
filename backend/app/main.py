@@ -19,6 +19,7 @@ from app.api.v1.compliance import router as compliance_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.admin_settings import router as admin_settings_router
 from app.api.v1.api_keys import router as api_keys_router
+from app.api.v1.reports import router as reports_router
 
 
 @asynccontextmanager
@@ -67,6 +68,7 @@ app.include_router(compliance_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
 app.include_router(admin_settings_router, prefix=API_PREFIX)
 app.include_router(api_keys_router, prefix=API_PREFIX)
+app.include_router(reports_router, prefix=API_PREFIX)
 app.include_router(calendar_router)  # public, no auth prefix
 
 

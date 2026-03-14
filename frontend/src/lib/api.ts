@@ -264,3 +264,17 @@ export const apiKeysApi = {
     api.post("/api-keys", data),
   revoke: (id: string) => api.delete(`/api-keys/${id}`),
 };
+
+// Reports
+export const reportsApi = {
+  hoursSummary: (params: { from: string; to: string; employee_id?: string }) =>
+    api.get("/reports/hours-summary", { params }),
+  minijobLimitStatus: (year?: number) =>
+    api.get("/reports/minijob-limit-status", { params: year ? { year } : {} }),
+  complianceViolations: (params: { from: string; to: string; employee_id?: string }) =>
+    api.get("/reports/compliance-violations", { params }),
+  surchargeBreakdown: (month: string, employee_id?: string) =>
+    api.get("/reports/surcharge-breakdown", { params: { month, ...(employee_id ? { employee_id } : {}) } }),
+  exportCsv: (params: { from: string; to: string; employee_id?: string }) =>
+    api.get("/reports/export/csv", { params, responseType: "blob" }),
+};

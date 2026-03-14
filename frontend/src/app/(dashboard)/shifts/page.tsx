@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi } from "@/lib/api";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck } from "lucide-react";
 import { TimeInput } from "@/components/shared/TimeInput";
 import toast from "react-hot-toast";
 import { useAuthStore } from "@/store/auth";
@@ -514,6 +514,101 @@ function RegeltermineTab({ employees, templates }: { employees: any[]; templates
   );
 }
 
+// ── SuggestionsModal ───────────────────────────────────────────────────────────
+
+function SuggestionsModal({ shift, onClose, onAssigned }: {
+  shift: any;
+  onClose: () => void;
+  onAssigned: () => void;
+}) {
+  const qc = useQueryClient();
+  const { data: suggestions = [], isLoading } = useQuery({
+    queryKey: ["shift-suggestions", shift.id],
+    queryFn: () => shiftsApi.suggestions(shift.id).then(r => r.data),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (employeeId: string) => shiftsApi.update(shift.id, { employee_id: employeeId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      toast.success("Mitarbeiter zugewiesen");
+      onAssigned();
+    },
+    onError: () => toast.error("Zuweisung fehlgeschlagen"),
+  });
+
+  const scoreColor = (score: number) => {
+    if (score >= 75) return "rgb(var(--ctp-green))";
+    if (score >= 50) return "rgb(var(--ctp-yellow))";
+    return "rgb(var(--ctp-red))";
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <div className="bg-card rounded-2xl border border-border shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div>
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Sparkles size={16} style={{ color: "rgb(var(--ctp-mauve))" }} />
+              Mitarbeiter-Vorschläge
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {shift.start_time?.slice(0,5)} – {shift.end_time?.slice(0,5)} Uhr
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Lädt…</p>
+          ) : (suggestions as any[]).length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Keine aktiven Mitarbeiter gefunden</p>
+          ) : (
+            (suggestions as any[]).map((c: any) => (
+              <div key={c.employee_id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background hover:bg-accent/30 transition-colors">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
+                  style={{ backgroundColor: `${scoreColor(c.score)}22`, color: scoreColor(c.score) }}>
+                  {c.score}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {c.first_name} {c.last_name}
+                    <span className="ml-2 text-xs text-muted-foreground">{c.contract_type}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {c.reasons.map((r: string, i: number) => (
+                      <span key={i} className="text-xs px-1.5 py-0.5 rounded-full"
+                        style={{ backgroundColor: "rgb(var(--ctp-green) / 0.12)", color: "rgb(var(--ctp-green))" }}>
+                        ✓ {r}
+                      </span>
+                    ))}
+                    {c.blockers.map((b: string, i: number) => (
+                      <span key={i} className="text-xs px-1.5 py-0.5 rounded-full"
+                        style={{ backgroundColor: "rgb(var(--ctp-red) / 0.12)", color: "rgb(var(--ctp-red))" }}>
+                        ✗ {b}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={() => assignMutation.mutate(c.employee_id)}
+                  disabled={assignMutation.isPending}
+                  className="p-2 rounded-lg hover:bg-accent transition-colors shrink-0"
+                  style={{ color: "rgb(var(--ctp-blue))" }}
+                  title="Zuweisen">
+                  <UserCheck size={16} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function ShiftsPage() {
@@ -528,6 +623,7 @@ export default function ShiftsPage() {
   const [showCreate,     setShowCreate]     = useState(false);
   const [confirmShift,   setConfirmShift]   = useState<any>(null);
   const [actualShift,    setActualShift]    = useState<any>(null);
+  const [suggestShift,   setSuggestShift]   = useState<any>(null);
 
   const monthStart = format(startOfMonth(month), "yyyy-MM-dd");
   const monthEnd   = format(endOfMonth(month), "yyyy-MM-dd");
@@ -777,6 +873,13 @@ export default function ShiftsPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
+                            {isPrivileged && shift.status === "planned" && !shift.employee_id && (
+                              <button onClick={() => setSuggestShift(shift)} title="Mitarbeiter vorschlagen"
+                                className="p-2.5 rounded hover:bg-accent transition-colors"
+                                style={{ color: "rgb(var(--ctp-mauve))" }}>
+                                <Sparkles size={14} />
+                              </button>
+                            )}
                             {isPrivileged && shift.status === "planned" && (
                               <button onClick={() => setConfirmShift(shift)} title="Dienst bestätigen"
                                 className="p-2.5 rounded hover:bg-accent transition-colors"
@@ -818,6 +921,7 @@ export default function ShiftsPage() {
       )}
       {confirmShift && <ConfirmModal shift={confirmShift} onClose={() => setConfirmShift(null)} onDone={handleConfirmed} />}
       {actualShift && <ActualTimeModal shift={actualShift} onClose={() => setActualShift(null)} onDone={handleActualSaved} />}
+      {suggestShift && <SuggestionsModal shift={suggestShift} onClose={() => setSuggestShift(null)} onAssigned={() => setSuggestShift(null)} />}
     </div>
   );
 }
