@@ -2378,11 +2378,15 @@ function WebhooksSection() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+type SettingsTab = "konto" | "planung" | "abrechnung" | "system";
+
 export default function SettingsPage() {
   const { user } = useAuthStore();
   const role = user?.role ?? "employee";
   const color = ROLE_COLORS[role] ?? "--ctp-blue";
   const isPrivileged = role === "admin" || role === "manager";
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>("konto");
 
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -2406,105 +2410,135 @@ export default function SettingsPage() {
     changePwMutation.mutate();
   };
 
+  const tabs = ([
+    { key: "konto"      as SettingsTab, label: "Konto",      show: true },
+    { key: "planung"    as SettingsTab, label: "Planung",    show: isPrivileged },
+    { key: "abrechnung" as SettingsTab, label: "Abrechnung", show: role === "admin" },
+    { key: "system"     as SettingsTab, label: "System",     show: role === "admin" },
+  ] as const).filter(t => t.show);
+
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Einstellungen</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Konto & Erscheinungsbild</p>
       </div>
 
-      {/* Account info */}
-      <div className="bg-card rounded-xl border border-border p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <User size={18} style={{ color: `rgb(var(${color}))` }} />
-          <h2 className="font-semibold text-foreground">Mein Konto</h2>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
-            style={{ backgroundColor: `rgb(var(${color}) / 0.15)`, color: `rgb(var(${color}))` }}>
-            {user?.email?.charAt(0).toUpperCase() ?? "?"}
-          </div>
-          <div className="min-w-0">
-            <p className="font-medium text-foreground truncate">{user?.email}</p>
-            <span className="inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-0.5"
-              style={{ backgroundColor: `rgb(var(${color}) / 0.12)`, color: `rgb(var(${color}))` }}>
-              {ROLE_LABELS[role] ?? role}
-            </span>
-          </div>
-        </div>
+      {/* Tab-Navigation */}
+      <div className="flex gap-1 bg-muted/40 rounded-xl p-1 border border-border">
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === t.key
+                ? "bg-card text-foreground shadow-sm border border-border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Theme */}
-      <div className="bg-card rounded-xl border border-border p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <Settings size={18} style={{ color: "rgb(var(--ctp-mauve))" }} />
-          <h2 className="font-semibold text-foreground">Erscheinungsbild</h2>
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-foreground">Farbschema</p>
-            <p className="text-xs text-muted-foreground">Wähle zwischen hellem und dunklem Design</p>
+      {/* ── Tab: Konto ── */}
+      {activeTab === "konto" && (
+        <div className="space-y-6">
+          {/* Account info */}
+          <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <User size={18} style={{ color: `rgb(var(${color}))` }} />
+              <h2 className="font-semibold text-foreground">Mein Konto</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
+                style={{ backgroundColor: `rgb(var(${color}) / 0.15)`, color: `rgb(var(${color}))` }}>
+                {user?.email?.charAt(0).toUpperCase() ?? "?"}
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-foreground truncate">{user?.email}</p>
+                <span className="inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-0.5"
+                  style={{ backgroundColor: `rgb(var(${color}) / 0.12)`, color: `rgb(var(${color}))` }}>
+                  {ROLE_LABELS[role] ?? role}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="rounded-lg border border-border overflow-hidden"
-            style={{ backgroundColor: "rgb(var(--sidebar-bg))", color: "rgb(var(--sidebar-fg))" }}>
-            <ThemeToggle />
+
+          {/* Theme */}
+          <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Settings size={18} style={{ color: "rgb(var(--ctp-mauve))" }} />
+              <h2 className="font-semibold text-foreground">Erscheinungsbild</h2>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-foreground">Farbschema</p>
+                <p className="text-xs text-muted-foreground">Wähle zwischen hellem und dunklem Design</p>
+              </div>
+              <div className="rounded-lg border border-border overflow-hidden"
+                style={{ backgroundColor: "rgb(var(--sidebar-bg))", color: "rgb(var(--sidebar-fg))" }}>
+                <ThemeToggle />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Password change */}
-      <div className="bg-card rounded-xl border border-border p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <KeyRound size={18} style={{ color: "rgb(var(--ctp-green))" }} />
-          <h2 className="font-semibold text-foreground">Passwort ändern</h2>
-        </div>
-        <form onSubmit={handlePasswordSubmit} className="space-y-3">
-          <PasswordField label="Aktuelles Passwort" value={currentPw} onChange={setCurrentPw} required />
-          <PasswordField label="Neues Passwort" value={newPw} onChange={setNewPw} placeholder="Mind. 8 Zeichen" required />
-          <PasswordField label="Neues Passwort bestätigen" value={confirmPw} onChange={setConfirmPw} required />
-          {newPw && confirmPw && newPw !== confirmPw && (
-            <p className="text-xs" style={{ color: "rgb(var(--ctp-red))" }}>Passwörter stimmen nicht überein</p>
-          )}
-          <div className="pt-1">
-            <button type="submit"
-              disabled={changePwMutation.isPending || !currentPw || !newPw || !confirmPw}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-colors"
-              style={{ backgroundColor: "rgb(var(--ctp-green))" }}>
-              {changePwMutation.isPending ? "Wird gespeichert…" : (<><ShieldCheck size={15} />Passwort ändern</>)}
-            </button>
+          {/* Password change */}
+          <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <KeyRound size={18} style={{ color: "rgb(var(--ctp-green))" }} />
+              <h2 className="font-semibold text-foreground">Passwort ändern</h2>
+            </div>
+            <form onSubmit={handlePasswordSubmit} className="space-y-3">
+              <PasswordField label="Aktuelles Passwort" value={currentPw} onChange={setCurrentPw} required />
+              <PasswordField label="Neues Passwort" value={newPw} onChange={setNewPw} placeholder="Mind. 8 Zeichen" required />
+              <PasswordField label="Neues Passwort bestätigen" value={confirmPw} onChange={setConfirmPw} required />
+              {newPw && confirmPw && newPw !== confirmPw && (
+                <p className="text-xs" style={{ color: "rgb(var(--ctp-red))" }}>Passwörter stimmen nicht überein</p>
+              )}
+              <div className="pt-1">
+                <button type="submit"
+                  disabled={changePwMutation.isPending || !currentPw || !newPw || !confirmPw}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: "rgb(var(--ctp-green))" }}>
+                  {changePwMutation.isPending ? "Wird gespeichert…" : (<><ShieldCheck size={15} />Passwort ändern</>)}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
 
-      {/* Mein Profil (employee only) */}
-      {role === "employee" && <MeinProfilSection />}
+          {/* Mein Profil (employee only) */}
+          {role === "employee" && <MeinProfilSection />}
 
-      {/* Kalenderfreigabe (alle) */}
-      <KalenderfreigabeSection />
+          {/* Kalenderfreigabe (alle) */}
+          <KalenderfreigabeSection />
+        </div>
+      )}
 
-      {/* SMTP-Konfiguration (admin only) */}
-      {role === "admin" && <SMTPSection />}
+      {/* ── Tab: Planung ── */}
+      {activeTab === "planung" && isPrivileged && (
+        <div className="space-y-6">
+          <ShiftTypesSection />
+          <VertragstypenSection />
+          <FerienprofileSection />
+        </div>
+      )}
 
-      {/* Zuschlagsätze (admin only) */}
-      {role === "admin" && <SurchargeSection />}
+      {/* ── Tab: Abrechnung ── */}
+      {activeTab === "abrechnung" && role === "admin" && (
+        <div className="space-y-6">
+          <SurchargeSection />
+        </div>
+      )}
 
-      {/* Benutzerverwaltung (admin only) */}
-      {role === "admin" && <BenutzerSection />}
-
-      {/* API-Keys (admin only) */}
-      {role === "admin" && <ApiKeysSection />}
-
-      {/* Diensttypen (admin/manager) */}
-      {isPrivileged && <ShiftTypesSection />}
-
-      {/* Vertragstypen (admin/manager) */}
-      {isPrivileged && <VertragstypenSection />}
-
-      {/* Webhooks (admin only) */}
-      {role === "admin" && <WebhooksSection />}
-
-      {/* Ferienprofile (admin/manager only) */}
-      {isPrivileged && <FerienprofileSection />}
+      {/* ── Tab: System ── */}
+      {activeTab === "system" && role === "admin" && (
+        <div className="space-y-6">
+          <BenutzerSection />
+          <SMTPSection />
+          <ApiKeysSection />
+          <WebhooksSection />
+        </div>
+      )}
     </div>
   );
 }
