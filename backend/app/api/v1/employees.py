@@ -46,6 +46,7 @@ class ContractHistoryOut(BaseModel):
     annual_salary_limit: Decimal | None
     annual_hours_target: Decimal | None
     monthly_salary: Decimal | None
+    contract_type_id: uuid.UUID | None = None
     note: str | None
     created_at: Any
 

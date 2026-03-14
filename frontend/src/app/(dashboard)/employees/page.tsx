@@ -1298,6 +1298,7 @@ interface ContractEntry {
   annual_salary_limit: number | null;
   annual_hours_target: number | null;
   monthly_salary: number | null;
+  contract_type_id: string | null;
   note: string | null;
 }
 
@@ -1477,7 +1478,8 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                     <th className="text-right pb-2 pr-3 font-medium">h/Wo</th>
                     <th className="text-right pb-2 pr-3 font-medium">% VZ</th>
                     <th className="text-right pb-2 pr-3 font-medium">Jahressoll</th>
-                    <th className="text-left pb-2 font-medium">Notiz</th>
+                    <th className="text-left pb-2 pr-3 font-medium">Notiz</th>
+                    <th className="text-left pb-2 font-medium">Quelle</th>
                     <th className="pb-2 font-medium w-16"></th>
                   </tr>
                 </thead>
@@ -1516,7 +1518,18 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                         <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
                           {c.annual_hours_target != null ? `${Number(c.annual_hours_target).toFixed(0)} h` : "—"}
                         </td>
-                        <td className="py-2 text-muted-foreground text-xs">{c.note ?? ""}</td>
+                        <td className="py-2 pr-3 text-muted-foreground text-xs">{c.note ?? ""}</td>
+                        <td className="py-2 pr-3">
+                          {c.contract_type_id && (() => {
+                            const ct = contractTypes.find(t => t.id === c.contract_type_id);
+                            return ct ? (
+                              <span className="text-xs px-1.5 py-0.5 rounded font-medium"
+                                style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.10)", color: "rgb(var(--ctp-blue))" }}>
+                                {ct.name}
+                              </span>
+                            ) : null;
+                          })()}
+                        </td>
                         <td className="py-2">
                           <div className="flex gap-1 justify-end">
                             <button

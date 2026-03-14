@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AvailabilityGrid, AvailabilityPrefs, emptyAvailabilityPrefs } from "@/components/shared/AvailabilityGrid";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff, Users, UserPlus, Lock, Power, Shield, Link, RefreshCw, ExternalLink } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff, Users, UserPlus, Lock, Power, Shield, Link, RefreshCw, ExternalLink, History, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -2276,13 +2276,32 @@ function ContractTypeModal({
   );
 }
 
+interface ContractTypeHistoryEntry {
+  id: string;
+  valid_from: string;
+  valid_to: string | null;
+  hourly_rate: number;
+  monthly_hours_limit: number | null;
+  annual_salary_limit: number | null;
+  annual_hours_target: number | null;
+  weekly_hours: number | null;
+  note: string | null;
+}
+
 function VertragstypenSection() {
   const qc = useQueryClient();
   const [modal, setModal] = useState<null | "create" | ContractTypeItem>(null);
+  const [historyTypeId, setHistoryTypeId] = useState<string | null>(null);
 
   const { data: contractTypes = [] } = useQuery<ContractTypeItem[]>({
     queryKey: ["contract-types"],
     queryFn: () => contractTypesApi.list().then(r => r.data),
+  });
+
+  const { data: typeHistory = [], isLoading: historyLoading } = useQuery<ContractTypeHistoryEntry[]>({
+    queryKey: ["contract-type-history", historyTypeId],
+    queryFn: () => contractTypesApi.getHistory(historyTypeId!).then(r => r.data),
+    enabled: !!historyTypeId,
   });
 
   const deleteMut = useMutation({
@@ -2321,39 +2340,97 @@ function VertragstypenSection() {
       ) : (
         <div className="space-y-2">
           {activeTypes.map((ct: ContractTypeItem) => (
-            <div key={ct.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/30 transition-colors">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-foreground">{ct.name}</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded-full"
-                    style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.12)", color: "rgb(var(--ctp-blue))" }}>
-                    {CONTRACT_CATEGORY_LABELS[ct.contract_category] ?? ct.contract_category}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{ct.hourly_rate.toFixed(2)} €/h</span>
-                  {ct.employee_count > 0 && (
-                    <span className="text-xs text-muted-foreground">{ct.employee_count} MA</span>
+            <div key={ct.id}>
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/30 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-foreground">{ct.name}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.12)", color: "rgb(var(--ctp-blue))" }}>
+                      {CONTRACT_CATEGORY_LABELS[ct.contract_category] ?? ct.contract_category}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{ct.hourly_rate.toFixed(2)} €/h</span>
+                    {ct.employee_count > 0 && (
+                      <span className="text-xs text-muted-foreground">{ct.employee_count} MA</span>
+                    )}
+                  </div>
+                  {ct.description && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{ct.description}</p>
                   )}
                 </div>
-                {ct.description && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">{ct.description}</p>
-                )}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setHistoryTypeId(historyTypeId === ct.id ? null : ct.id)}
+                    className={`p-1.5 rounded-lg hover:bg-muted transition-colors ${historyTypeId === ct.id ? "text-blue-500" : "text-muted-foreground"}`}
+                    title="Verlauf anzeigen"
+                  >
+                    <History size={13} />
+                  </button>
+                  <button onClick={() => setModal(ct)}
+                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                    <Pencil size={13} />
+                  </button>
+                  <button onClick={() => {
+                    if (ct.employee_count > 0) {
+                      toast.error(`${ct.employee_count} Mitarbeiter zugewiesen – erst entfernen`);
+                    } else if (confirm(`Vertragstyp "${ct.name}" deaktivieren?`)) {
+                      deleteMut.mutate(ct.id);
+                    }
+                  }}
+                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setModal(ct)}
-                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
-                  <Pencil size={13} />
-                </button>
-                <button onClick={() => {
-                  if (ct.employee_count > 0) {
-                    toast.error(`${ct.employee_count} Mitarbeiter zugewiesen – erst entfernen`);
-                  } else if (confirm(`Vertragstyp "${ct.name}" deaktivieren?`)) {
-                    deleteMut.mutate(ct.id);
-                  }
-                }}
-                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
-                  <Trash2 size={13} />
-                </button>
-              </div>
+              {historyTypeId === ct.id && (
+                <div className="ml-3 mt-1 border border-border/60 rounded-xl p-3 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">Konditions-Verlauf: {ct.name}</p>
+                    <button onClick={() => setHistoryTypeId(null)} className="text-muted-foreground hover:text-foreground">
+                      <X size={12} />
+                    </button>
+                  </div>
+                  {historyLoading ? (
+                    <p className="text-xs text-muted-foreground">Lade…</p>
+                  ) : typeHistory.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Noch kein Verlauf (wurde vor diesem Feature angelegt).</p>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-muted-foreground border-b border-border/50">
+                          <th className="text-left pb-1 pr-3 font-medium">Ab</th>
+                          <th className="text-left pb-1 pr-3 font-medium">Bis</th>
+                          <th className="text-right pb-1 pr-3 font-medium">€/h</th>
+                          <th className="text-right pb-1 pr-3 font-medium">Std-Limit/Mo</th>
+                          <th className="text-right pb-1 font-medium">Jahresgrenze</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {typeHistory.map((h) => (
+                          <tr key={h.id} className="border-b border-border/30 last:border-0"
+                            style={!h.valid_to ? { backgroundColor: "rgb(var(--ctp-green) / 0.06)" } : {}}>
+                            <td className="py-1 pr-3 whitespace-nowrap">
+                              {new Date(h.valid_from + "T00:00:00").toLocaleDateString("de-DE")}
+                            </td>
+                            <td className="py-1 pr-3 whitespace-nowrap text-muted-foreground">
+                              {h.valid_to
+                                ? new Date(h.valid_to + "T00:00:00").toLocaleDateString("de-DE")
+                                : <span style={{ color: "rgb(var(--ctp-green))" }} className="font-medium">aktuell</span>}
+                            </td>
+                            <td className="py-1 pr-3 text-right tabular-nums">{h.hourly_rate.toFixed(2)}</td>
+                            <td className="py-1 pr-3 text-right tabular-nums text-muted-foreground">
+                              {h.monthly_hours_limit != null ? `${h.monthly_hours_limit} h` : "—"}
+                            </td>
+                            <td className="py-1 text-right tabular-nums text-muted-foreground">
+                              {h.annual_salary_limit != null ? `${h.annual_salary_limit.toFixed(0)} €` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

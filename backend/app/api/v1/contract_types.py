@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from app.api.deps import DB, ManagerOrAdmin, AdminUser
 from app.models.contract_type import ContractType
+from app.models.contract_type_history import ContractTypeHistory
 from app.models.employee import Employee
 from app.models.contract_history import ContractHistory
 
@@ -68,6 +69,22 @@ class ContractTypeOut(BaseModel):
     employee_count: int = 0
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ContractTypeHistoryOut(BaseModel):
+    id: uuid.UUID
+    contract_type_id: uuid.UUID
+    valid_from: date
+    valid_to: Optional[date]
+    hourly_rate: float
+    monthly_hours_limit: Optional[float]
+    annual_salary_limit: Optional[float]
+    annual_hours_target: Optional[float]
+    weekly_hours: Optional[float]
+    note: Optional[str]
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -134,6 +151,24 @@ async def create_contract_type(payload: ContractTypeCreate, db: DB, current_user
         **payload.model_dump(),
     )
     db.add(ct)
+    await db.flush()  # ct.id verfügbar
+
+    # Ersten ContractTypeHistory-Eintrag anlegen
+    cth = ContractTypeHistory(
+        tenant_id=ct.tenant_id,
+        contract_type_id=ct.id,
+        valid_from=date.today(),
+        valid_to=None,
+        hourly_rate=ct.hourly_rate,
+        monthly_hours_limit=ct.monthly_hours_limit,
+        annual_salary_limit=ct.annual_salary_limit,
+        annual_hours_target=ct.annual_hours_target,
+        weekly_hours=ct.weekly_hours,
+        note="Vertragstyp angelegt",
+        created_by_user_id=current_user.id,
+    )
+    db.add(cth)
+
     await db.commit()
     await db.refresh(ct)
     return _ct_to_out(ct, 0)
@@ -193,8 +228,36 @@ async def update_contract_type(
 
     bulk_count = 0
     # Create new ContractHistory for all linked employees if wage parameters changed
-    if wage_changed and apply_from is not False:
+    if wage_changed:
         effective_from = apply_from or date.today()
+
+        # ContractTypeHistory aktualisieren: alten Eintrag schließen, neuen anlegen
+        prev_cth_result = await db.execute(
+            select(ContractTypeHistory).where(
+                ContractTypeHistory.contract_type_id == contract_type_id,
+                ContractTypeHistory.valid_to.is_(None),
+            )
+        )
+        prev_cth = prev_cth_result.scalar_one_or_none()
+        if prev_cth:
+            prev_cth.valid_to = effective_from
+
+        new_cth = ContractTypeHistory(
+            tenant_id=ct.tenant_id,
+            contract_type_id=ct.id,
+            valid_from=effective_from,
+            valid_to=None,
+            hourly_rate=ct.hourly_rate,
+            monthly_hours_limit=ct.monthly_hours_limit,
+            annual_salary_limit=ct.annual_salary_limit,
+            annual_hours_target=ct.annual_hours_target,
+            weekly_hours=ct.weekly_hours,
+            note=note,
+            created_by_user_id=current_user.id,
+        )
+        db.add(new_cth)
+
+    if wage_changed and apply_from is not False:
 
         # Find all active employees with this contract type
         emp_result = await db.execute(
@@ -311,3 +374,27 @@ async def list_contract_type_employees(
     employees = emp_result.scalars().all()
     return [{"id": str(e.id), "name": f"{e.first_name} {e.last_name}", "is_active": e.is_active}
             for e in employees]
+
+
+@router.get("/{contract_type_id}/history", response_model=list[ContractTypeHistoryOut])
+async def get_contract_type_history(
+    contract_type_id: uuid.UUID,
+    db: DB,
+    current_user: ManagerOrAdmin,
+):
+    """Änderungshistorie eines Vertragstyps (Lohnparameter-Verlauf)."""
+    result = await db.execute(
+        select(ContractType).where(
+            ContractType.id == contract_type_id,
+            ContractType.tenant_id == current_user.tenant_id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Vertragstyp nicht gefunden")
+
+    hist_result = await db.execute(
+        select(ContractTypeHistory)
+        .where(ContractTypeHistory.contract_type_id == contract_type_id)
+        .order_by(ContractTypeHistory.valid_from.desc())
+    )
+    return hist_result.scalars().all()
