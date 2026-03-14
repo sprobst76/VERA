@@ -42,6 +42,7 @@ export default function CalendarPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createDate, setCreateDate] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [selectedRecurring, setSelectedRecurring] = useState<any>(null);
 
   const rangeStart = format(
     view === "month" ? startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 })
@@ -194,11 +195,11 @@ export default function CalendarPage() {
     return hevents;
   }, [vacationData]);
 
-  const allEvents = useMemo(() => [...events, ...holidayEvents], [events, holidayEvents]);
+  const allEvents = useMemo(() => [...events, ...holidayEvents, ...recurringEvents], [events, holidayEvents, recurringEvents]);
 
-  // Background events: recurring shift Schienen
-  const backgroundEvents = useMemo(() => {
-    const bgs: any[] = [];
+  // Recurring shift events (clickable, visually distinct)
+  const recurringEvents = useMemo(() => {
+    const evts: any[] = [];
     if (view !== "month") {
       const rangeStartDate = parseISO(rangeStart);
       const rangeEndDate = parseISO(rangeEnd);
@@ -214,18 +215,19 @@ export default function CalendarPage() {
             startDt.setHours(sh, sm, 0, 0);
             const endDt = new Date(d);
             endDt.setHours(eh, em, 0, 0);
-            bgs.push({
-              title: rs.label || rs.weekday_name,
+            evts.push({
+              id: `rs-${rs.id}-${format(d, "yyyy-MM-dd")}`,
+              title: `↻ ${rs.label || tpl?.name || "Regeltermin"}`,
               start: startDt,
               end: endDt,
               allDay: false,
-              resource: { type: "recurring_shift", color, name: rs.label || rs.weekday_name },
+              resource: { type: "recurring_shift", color, recurringShift: rs, template: tpl },
             });
           }
         }
       }
     }
-    return bgs;
+    return evts;
   }, [recurringShifts, templateMap, rangeStart, rangeEnd, view]);
 
   // Event color / style
@@ -248,6 +250,21 @@ export default function CalendarPage() {
       };
     }
 
+    if (type === "recurring_shift") {
+      const c = color ?? "#1E3A5F";
+      return {
+        style: {
+          backgroundColor: "transparent",
+          borderColor: c,
+          border: `2px dashed ${c}`,
+          color: c,
+          opacity: 0.6,
+          fontSize: "0.7rem",
+          cursor: "pointer",
+        },
+      };
+    }
+
     if (!shift) return {};
     const isOpen = !shift.employee_id;
     const c = isOpen ? "#ef4444" : (shiftType?.color ?? template?.color ?? "#1E3A5F");
@@ -264,19 +281,6 @@ export default function CalendarPage() {
       },
     };
   }, [isPrivileged, dragging]);
-
-  const backgroundEventPropGetter = useCallback((event: any) => {
-    const { color, type } = event.resource;
-    return {
-      style: {
-        backgroundColor: color,
-        opacity: type === "recurring_shift" ? 0.2 : 0.18,
-        border: "none",
-        borderRadius: "0",
-        cursor: "default",
-      },
-    };
-  }, []);
 
   const dayPropGetter = useCallback((date: Date) => {
     const ds = format(date, "yyyy-MM-dd");
@@ -380,19 +384,17 @@ export default function CalendarPage() {
         <DnDCalendar
           localizer={localizer}
           events={allEvents}
-          backgroundEvents={backgroundEvents}
           view={view}
           date={currentDate}
           onNavigate={setCurrentDate}
           onView={setView}
           eventPropGetter={eventPropGetter}
-          {...({ backgroundEventPropGetter } as any)}
           dayPropGetter={dayPropGetter}
           // Drag & Drop – nur für Admins/Manager
           draggableAccessor={(event: any) => {
             if (!isPrivileged) return false;
             const t = event.resource?.type;
-            if (t === "vacation_label" || t === "holiday_label") return false;
+            if (t === "vacation_label" || t === "holiday_label" || t === "recurring_shift") return false;
             const status = event.resource?.shift?.status ?? "";
             return !status.startsWith("cancelled") && status !== "completed";
           }}
@@ -400,7 +402,7 @@ export default function CalendarPage() {
           resizableAccessor={(event: any) => {
             if (!isPrivileged) return false;
             const t = event.resource?.type;
-            if (t === "vacation_label" || t === "holiday_label") return false;
+            if (t === "vacation_label" || t === "holiday_label" || t === "recurring_shift") return false;
             const status = event.resource?.shift?.status ?? "";
             return !status.startsWith("cancelled") && status !== "completed";
           }}
@@ -412,6 +414,7 @@ export default function CalendarPage() {
             if (dragging) return;
             const t = e.resource?.type;
             if (t === "vacation_label" || t === "holiday_label") return;
+            if (t === "recurring_shift") { setSelectedRecurring(e.resource); return; }
             setSelectedShift(e.resource);
           }}
           onSelectSlot={isPrivileged ? (slot: any) => {
@@ -439,6 +442,39 @@ export default function CalendarPage() {
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); qc.invalidateQueries({ queryKey: ["shifts"] }); }}
         />
+      )}
+
+      {selectedRecurring && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setSelectedRecurring(null)}>
+          <div className="bg-card rounded-xl shadow-xl p-5 max-w-sm w-full border border-border"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="font-semibold text-lg text-foreground">
+                  ↻ Regeltermin
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {selectedRecurring.recurringShift?.label ?? selectedRecurring.template?.name ?? "–"}
+                </div>
+              </div>
+              <span className="w-3 h-3 rounded-full mt-1.5 shrink-0"
+                style={{ backgroundColor: selectedRecurring.color ?? "rgb(var(--ctp-overlay1))" }} />
+            </div>
+            <div className="space-y-1.5 text-sm">
+              <Row label="Vorlage" value={selectedRecurring.template?.name ?? "–"} />
+              <Row label="Uhrzeit" value={`${selectedRecurring.recurringShift?.start_time?.slice(0,5)} – ${selectedRecurring.recurringShift?.end_time?.slice(0,5)} Uhr`} />
+              <Row label="Pause" value={selectedRecurring.recurringShift?.break_minutes ? `${selectedRecurring.recurringShift.break_minutes} Min` : "keine"} />
+              {selectedRecurring.recurringShift?.notes && (
+                <Row label="Notiz" value={selectedRecurring.recurringShift.notes} />
+              )}
+            </div>
+            <button onClick={() => setSelectedRecurring(null)}
+              className="mt-4 w-full text-sm text-center py-2 rounded-lg bg-accent hover:bg-accent/80 text-foreground transition-colors">
+              Schließen
+            </button>
+          </div>
+        </div>
       )}
 
       {selectedShift && (
