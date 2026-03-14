@@ -356,6 +356,9 @@ export const contractTypesApi = {
   }) => api.put(`/contract-types/${id}`, data),
   delete: (id: string) => api.delete(`/contract-types/${id}`),
   employees: (id: string) => api.get(`/contract-types/${id}/employees`),
-  assignToEmployee: (employeeId: string, contractTypeId: string | null) =>
-    api.post(`/employees/${employeeId}/assign-contract-type`, { contract_type_id: contractTypeId }),
+  assignToEmployee: (employeeId: string, contractTypeId: string | null, validFrom?: string) =>
+    api.post(`/employees/${employeeId}/assign-contract-type`, {
+      contract_type_id: contractTypeId,
+      ...(validFrom ? { valid_from: validFrom } : {}),
+    }),
 };

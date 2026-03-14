@@ -1,6 +1,6 @@
 # VERA – Feature-Backlog & Roadmap
 
-Stand: 2026-03-14
+Stand: 2026-03-14 (aktualisiert)
 
 ---
 
@@ -89,10 +89,11 @@ Stand: 2026-03-14
 - [x] Idempotente Migrationen (inspect-Check gegen create_tables()-Race)
 
 ### Tests
-- [x] 199 Backend-Tests (pytest, asyncio)
+- [x] 224 Backend-Tests (pytest, asyncio)
 - [x] 61 Frontend-Tests (vitest)
 - [x] Tests für: Shifts, Templates, Employees, Auth, Absences, Payroll, Compliance,
-      Calendar, Webhooks, Users, ShiftTypes, RecurringShifts, recurringEventUtils
+      Calendar, Webhooks, Users, ShiftTypes, RecurringShifts, recurringEventUtils,
+      ContractScenarios (25 Tests: Personas Clara/Marc/Sophie/Jan/Nina/Gregor/Lena+Kai/Patricia/Emma/Felix)
 
 ---
 
@@ -101,11 +102,11 @@ Stand: 2026-03-14
 ### Hoch priorisiert
 - [x] **iCal-Einbindungsanleitung** – In-App-Hilfe für 6 Apps direkt in der Einstellungen-Seite (KalenderfreigabeSection)
 - [x] **Einladungslink für Mitarbeiter** – `POST /users/{id}/invite` + 3 neue Auth-Seiten (accept-invite, forgot-password, reset-password)
+- [x] **Vertragsvorlage: valid_from beim Zuweisen** – `assign-contract-type` legt jetzt ContractHistory an + Frontend-Datumsfeld; 25 Vertrags-Szenarien-Tests
+- [x] **SMTP in der UI konfiguriert** – Mail-Server über Einstellungen → System → SMTP konfigurierbar (kein deploy/.env nötig)
 - [ ] **Demo-Tenant re-seeden** – Produktions-Demo-Daten neu aufsetzen mit korrekten
       Mitarbeiternamen (keine echten Mitarbeiter im Demo-Tenant)
-- [ ] **Notification-Events testen auf Produktion** – Telegram-Token und SendGrid-Key in
-      `deploy/.env` prüfen und Benachrichtigungen end-to-end testen.
-- [ ] **SMTP für Einladungen konfigurieren** – `SMTP_HOST/USER/PASSWORD` + `FRONTEND_URL` in `deploy/.env` setzen
+- [ ] **Notification-Events testen auf Produktion** – Telegram-Token und SendGrid-Key prüfen + Benachrichtigungen end-to-end testen.
 
 ### Mittel priorisiert
 - [ ] **Utilization-Report** – `GET /reports/utilization?from=&to=` (Auslastung pro MA)

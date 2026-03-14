@@ -378,9 +378,12 @@ async def assign_contract_type(
 ):
     """
     Vertragstyp einem Mitarbeiter zuweisen (oder entfernen wenn contract_type_id=null).
-    Setzt nur den FK – keine neue ContractHistory wird angelegt.
+    Wenn valid_from angegeben wird (ISO-Datum), wird eine neue ContractHistory angelegt
+    und der aktuell offene Eintrag geschlossen.
     """
     from app.models.contract_type import ContractType
+    from decimal import Decimal as D
+
     result = await db.execute(
         select(Employee).where(
             Employee.id == employee_id,
@@ -392,6 +395,8 @@ async def assign_contract_type(
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
 
     ct_id = payload.get("contract_type_id")
+    valid_from_raw = payload.get("valid_from")
+
     if ct_id:
         ct_id = uuid.UUID(str(ct_id))
         ct_result = await db.execute(
@@ -400,9 +405,60 @@ async def assign_contract_type(
                 ContractType.tenant_id == current_user.tenant_id,
             )
         )
-        if not ct_result.scalar_one_or_none():
+        ct = ct_result.scalar_one_or_none()
+        if not ct:
             raise HTTPException(status_code=404, detail="Vertragstyp nicht gefunden")
+
         employee.contract_type_id = ct_id
+
+        # Wenn valid_from angegeben: ContractHistory anlegen
+        if valid_from_raw:
+            from datetime import date as _date
+            try:
+                effective_from = _date.fromisoformat(str(valid_from_raw))
+            except ValueError:
+                raise HTTPException(status_code=422, detail="valid_from muss ein ISO-Datum sein (YYYY-MM-DD)")
+
+            # Aktuell offenen Eintrag schließen
+            open_result = await db.execute(
+                select(ContractHistory).where(
+                    ContractHistory.employee_id == employee_id,
+                    ContractHistory.valid_to.is_(None),
+                ).order_by(ContractHistory.valid_from.desc()).limit(1)
+            )
+            current_entry = open_result.scalar_one_or_none()
+            if current_entry:
+                current_entry.valid_to = effective_from
+
+            # Neuen Eintrag anlegen
+            new_entry = ContractHistory(
+                tenant_id=current_user.tenant_id,
+                employee_id=employee_id,
+                valid_from=effective_from,
+                valid_to=None,
+                contract_type=ct.contract_category,
+                hourly_rate=D(str(ct.hourly_rate)),
+                monthly_hours_limit=D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit else None,
+                annual_salary_limit=D(str(ct.annual_salary_limit)) if ct.annual_salary_limit else None,
+                annual_hours_target=D(str(ct.annual_hours_target)) if ct.annual_hours_target else None,
+                weekly_hours=D(str(ct.weekly_hours)) if ct.weekly_hours else None,
+                contract_type_id=ct_id,
+                note=f"Vertragstyp '{ct.name}' zugewiesen",
+                created_by_user_id=current_user.id,
+            )
+            db.add(new_entry)
+
+            # Employee-Spiegel aktualisieren
+            employee.contract_type = ct.contract_category
+            employee.hourly_rate = float(ct.hourly_rate)
+            if ct.monthly_hours_limit is not None:
+                employee.monthly_hours_limit = float(ct.monthly_hours_limit)
+            if ct.annual_salary_limit is not None:
+                employee.annual_salary_limit = float(ct.annual_salary_limit)
+            if ct.annual_hours_target is not None:
+                employee.annual_hours_target = float(ct.annual_hours_target)
+            if ct.weekly_hours is not None:
+                employee.weekly_hours = float(ct.weekly_hours)
     else:
         employee.contract_type_id = None
 

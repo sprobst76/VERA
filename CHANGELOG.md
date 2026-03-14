@@ -5,6 +5,31 @@ Format: [Semantic Versioning](https://semver.org/), neueste Version zuerst.
 
 ---
 
+## [0.16.0] – 2026-03-14
+
+### Hinzugefügt
+- **Vertragstyp-Zuweisung mit Startdatum** – `POST /employees/{id}/assign-contract-type`
+  akzeptiert jetzt ein optionales `valid_from`-Datum. Wenn angegeben, wird der aktuell offene
+  ContractHistory-Eintrag geschlossen und ein neuer mit den Parametern des Vertragstyps angelegt.
+  Employee-Spiegel (contract_type, hourly_rate, etc.) wird automatisch aktualisiert.
+  Frontend: Datumsfeld „Gültig ab" erscheint, sobald eine andere Vorlage gewählt wird.
+- **25 Vertrags-Szenarien-Tests** – `test_contract_scenarios.py` (9 Tests) +
+  `test_contract_scenarios_extended.py` (16 Tests). Personas: Clara Vogel (Kündigung),
+  Marc Becker (Vollzeit-Wechsel), Sophie Kramer (3 Stufen), Jan Hartmann (Typ A→B),
+  Nina Schulz (Gruppenupdate), Gregor Fischer (retroaktiv), Lena+Kai (geteilter Typ, Lena kündigt),
+  Patricia Hagen (manuell+Typ+Update), Emma Braun (Payroll mit echten Schichten),
+  Felix Neumann (Typ entfernen + neu zuweisen). Inkl. Randfälle und Payroll-Verifikation.
+
+### Behoben
+- **Bug: assign-contract-type ohne ContractHistory** – Die Zuweisung eines Vertragstyps
+  erstellte bisher nur den FK, aber keinen Vertragseintrag → Payroll konnte keinen historischen
+  Satz finden. Jetzt korrekt.
+
+### Infrastruktur
+- Backend-Tests: 224 ✓ (war 208)
+
+---
+
 ## [0.15.0] – 2026-03-14
 
 ### Hinzugefügt

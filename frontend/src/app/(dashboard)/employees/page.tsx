@@ -376,6 +376,7 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
   const [contractTypeId, setContractTypeId] = useState<string | null>(
     employee?.contract_type_id ?? null
   );
+  const [contractTypeValidFrom, setContractTypeValidFrom] = useState<string>("");
 
   const { data: contractTypes = [] } = useQuery<ContractTypeItem[]>({
     queryKey: ["contract-types"],
@@ -384,8 +385,8 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
   });
 
   const assignMutation = useMutation({
-    mutationFn: (ctId: string | null) =>
-      contractTypesApi.assignToEmployee(employee!.id, ctId),
+    mutationFn: ({ ctId, validFrom }: { ctId: string | null; validFrom?: string }) =>
+      contractTypesApi.assignToEmployee(employee!.id, ctId, validFrom || undefined),
   });
 
   const [form, setForm] = useState({
@@ -431,7 +432,10 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
       if (isEdit) {
         await employeesApi.update(employee!.id, data);
         if (contractTypeId !== (employee?.contract_type_id ?? null)) {
-          await assignMutation.mutateAsync(contractTypeId);
+          await assignMutation.mutateAsync({
+            ctId: contractTypeId,
+            validFrom: contractTypeValidFrom || undefined,
+          });
         }
       } else {
         await employeesApi.create(data);
@@ -800,6 +804,22 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                   <option key={ct.id} value={ct.id}>{ct.name}</option>
                 ))}
               </select>
+              {contractTypeId !== (employee?.contract_type_id ?? null) && contractTypeId && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Gültig ab (legt neuen Vertragseintrag an)
+                  </label>
+                  <input
+                    type="date"
+                    value={contractTypeValidFrom}
+                    onChange={(e) => setContractTypeValidFrom(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Optional – wenn leer: nur FK-Verknüpfung ohne neuen Vertragseintrag.
+                  </p>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 Gruppenvertrag zuweisen – Änderungen an der Vorlage gelten dann automatisch für diesen Mitarbeiter.
               </p>
@@ -1163,6 +1183,22 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                   <option key={ct.id} value={ct.id}>{ct.name}</option>
                 ))}
               </select>
+              {contractTypeId !== (employee?.contract_type_id ?? null) && contractTypeId && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Gültig ab (legt neuen Vertragseintrag an)
+                  </label>
+                  <input
+                    type="date"
+                    value={contractTypeValidFrom}
+                    onChange={(e) => setContractTypeValidFrom(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Optional – wenn leer: nur FK-Verknüpfung ohne neuen Vertragseintrag.
+                  </p>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 Gruppenvertrag zuweisen – Änderungen an der Vorlage gelten dann automatisch für diesen Mitarbeiter.
               </p>
