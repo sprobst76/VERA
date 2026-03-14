@@ -25,6 +25,12 @@ class User(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    # Invite / Password-reset tokens
+    invite_token: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
+    invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reset_token: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
+    reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     tenant: Mapped["Tenant"] = relationship(back_populates="users")
     employee: Mapped["Employee | None"] = relationship(back_populates="user")

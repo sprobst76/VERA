@@ -66,6 +66,16 @@ export const authApi = {
   me: () => api.get("/auth/me"),
   changePassword: (current_password: string, new_password: string) =>
     api.post("/auth/change-password", { current_password, new_password }),
+  forgotPassword: (email: string) =>
+    api.post("/auth/forgot-password", { email }),
+  checkResetToken: (token: string) =>
+    api.get(`/auth/check-reset/${token}`),
+  resetPassword: (token: string, new_password: string) =>
+    api.post("/auth/reset-password", { token, new_password }),
+  checkInviteToken: (token: string) =>
+    api.get(`/auth/invite/${token}`),
+  acceptInvite: (token: string, new_password: string) =>
+    api.post("/auth/accept-invite", { token, new_password }),
 };
 
 // Employees
@@ -154,6 +164,7 @@ export const usersApi = {
     api.post("/users", data),
   update: (id: string, data: { role?: string; is_active?: boolean; password?: string }) =>
     api.put(`/users/${id}`, data),
+  sendInvite: (id: string) => api.post(`/users/${id}/invite`),
 };
 
 // Payroll

@@ -1,14 +1,16 @@
 """
 Users API – Benutzerverwaltung (nur Admin)
 """
+import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import select
 
 from app.api.deps import DB, AdminUser
+from app.core.config import settings
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.employee import Employee
@@ -106,6 +108,46 @@ async def create_user(payload: UserCreate, current_user: AdminUser, db: DB):
         created_at=user.created_at,
         has_employee=False,
     )
+
+
+@router.post("/{user_id}/invite")
+async def send_invite(user_id: uuid.UUID, current_user: AdminUser, db: DB):
+    """Generates an invite link and optionally sends it by e-mail."""
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.tenant_id == current_user.tenant_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+
+    token = secrets.token_urlsafe(32)
+    user.invite_token = token
+    user.invite_expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.commit()
+
+    link = f"{settings.FRONTEND_URL}/auth/accept-invite?token={token}"
+
+    # Best-effort email
+    email_sent = False
+    try:
+        from app.services.notification_service import NotificationService
+        ns = NotificationService()
+        ok, _ = await ns._send_email(
+            to=user.email,
+            subject="Einladung zu VERA",
+            body=(
+                f"Hallo,\n\n"
+                f"du wurdest zu VERA eingeladen. Klicke auf den folgenden Link, "
+                f"um dein Passwort zu vergeben und dich anzumelden "
+                f"(gültig für 7 Tage):\n\n{link}\n\n"
+                f"Dein VERA-Team"
+            ),
+        )
+        email_sent = ok
+    except Exception:
+        pass
+
+    return {"message": "Einladung erstellt", "invite_link": link, "email_sent": email_sent}
 
 
 @router.put("/{user_id}", response_model=UserOut)

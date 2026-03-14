@@ -9,7 +9,7 @@ import { format, parse, startOfWeek, endOfWeek, getDay, startOfMonth, endOfMonth
 import { de } from "date-fns/locale";
 import { shiftsApi, templatesApi, employeesApi, calendarDataApi, recurringShiftsApi, shiftTypesApi } from "@/lib/api";
 import { buildAllRecurringEvents } from "@/lib/recurringEventUtils";
-import { ChevronLeft, ChevronRight, AlertCircle, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertCircle, Plus, Check, Trash2 } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { CreateShiftModal } from "@/components/shared/CreateShiftModal";
 import toast from "react-hot-toast";
@@ -97,6 +97,27 @@ export default function CalendarPage() {
     Object.fromEntries(employees.map((e: any) => [e.id, e])), [employees]);
   const shiftTypeMap = useMemo(() =>
     Object.fromEntries((shiftTypes as any[]).map((st: any) => [st.id, st])), [shiftTypes]);
+
+  // ── Confirm / Delete mutations ────────────────────────────────────────────────
+  const confirmMutation = useMutation({
+    mutationFn: (id: string) => shiftsApi.confirm(id, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      setSelectedShift(null);
+      toast.success("Dienst bestätigt");
+    },
+    onError: () => toast.error("Fehler beim Bestätigen"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => shiftsApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      setSelectedShift(null);
+      toast.success("Dienst gelöscht");
+    },
+    onError: () => toast.error("Fehler beim Löschen"),
+  });
 
   // ── Drag & Drop mutation ─────────────────────────────────────────────────────
   const moveMutation = useMutation({
@@ -378,6 +399,14 @@ export default function CalendarPage() {
           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "rgb(var(--ctp-red))" }} />
           Offener Dienst
         </span>
+        <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
+          <span className="text-ctp-blue font-bold text-[10px]">•</span>
+          Bestätigt
+        </span>
+        <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
+          <span className="text-ctp-green font-bold text-[10px]">✓</span>
+          Abgeschlossen
+        </span>
         {(vacationData?.vacation_periods ?? []).length > 0 && (
           <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "#a6e3a1" }} />
@@ -507,44 +536,91 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {selectedShift && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setSelectedShift(null)}>
-          <div className="bg-card rounded-xl shadow-xl p-5 max-w-sm w-full border border-border"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="font-semibold text-lg text-foreground">
-                  {selectedShift.template?.name ?? "Dienst"}
+      {selectedShift && (() => {
+        const shift = selectedShift.shift;
+        const statusStyles: Record<string, string> = {
+          planned:           "bg-ctp-yellow/20 text-ctp-yellow",
+          confirmed:         "bg-ctp-blue/20 text-ctp-blue",
+          completed:         "bg-ctp-green/20 text-ctp-green",
+          cancelled:         "bg-ctp-red/20 text-ctp-red",
+          cancelled_unpaid:  "bg-ctp-red/20 text-ctp-red",
+        };
+        const statusLabels: Record<string, string> = {
+          planned:          "Geplant",
+          confirmed:        "Bestätigt",
+          completed:        "Abgeschlossen",
+          cancelled:        "Storniert",
+          cancelled_unpaid: "Storniert (unbezahlt)",
+        };
+        const canConfirm = isPrivileged && shift.status === "planned";
+        const canDelete  = isPrivileged && shift.status !== "completed";
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setSelectedShift(null)}>
+            <div className="bg-card rounded-xl shadow-xl p-5 max-w-sm w-full border border-border"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="font-semibold text-lg text-foreground">
+                    {selectedShift.template?.name ?? "Dienst"}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {shift.date} · {shift.start_time?.slice(0,5)} – {shift.end_time?.slice(0,5)} Uhr
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {selectedShift.shift.date} · {selectedShift.shift.start_time?.slice(0,5)} – {selectedShift.shift.end_time?.slice(0,5)} Uhr
-                </div>
+                <span className="w-3 h-3 rounded-full mt-1.5 shrink-0"
+                  style={{ backgroundColor: selectedShift.template?.color ?? "rgb(var(--ctp-overlay1))" }} />
               </div>
-              <span className="w-3 h-3 rounded-full mt-1.5 shrink-0"
-                style={{ backgroundColor: selectedShift.template?.color ?? "rgb(var(--ctp-overlay1))" }} />
-            </div>
 
-            <div className="space-y-1.5 text-sm">
-              <Row label="Mitarbeiter"
-                value={selectedShift.employee
-                  ? `${selectedShift.employee.first_name} ${selectedShift.employee.last_name}`
-                  : <span className="text-ctp-red font-medium flex items-center gap-1"><AlertCircle size={13}/>Offen</span>} />
-              <Row label="Ort" value={selectedShift.shift.location ?? "–"} />
-              <Row label="Pause" value={selectedShift.shift.break_minutes ? `${selectedShift.shift.break_minutes} Min` : "keine"} />
-              <Row label="Status" value={selectedShift.shift.status} />
-              {selectedShift.shift.notes && (
-                <Row label="Notiz" value={<span className="text-ctp-yellow">{selectedShift.shift.notes}</span>} />
-              )}
-            </div>
+              <div className="space-y-1.5 text-sm">
+                <Row label="Mitarbeiter"
+                  value={selectedShift.employee
+                    ? `${selectedShift.employee.first_name} ${selectedShift.employee.last_name}`
+                    : <span className="text-ctp-red font-medium flex items-center gap-1"><AlertCircle size={13}/>Offen</span>} />
+                <Row label="Ort" value={shift.location ?? "–"} />
+                <Row label="Pause" value={shift.break_minutes ? `${shift.break_minutes} Min` : "keine"} />
+                <Row label="Status" value={
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusStyles[shift.status] ?? "bg-muted text-muted-foreground"}`}>
+                    {statusLabels[shift.status] ?? shift.status}
+                  </span>
+                } />
+                {shift.notes && (
+                  <Row label="Notiz" value={<span className="text-ctp-yellow">{shift.notes}</span>} />
+                )}
+              </div>
 
-            <button onClick={() => setSelectedShift(null)}
-              className="mt-4 w-full text-sm text-center py-2 rounded-lg bg-accent hover:bg-accent/80 text-foreground transition-colors">
-              Schließen
-            </button>
+              <div className="mt-4 flex gap-2">
+                {canConfirm && (
+                  <button
+                    onClick={() => confirmMutation.mutate(shift.id)}
+                    disabled={confirmMutation.isPending}
+                    className="flex-1 flex items-center justify-center gap-1.5 text-sm py-2 rounded-lg bg-ctp-green/20 hover:bg-ctp-green/30 text-ctp-green font-medium transition-colors disabled:opacity-50">
+                    <Check size={14} />
+                    Bestätigen
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Dienst am ${shift.date} wirklich löschen?`)) {
+                        deleteMutation.mutate(shift.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="flex-1 flex items-center justify-center gap-1.5 text-sm py-2 rounded-lg bg-ctp-red/20 hover:bg-ctp-red/30 text-ctp-red font-medium transition-colors disabled:opacity-50">
+                    <Trash2 size={14} />
+                    Löschen
+                  </button>
+                )}
+                <button onClick={() => setSelectedShift(null)}
+                  className={`text-sm text-center py-2 px-3 rounded-lg bg-accent hover:bg-accent/80 text-foreground transition-colors ${canConfirm || canDelete ? "" : "flex-1"}`}>
+                  Schließen
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Frontend URL (für Einladungs- und Reset-Links)
+    FRONTEND_URL: str = "http://localhost:31368"
+
     # E-Mail via SMTP (z.B. IONOS: smtp.ionos.de:587)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

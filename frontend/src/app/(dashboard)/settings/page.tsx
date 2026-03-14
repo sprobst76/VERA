@@ -1358,12 +1358,31 @@ function EditUserModal({ user, currentUserId, onClose }: { user: UserEntry; curr
 
 function BenutzerSection() {
   const { user: currentUser } = useAuthStore();
+  const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<UserEntry | null>(null);
 
   const { data: users = [], isLoading } = useQuery<UserEntry[]>({
     queryKey: ["users"],
     queryFn: () => usersApi.list().then(r => r.data),
+  });
+
+  const inviteMut = useMutation({
+    mutationFn: (id: string) => usersApi.sendInvite(id),
+    onSuccess: (res: any) => {
+      const link = res.data?.invite_link;
+      const sent = res.data?.email_sent;
+      if (sent) {
+        toast.success("Einladungs-E-Mail gesendet");
+      } else if (link) {
+        navigator.clipboard.writeText(link).then(() =>
+          toast.success("Einladungslink in Zwischenablage kopiert (kein SMTP konfiguriert)")
+        ).catch(() =>
+          toast.success(`Einladungslink: ${link}`)
+        );
+      }
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Fehler beim Erstellen der Einladung"),
   });
 
   return (
@@ -1414,6 +1433,14 @@ function BenutzerSection() {
                     )}
                   </div>
                 </div>
+                <button
+                  onClick={() => inviteMut.mutate(u.id)}
+                  disabled={inviteMut.isPending}
+                  className="p-2 rounded-lg hover:bg-muted text-muted-foreground shrink-0 disabled:opacity-50"
+                  title="Einladungslink senden"
+                >
+                  <Mail size={14} />
+                </button>
                 <button
                   onClick={() => setEditUser(u)}
                   className="p-2 rounded-lg hover:bg-muted text-muted-foreground shrink-0"

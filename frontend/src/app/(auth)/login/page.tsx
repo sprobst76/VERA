@@ -92,9 +92,12 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Kein Zugang? Wende dich an deinen Administrator.
-          </p>
+          <div className="mt-4 flex flex-col items-center gap-1 text-sm text-muted-foreground">
+            <a href="/auth/forgot-password" className="text-ctp-blue hover:underline">
+              Passwort vergessen?
+            </a>
+            <span>Kein Zugang? Wende dich an deinen Administrator.</span>
+          </div>
         </div>
       </div>
       <DemoBar />
