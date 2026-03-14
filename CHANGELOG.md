@@ -5,6 +5,31 @@ Format: [Semantic Versioning](https://semver.org/), neueste Version zuerst.
 
 ---
 
+## [0.15.0] – 2026-03-14
+
+### Hinzugefügt
+- **Einladungslink** – Admin kann per `POST /users/{id}/invite` einen Einladungslink erzeugen.
+  Bei konfiguriertem SMTP wird die E-Mail automatisch gesendet; sonst wird der Link in die
+  Zwischenablage kopiert (Toast). Token 7 Tage gültig.
+- **Passwort-Reset** – „Passwort vergessen?"-Link auf der Login-Seite → E-Mail-Eingabe →
+  `POST /auth/forgot-password` schickt Reset-Link; Token 1 Stunde gültig. Kein User-Enumeration-Leak.
+- **Neue Auth-Seiten** – `/auth/forgot-password`, `/auth/reset-password?token=`, `/auth/accept-invite?token=`
+  (alle im `(auth)`-Layout ohne Sidebar).
+- **Kalender: Bestätigen & Löschen im Detail-Popup** – Admin/Manager sehen Schaltflächen
+  direkt im Schicht-Detail-Popup: grüner „Bestätigen"-Button (für geplante Dienste) und
+  roter „Löschen"-Button (für nicht-abgeschlossene Dienste).
+- **Kalender: Status-Badge** – Status wird farbig im Popup angezeigt (geplant=gelb,
+  bestätigt=blau, abgeschlossen=grün, storniert=rot).
+- **Kalender: Legende** – Neue Einträge „Bestätigt (•)" und „Abgeschlossen (✓)" in der Legende.
+
+### Infrastruktur
+- Migration `a0b1c2d3e4f5`: `invite_token`, `invite_expires_at`, `reset_token`, `reset_expires_at`
+  auf `users`-Tabelle; `FRONTEND_URL` in `config.py`.
+- Alembic HEAD: `a0b1c2d3e4f5` (13 Migrationen)
+- Backend-Tests: 199 ✓
+
+---
+
 ## [0.14.0] – 2026-03-14
 
 ### Hinzugefügt

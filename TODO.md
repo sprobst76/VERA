@@ -99,13 +99,13 @@ Stand: 2026-03-14
 ## 🔄 Offen / Nächste Schritte
 
 ### Hoch priorisiert
-- [ ] **iCal-Einbindungsanleitung** – In-App-Hilfe für Apple Kalender (iOS/macOS),
-      Thunderbird, Outlook, Google Calendar: Schritt-für-Schritt mit Screenshots oder
-      Texterklärung, wie der iCal-Feed-Link eingebunden wird.
+- [x] **iCal-Einbindungsanleitung** – In-App-Hilfe für 6 Apps direkt in der Einstellungen-Seite (KalenderfreigabeSection)
+- [x] **Einladungslink für Mitarbeiter** – `POST /users/{id}/invite` + 3 neue Auth-Seiten (accept-invite, forgot-password, reset-password)
 - [ ] **Demo-Tenant re-seeden** – Produktions-Demo-Daten neu aufsetzen mit korrekten
       Mitarbeiternamen (keine echten Mitarbeiter im Demo-Tenant)
 - [ ] **Notification-Events testen auf Produktion** – Telegram-Token und SendGrid-Key in
       `deploy/.env` prüfen und Benachrichtigungen end-to-end testen.
+- [ ] **SMTP für Einladungen konfigurieren** – `SMTP_HOST/USER/PASSWORD` + `FRONTEND_URL` in `deploy/.env` setzen
 
 ### Mittel priorisiert
 - [ ] **Utilization-Report** – `GET /reports/utilization?from=&to=` (Auslastung pro MA)
