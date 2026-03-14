@@ -7,6 +7,7 @@ import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck } from "lucide-react";
 import { TimeInput } from "@/components/shared/TimeInput";
+import { useSwipe } from "@/hooks/useSwipe";
 import toast from "react-hot-toast";
 import { useAuthStore } from "@/store/auth";
 import { CreateShiftModal } from "@/components/shared/CreateShiftModal";
@@ -673,6 +674,8 @@ export default function ShiftsPage() {
     return d;
   });
 
+  const swipeHandlers = useSwipe({ onSwipeLeft: nextMonth, onSwipeRight: prevMonth });
+
   const allowedStatuses = FILTER_STATUSES[statusFilter];
   const filteredShifts = allowedStatuses.length > 0
     ? (shifts as any[]).filter((s: any) => allowedStatuses.includes(s.status))
@@ -689,7 +692,7 @@ export default function ShiftsPage() {
   const handleActualSaved = () => { setActualShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" {...swipeHandlers}>
 
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center gap-3">

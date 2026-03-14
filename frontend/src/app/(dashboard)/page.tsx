@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { employeesApi, shiftsApi, absencesApi } from "@/lib/api";
+import { employeesApi, shiftsApi, absencesApi, reportsApi } from "@/lib/api";
 import { formatDate, SHIFT_STATUS_LABELS } from "@/lib/utils";
-import { Users, Clock, CalendarCheck, AlertTriangle, HandshakeIcon, CalendarDays, Copy, Check as CheckIcon, CalendarOff } from "lucide-react";
+import { Users, Clock, CalendarCheck, AlertTriangle, HandshakeIcon, CalendarDays, Copy, Check as CheckIcon, CalendarOff, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -160,6 +160,23 @@ export default function DashboardPage() {
         .then((r) => r.data),
   });
 
+  // Admin: unassigned shifts in next 14 days
+  const { data: upcomingUnassigned = [] } = useQuery({
+    queryKey: ["shifts-unassigned", format(today, "yyyy-MM-dd")],
+    queryFn: () =>
+      shiftsApi.list({ from_date: format(today, "yyyy-MM-dd"), to_date: next14 })
+        .then(r => (r.data as any[]).filter((s: any) => !s.employee_id && s.status === "planned")),
+    enabled: isPrivileged,
+  });
+
+  // Admin: minijob limit warnings
+  const { data: minijobStatus = [] } = useQuery({
+    queryKey: ["minijob-status-dashboard"],
+    queryFn: () => reportsApi.minijobLimitStatus().then(r => r.data as any[]),
+    enabled: isPrivileged,
+  });
+  const minijobWarnings = (minijobStatus as any[]).filter((m: any) => m.status !== "ok");
+
   const adminStats = [
     {
       label: "Aktive Mitarbeiter",
@@ -180,8 +197,8 @@ export default function DashboardPage() {
       ctpVar: "mauve",
     },
     {
-      label: "Offene Dienste",
-      value: shifts?.filter((s: { employee_id: string | null }) => !s.employee_id).length ?? "–",
+      label: "Unbesetzt (14 Tage)",
+      value: (upcomingUnassigned as any[]).length,
       icon: AlertTriangle,
       ctpVar: "peach",
     },
@@ -245,36 +262,88 @@ export default function DashboardPage() {
       {/* Today's Shifts */}
       <div className="bg-card rounded-xl shadow-sm border border-border p-4">
         <h2 className="font-semibold mb-3 text-foreground">Dienste heute</h2>
-        {todayShifts?.length === 0 ? (
+        {!todayShifts || (todayShifts as any[]).length === 0 ? (
           <p className="text-muted-foreground text-sm">Keine Dienste heute</p>
         ) : (
           <div className="space-y-2">
-            {todayShifts?.map((shift: {
-              id: string;
-              start_time: string;
-              end_time: string;
-              location: string | null;
-              status: string;
-              employee_id: string | null;
-            }) => (
-              <div key={shift.id} className="flex items-center justify-between p-3 bg-accent/50 rounded-lg">
-                <div>
-                  <div className="font-medium text-sm text-foreground">
-                    {shift.start_time?.substring(0, 5)} – {shift.end_time?.substring(0, 5)}
+            {(todayShifts as any[]).map((shift: any) => {
+              const empMap = Object.fromEntries(((employees as any[]) || []).map((e: any) => [e.id, e]));
+              const emp = empMap[shift.employee_id];
+              return (
+                <div key={shift.id} className="flex items-center justify-between p-3 bg-accent/50 rounded-lg">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm text-foreground">
+                      {shift.start_time?.substring(0, 5)} – {shift.end_time?.substring(0, 5)}
+                      {emp && <span className="ml-2 font-normal text-muted-foreground">· {emp.first_name} {emp.last_name}</span>}
+                    </div>
+                    {shift.location && <div className="text-xs text-muted-foreground">{shift.location}</div>}
                   </div>
-                  <div className="text-xs text-muted-foreground">{shift.location || "Kein Ort"}</div>
+                  <span className="shrink-0 text-xs px-2 py-1 rounded-full font-medium ml-2"
+                    style={shift.employee_id
+                      ? { color: "rgb(var(--ctp-green))", backgroundColor: "rgb(var(--ctp-green) / 0.15)" }
+                      : { color: "rgb(var(--ctp-red))",   backgroundColor: "rgb(var(--ctp-red) / 0.15)" }}>
+                    {shift.employee_id ? SHIFT_STATUS_LABELS[shift.status] : "⚠ Offen"}
+                  </span>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-full font-medium"
-                  style={shift.employee_id
-                    ? { color: "rgb(var(--ctp-green))", backgroundColor: "rgb(var(--ctp-green) / 0.15)" }
-                    : { color: "rgb(var(--ctp-red))",   backgroundColor: "rgb(var(--ctp-red) / 0.15)" }}>
-                  {shift.employee_id ? SHIFT_STATUS_LABELS[shift.status] : "Offen"}
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Admin: Unassigned upcoming shifts */}
+      {isPrivileged && (upcomingUnassigned as any[]).length > 0 && (
+        <div className="bg-card rounded-xl shadow-sm border border-border p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={16} style={{ color: "rgb(var(--ctp-peach))" }} />
+            <h2 className="font-semibold text-foreground">Unbesetzte Dienste (nächste 14 Tage)</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ color: "rgb(var(--ctp-peach))", backgroundColor: "rgb(var(--ctp-peach) / 0.12)" }}>
+              {(upcomingUnassigned as any[]).length}
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {(upcomingUnassigned as any[]).slice(0, 6).map((shift: any) => (
+              <div key={shift.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+                <span className="text-foreground">
+                  {format(parseISO(shift.date), "EEE, d. MMM", { locale: de })}
+                  <span className="text-muted-foreground ml-2">
+                    {shift.start_time?.slice(0,5)}–{shift.end_time?.slice(0,5)}
+                  </span>
+                </span>
+                <span className="text-xs text-muted-foreground">Kein Mitarbeiter</span>
+              </div>
+            ))}
+            {(upcomingUnassigned as any[]).length > 6 && (
+              <p className="text-xs text-muted-foreground pt-1">
+                + {(upcomingUnassigned as any[]).length - 6} weitere → Dienste-Seite (Sparkle-Icon)
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Admin: Minijob warnings */}
+      {isPrivileged && minijobWarnings.length > 0 && (
+        <div className="bg-card rounded-xl shadow-sm border border-border p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp size={16} style={{ color: "rgb(var(--ctp-red))" }} />
+            <h2 className="font-semibold text-foreground">Minijob-Limit Warnung</h2>
+          </div>
+          <div className="space-y-2">
+            {minijobWarnings.map((m: any) => (
+              <div key={m.employee_id} className="flex items-center justify-between text-sm p-2 rounded-lg"
+                style={{ backgroundColor: m.status === "critical" ? "rgb(var(--ctp-red) / 0.08)" : "rgb(var(--ctp-peach) / 0.08)" }}>
+                <span className="font-medium text-foreground">{m.first_name} {m.last_name}</span>
+                <span className="text-xs"
+                  style={{ color: m.status === "critical" ? "rgb(var(--ctp-red))" : "rgb(var(--ctp-peach))" }}>
+                  {m.ytd_gross.toFixed(0)} / {m.annual_limit.toFixed(0)} € ({m.percent_used}%)
                 </span>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Upcoming own shifts – shown to employees */}
       {!isPrivileged && (upcomingOwnShifts as any[]).length > 0 && (

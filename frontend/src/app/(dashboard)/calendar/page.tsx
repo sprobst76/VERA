@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { useSwipe } from "@/hooks/useSwipe";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
 import { format, parse, startOfWeek, endOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, eachDayOfInterval } from "date-fns";
@@ -258,8 +259,13 @@ export default function CalendarPage() {
   // Legend items
   const legend = templates.map((t: any) => ({ name: t.name, color: t.color, type: "template" }));
 
+  const swipeHandlers = useSwipe({
+    onSwipeLeft:  () => handleNavigate("next"),
+    onSwipeRight: () => handleNavigate("prev"),
+  });
+
   return (
-    <div className="space-y-4 h-full">
+    <div className="space-y-4 h-full" {...swipeHandlers}>
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-bold flex-1">Kalender</h1>
