@@ -656,6 +656,12 @@ export default function ShiftsPage() {
     onError:   () => toast.error("Löschen fehlgeschlagen"),
   });
 
+  const claimMutation = useMutation({
+    mutationFn: (id: string) => shiftsApi.claim(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shifts"] }); toast.success("Dienst angenommen!"); },
+    onError:   () => toast.error("Dienst konnte nicht angenommen werden"),
+  });
+
   const { data: shiftTypes = [] } = useQuery({
     queryKey: ["shift-types"],
     queryFn: () => shiftTypesApi.list().then(r => r.data),
@@ -891,6 +897,14 @@ export default function ShiftsPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
+                            {!isPrivileged && !shift.employee_id && shift.status === "planned" && (
+                              <button onClick={() => claimMutation.mutate(shift.id)} title="Dienst annehmen"
+                                disabled={claimMutation.isPending}
+                                className="p-2.5 rounded hover:bg-accent transition-colors"
+                                style={{ color: "rgb(var(--ctp-green))" }}>
+                                <UserCheck size={14} />
+                              </button>
+                            )}
                             {isPrivileged && shift.status === "planned" && !shift.employee_id && (
                               <button onClick={() => setSuggestShift(shift)} title="Mitarbeiter vorschlagen"
                                 className="p-2.5 rounded hover:bg-accent transition-colors"

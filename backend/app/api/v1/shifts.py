@@ -130,11 +130,14 @@ async def list_shifts(
     conditions = [Shift.tenant_id == current_user.tenant_id]
 
     if current_user.role not in PRIVILEGED_ROLES:
-        # Non-privileged: only own shifts — ignore any employee_id filter from client
+        # Non-privileged: own shifts + open (unassigned) shifts in same tenant → Pool
         own_id = await _own_employee_id(current_user, db)
         if own_id is None:
             return []  # User has no linked employee record
-        conditions.append(Shift.employee_id == own_id)
+        from sqlalchemy import or_
+        conditions.append(
+            or_(Shift.employee_id == own_id, Shift.employee_id.is_(None))
+        )
     else:
         # Admin/manager: optional employee filter
         if employee_id:
