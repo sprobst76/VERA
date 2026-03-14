@@ -15,6 +15,9 @@ Stand: 2026-03-14
 - [x] Schuljahrdienste (Regeltermine): valid_from/valid_until, Ferien/Feiertage überspringen
 - [x] Regeltermine im Kalender: anklickbar mit Info-Panel, keine Doppelanzeigeung, keine Anzeige in Ferien
 - [x] "Ab Datum ändern" für Regeltermine
+- [x] **Diensttyp in Regeltermin** – shift_type_id wählbar beim Anlegen/Bearbeiten, wird auf Dienste vererbt
+- [x] **Ist-Zeit-Korrektur** – MA erfasst Ist-Zeiten, Admin bestätigt/lehnt ab; Abrechnung nutzt bestätigte Ist-Zeiten
+- [x] **Kalender-Statusanzeige** – completed = Rahmen (transparent), confirmed = doppelter Rahmen
 
 ### Mitarbeiterverwaltung
 - [x] CRUD + Qualifikationen + Kontaktdaten
@@ -24,6 +27,7 @@ Stand: 2026-03-14
 - [x] Notfallkontakte
 - [x] Resturlaubsverwaltung (vacation_days + vacation_carryover)
 - [x] Mitarbeiter-Detailseite mit iCal-Token-Anzeige
+- [x] **Vertragstypen (Gruppenverträge)** – Vorlagen anlegen, MA zuweisen, Bulk-ContractHistory bei Lohnänderung
 
 ### Urlaubs- & Abwesenheitsverwaltung
 - [x] Abwesenheits-Genehmigungsworkflow (pending → approved/rejected)
@@ -81,7 +85,8 @@ Stand: 2026-03-14
 - [x] CI/CD: GitHub Actions → GHCR → VPS SSH-Deploy mit Layer-Caching
 - [x] Traefik TLS (Cloudflare), Rate Limiting auf Auth-Endpunkten
 - [x] SuperAdmin mit 2FA (TOTP)
-- [x] Alembic-Migrationen (10 Versionen)
+- [x] Alembic-Migrationen (12 Versionen, HEAD: d3e4f5a6b7c8)
+- [x] Idempotente Migrationen (inspect-Check gegen create_tables()-Race)
 
 ### Tests
 - [x] 199 Backend-Tests (pytest, asyncio)
@@ -94,11 +99,11 @@ Stand: 2026-03-14
 ## 🔄 Offen / Nächste Schritte
 
 ### Hoch priorisiert
+- [ ] **iCal-Einbindungsanleitung** – In-App-Hilfe für Apple Kalender (iOS/macOS),
+      Thunderbird, Outlook, Google Calendar: Schritt-für-Schritt mit Screenshots oder
+      Texterklärung, wie der iCal-Feed-Link eingebunden wird.
 - [ ] **Demo-Tenant re-seeden** – Produktions-Demo-Daten neu aufsetzen mit korrekten
       Mitarbeiternamen (keine echten Mitarbeiter im Demo-Tenant)
-- [ ] **Alembic `alembic upgrade head` in CI/CD automatisieren** – Aktuell muss die Migration
-      nach dem Deploy manuell ausgeführt werden wenn der Deploy-Hook sie nicht triggert.
-      Status: Pipeline ruft `alembic upgrade head` per SSH auf, prüfen ob es zuverlässig läuft.
 - [ ] **Notification-Events testen auf Produktion** – Telegram-Token und SendGrid-Key in
       `deploy/.env` prüfen und Benachrichtigungen end-to-end testen.
 

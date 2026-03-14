@@ -5,6 +5,60 @@ Format: [Semantic Versioning](https://semver.org/), neueste Version zuerst.
 
 ---
 
+## [0.14.0] – 2026-03-14
+
+### Hinzugefügt
+- **Vertragstypen (Gruppenverträge)** – Admin kann benannte Vertragsvorlagen anlegen
+  (z. B. „Minijob Standard"). Eine Vorlage enthält: Vertragsart, Stundenlohn, Stundenlimits,
+  Jahresgehaltsgrenze, Jahresstundensoll, Wochenstunden.
+  - `POST /contract-types` erstellt eine Vorlage; `PUT /contract-types/{id}` mit `apply_from`
+    erzeugt automatisch neue ContractHistory-Einträge für alle verknüpften Mitarbeiter.
+  - `POST /employees/{id}/assign-contract-type` weist eine Vorlage einem Mitarbeiter zu.
+  - `GET /contract-types/{id}/employees` listet alle Mitarbeiter einer Vorlage.
+  - Frontend: VertragstypenSection in den Einstellungen (CRUD); Zuweisung per Dropdown im
+    Mitarbeiter-Bearbeitungsdialog; aktive Vorlage als grauer Badge in der Mitarbeiterkarte.
+- **Diensttyp in Regeltermin** – `shift_type_id` ist jetzt im RecurringShift-Model vorhanden
+  und wird beim Anlegen/Bearbeiten eines Regeltermins über ein Dropdown gesetzt.
+  Generierte Dienste erben automatisch den `shift_type_id` aus dem Regeltermin.
+- **Ist-Zeit-Korrektur mit Admin-Bestätigungs-Workflow**
+  - Mitarbeiter können nach einem bestätigten/abgeschlossenen Dienst Ist-Zeiten nacherfassen
+    (`actual_start`, `actual_end`, `actual_break_minutes`, Notiz).
+  - Admin/Manager bestätigt oder lehnt ab (`time_correction_status`: none → pending → confirmed/rejected).
+  - Abrechnung nutzt Ist-Zeiten nur wenn `time_correction_status = "confirmed"`.
+  - UI: gelber Badge „Korrektur ausstehend", grüne Ist-Zeit bei Bestätigung, roter Text bei Ablehnung.
+- **Kalender-Statusanzeige für vergangene Dienste** – Optische Unterscheidung je Status:
+  `completed` = transparenter Hintergrund + farbiger Rahmen + `✓`-Prefix;
+  `confirmed` = doppelter Rahmen + `•`-Prefix; `cancelled` = durchgestrichen (unverändert).
+
+### Behoben
+- **Diensttyp nicht bearbeitbar in Regeltermin** – `shift_type_id` fehlte im RecurringShift-Model,
+  allen Schemas (`Create`, `Update`, `UpdateFrom`) und im recurring_shift_service. Fix: Migration
+  `d3e4f5a6b7c8` fügt die Spalte hinzu; Service vererbt den Typ auf generierte Dienste.
+
+### Infrastruktur
+- **Migration `c2d3e4f5a6b1` idempotent** – `create_tables()` im FastAPI-Lifespan kann Tabellen
+  anlegen bevor `alembic upgrade head` läuft. Fix: Migrationen prüfen via `inspect(conn)` ob
+  Tabellen/Spalten schon existieren (DuplicateTable-Schutz).
+- Alembic HEAD: `d3e4f5a6b7c8` (12 Migrationen)
+- Backend-Tests: 199 ✓
+
+---
+
+## [0.13.0] – 2026-03-14
+
+### Hinzugefügt
+- **Abwesenheit betreute Person im Kalender** – CareAbsences werden im Kalender als
+  hellroter Hintergrundblock angezeigt (analog zu Urlaubsanzeige).
+- **Abwesenheits-Jahresbericht** – Backend: `GET /reports/absences?year=` mit RBAC.
+  Frontend: neue Sektion in Berichte-Seite (Typ-Chips + Tabelle).
+
+### Behoben
+- Regeltermine in Schulferien und an Feiertagen wurden im Kalender fälschlicherweise angezeigt.
+  Fix: `recurringEventUtils.ts` filtert korrekt nach `vacation_periods`, `public_holidays`,
+  `valid_from`/`valid_until` und vorhandenen DB-Schichten.
+
+---
+
 ## [0.12.0] – 2026-03-14
 
 ### Behoben
