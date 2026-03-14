@@ -16,7 +16,8 @@ from app.api.v1.calendar import _build_calendar
 
 
 def make_shift(shift_date, start="08:00", end="16:00", status="confirmed",
-               employee_id=None, template_name="Tagdienst", template=None):
+               employee_id=None, template_name="Tagdienst", template=None,
+               shift_type_id=None):
     h_s, m_s = map(int, start.split(":"))
     h_e, m_e = map(int, end.split(":"))
     emp_id = employee_id or uuid.uuid4()
@@ -30,10 +31,22 @@ def make_shift(shift_date, start="08:00", end="16:00", status="confirmed",
         status=status,
         employee_id=emp_id,
         template=tpl,
+        shift_type_id=shift_type_id,
         location=None,
         confirmation_note=None,
         notes=None,
     )
+
+
+def make_shift_type(reminder_enabled=True, reminder_minutes_before=60, name="Frühdienst"):
+    st_id = uuid.uuid4()
+    st = SimpleNamespace(
+        id=st_id,
+        name=name,
+        reminder_enabled=reminder_enabled,
+        reminder_minutes_before=reminder_minutes_before,
+    )
+    return st_id, st
 
 
 def make_employee(first="Erika", last="Mustermann"):
@@ -173,3 +186,95 @@ def test_build_calendar_multiple_employees():
     assert any("Bert" in s for s in summaries)
     assert any("Frühdienst" in s for s in summaries)
     assert any("Spätdienst" in s for s in summaries)
+
+
+# ── VALARM – Diensttyp-Erinnerungen im iCal ──────────────────────────────────
+
+def test_build_calendar_valarm_added_when_reminder_enabled():
+    """VALARM-Komponente erscheint im Event wenn Diensttyp reminder_enabled=True."""
+    emp_id, emp = make_employee()
+    st_id, st = make_shift_type(reminder_enabled=True, reminder_minutes_before=60)
+    shift = make_shift(date(2025, 10, 1), employee_id=emp_id, shift_type_id=st_id)
+
+    result = _build_calendar([shift], {emp_id: emp}, "Test", shift_type_map={st_id: st})
+    cal = Calendar.from_ical(result)
+    events = [c for c in cal.walk() if c.name == "VEVENT"]
+    assert len(events) == 1
+
+    alarms = [c for c in events[0].walk() if c.name == "VALARM"]
+    assert len(alarms) == 1
+
+
+def test_build_calendar_valarm_trigger_offset():
+    """VALARM trigger entspricht -reminder_minutes_before."""
+    from datetime import timedelta
+    emp_id, emp = make_employee()
+    st_id, st = make_shift_type(reminder_enabled=True, reminder_minutes_before=90)
+    shift = make_shift(date(2025, 10, 1), employee_id=emp_id, shift_type_id=st_id)
+
+    result = _build_calendar([shift], {emp_id: emp}, "Test", shift_type_map={st_id: st})
+    cal = Calendar.from_ical(result)
+    events = [c for c in cal.walk() if c.name == "VEVENT"]
+    alarms = [c for c in events[0].walk() if c.name == "VALARM"]
+    trigger = alarms[0].get("trigger").dt
+    assert trigger == timedelta(minutes=-90)
+
+
+def test_build_calendar_no_valarm_when_reminder_disabled():
+    """Kein VALARM wenn reminder_enabled=False."""
+    emp_id, emp = make_employee()
+    st_id, st = make_shift_type(reminder_enabled=False, reminder_minutes_before=60)
+    shift = make_shift(date(2025, 10, 1), employee_id=emp_id, shift_type_id=st_id)
+
+    result = _build_calendar([shift], {emp_id: emp}, "Test", shift_type_map={st_id: st})
+    cal = Calendar.from_ical(result)
+    events = [c for c in cal.walk() if c.name == "VEVENT"]
+    alarms = [c for c in events[0].walk() if c.name == "VALARM"]
+    assert len(alarms) == 0
+
+
+def test_build_calendar_no_valarm_without_shift_type_map():
+    """Kein VALARM wenn kein shift_type_map übergeben wird."""
+    emp_id, emp = make_employee()
+    shift = make_shift(date(2025, 10, 1), employee_id=emp_id)
+
+    result = _build_calendar([shift], {emp_id: emp}, "Test")
+    cal = Calendar.from_ical(result)
+    events = [c for c in cal.walk() if c.name == "VEVENT"]
+    alarms = [c for c in events[0].walk() if c.name == "VALARM"]
+    assert len(alarms) == 0
+
+
+def test_build_calendar_no_valarm_when_shift_type_not_in_map():
+    """Kein VALARM wenn shift_type_id nicht im Map."""
+    emp_id, emp = make_employee()
+    st_id, _ = make_shift_type()
+    shift = make_shift(date(2025, 10, 1), employee_id=emp_id, shift_type_id=st_id)
+
+    # Leere Map – Typ nicht enthalten
+    result = _build_calendar([shift], {emp_id: emp}, "Test", shift_type_map={})
+    cal = Calendar.from_ical(result)
+    events = [c for c in cal.walk() if c.name == "VEVENT"]
+    alarms = [c for c in events[0].walk() if c.name == "VALARM"]
+    assert len(alarms) == 0
+
+
+def test_build_calendar_only_events_with_type_get_alarm():
+    """Nur Events mit Diensttyp + reminder_enabled bekommen VALARM."""
+    emp_id, emp = make_employee()
+    st_id, st = make_shift_type(reminder_enabled=True, reminder_minutes_before=30)
+
+    shift_with_type = make_shift(date(2025, 10, 1), employee_id=emp_id, shift_type_id=st_id)
+    shift_without_type = make_shift(date(2025, 10, 2), employee_id=emp_id)  # kein shift_type_id
+
+    result = _build_calendar(
+        [shift_with_type, shift_without_type],
+        {emp_id: emp}, "Test",
+        shift_type_map={st_id: st},
+    )
+    cal = Calendar.from_ical(result)
+    events = [c for c in cal.walk() if c.name == "VEVENT"]
+    assert len(events) == 2
+
+    alarm_counts = [len([c for c in ev.walk() if c.name == "VALARM"]) for ev in events]
+    assert sum(alarm_counts) == 1  # Nur ein Event hat VALARM
