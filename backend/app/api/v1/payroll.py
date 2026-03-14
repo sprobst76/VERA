@@ -15,6 +15,7 @@ from app.models.tenant import Tenant
 from app.schemas.payroll import PayrollEntryOut, PayrollCalculateRequest, PayrollUpdate
 from app.services.payroll_service import PayrollService
 from app.services.pdf_service import generate_payslip_pdf
+from app.api.v1.webhooks import dispatch_event
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
 
@@ -98,6 +99,13 @@ async def calculate_payroll(
 
     await db.commit()
     await db.refresh(entry)
+    await dispatch_event(db, current_user.tenant_id, "payroll.created", {
+        "payroll_id": str(entry.id),
+        "employee_id": str(entry.employee_id),
+        "month": str(entry.month),
+        "total_gross": float(entry.total_gross or 0),
+        "paid_hours": float(entry.paid_hours or 0),
+    })
     return entry
 
 

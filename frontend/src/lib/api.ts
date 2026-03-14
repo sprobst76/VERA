@@ -278,3 +278,15 @@ export const reportsApi = {
   exportCsv: (params: { from: string; to: string; employee_id?: string }) =>
     api.get("/reports/export/csv", { params, responseType: "blob" }),
 };
+
+// Webhooks
+export const webhooksApi = {
+  list: () => api.get("/webhooks"),
+  create: (data: { name: string; url: string; events: string[]; secret?: string }) =>
+    api.post("/webhooks", data),
+  update: (id: string, data: Partial<{ name: string; url: string; events: string[]; secret: string; is_active: boolean }>) =>
+    api.put(`/webhooks/${id}`, data),
+  delete: (id: string) => api.delete(`/webhooks/${id}`),
+  test: (id: string) => api.post(`/webhooks/${id}/test`),
+  events: () => api.get("/webhooks/events"),
+};

@@ -13,6 +13,7 @@ from app.models.employee import Employee
 from app.models.shift import Shift, ShiftTemplate
 from app.services.compliance_service import ComplianceService
 from app.services.notification_service import notify_shift_assigned, notify_shift_changed
+from app.api.v1.webhooks import dispatch_event
 from app.schemas.shift import (
     ShiftCreate, ShiftUpdate, ShiftOut, ShiftActualTime, ShiftConfirm,
     ShiftTemplateCreate, ShiftTemplateOut, BulkShiftCreate,
@@ -162,6 +163,10 @@ async def create_shift(payload: ShiftCreate, current_user: ManagerOrAdmin, db: D
         emp = await db.get(Employee, shift.employee_id)
         if emp:
             await notify_shift_assigned(shift, emp, db)
+    await dispatch_event(db, current_user.tenant_id, "shift.created", {
+        "shift_id": str(shift.id), "date": str(shift.date),
+        "employee_id": str(shift.employee_id) if shift.employee_id else None,
+    })
     return shift
 
 
@@ -282,6 +287,13 @@ async def update_shift(shift_id: uuid.UUID, payload: ShiftUpdate, current_user: 
                 changed = [f for f in ("start_time", "end_time", "location") if f in payload_keys]
                 if changed:
                     await notify_shift_changed(shift, emp, changed, db)
+    # Webhook: shift.updated or shift.cancelled
+    event = "shift.cancelled" if shift.status in ("cancelled", "cancelled_absence") else "shift.updated"
+    await dispatch_event(db, current_user.tenant_id, event, {
+        "shift_id": str(shift.id), "date": str(shift.date),
+        "status": shift.status,
+        "employee_id": str(shift.employee_id) if shift.employee_id else None,
+    })
     return shift
 
 

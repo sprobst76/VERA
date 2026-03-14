@@ -14,6 +14,7 @@ from app.schemas.absence import (
     CareAbsenceCreate, CareAbsenceOut,
 )
 from app.services.notification_service import notify_absence_decision
+from app.api.v1.webhooks import dispatch_event
 
 router = APIRouter(tags=["absences"])
 
@@ -147,6 +148,15 @@ async def update_absence(absence_id: uuid.UUID, payload: EmployeeAbsenceUpdate, 
         if emp:
             await notify_absence_decision(absence, emp, payload.status, db)
 
+    if payload.status == "approved":
+        await dispatch_event(db, current_user.tenant_id, "absence.approved", {
+            "absence_id": str(absence.id),
+            "employee_id": str(absence.employee_id),
+            "type": absence.type,
+            "start_date": str(absence.start_date),
+            "end_date": str(absence.end_date),
+        })
+
     return absence
 
 
@@ -190,6 +200,13 @@ async def create_care_absence(payload: CareAbsenceCreate, current_user: AdminUse
 
     await db.commit()
     await db.refresh(absence)
+    await dispatch_event(db, current_user.tenant_id, "care_absence.created", {
+        "absence_id": str(absence.id),
+        "type": absence.type,
+        "start_date": str(absence.start_date),
+        "end_date": str(absence.end_date),
+        "shift_handling": absence.shift_handling,
+    })
     return absence
 
 

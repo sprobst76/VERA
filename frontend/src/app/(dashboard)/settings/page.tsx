@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -995,6 +995,209 @@ function ApiKeysSection() {
   );
 }
 
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+
+const WEBHOOK_EVENT_LABELS: Record<string, string> = {
+  "shift.created":       "Dienst erstellt",
+  "shift.updated":       "Dienst geändert",
+  "shift.cancelled":     "Dienst storniert",
+  "absence.approved":    "Abwesenheit genehmigt",
+  "payroll.created":     "Abrechnung erstellt",
+  "compliance.violation":"Compliance-Verstoß",
+  "care_absence.created":"Betreuten-Abwesenheit erstellt",
+};
+
+function WebhookModal({ webhook, onClose, onSaved }: {
+  webhook?: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const qc = useQueryClient();
+  const isEdit = !!webhook;
+  const allEvents = Object.keys(WEBHOOK_EVENT_LABELS);
+
+  const [name, setName] = useState(webhook?.name ?? "");
+  const [url, setUrl] = useState(webhook?.url ?? "");
+  const [secret, setSecret] = useState("");
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(webhook?.events ?? []);
+
+  const saveMut = useMutation({
+    mutationFn: () => isEdit
+      ? webhooksApi.update(webhook.id, { name, url, events: selectedEvents, ...(secret ? { secret } : {}) })
+      : webhooksApi.create({ name, url, events: selectedEvents, secret: secret || undefined }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["webhooks"] });
+      toast.success(isEdit ? "Webhook gespeichert" : "Webhook erstellt");
+      onSaved();
+    },
+    onError: () => toast.error("Fehler beim Speichern"),
+  });
+
+  const toggleEvent = (e: string) =>
+    setSelectedEvents(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <div className="bg-card rounded-2xl border border-border shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-foreground">{isEdit ? "Webhook bearbeiten" : "Webhook erstellen"}</h2>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-accent text-muted-foreground"><Trash2 size={14} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Name</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="z.B. n8n Abrechnung"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">URL</label>
+            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..."
+              className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Secret (optional, für HMAC-Signatur)</label>
+            <input value={secret} onChange={e => setSecret(e.target.value)} placeholder={isEdit ? "Leer lassen = unverändert" : "Geheimschlüssel…"}
+              className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-2">Events</label>
+            <div className="space-y-1.5">
+              {allEvents.map(evt => (
+                <label key={evt} className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={selectedEvents.includes(evt)} onChange={() => toggleEvent(evt)}
+                    className="rounded" />
+                  <span className="text-sm text-foreground">{WEBHOOK_EVENT_LABELS[evt]}</span>
+                  <span className="text-xs text-muted-foreground font-mono ml-auto">{evt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-border">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-accent">Abbrechen</button>
+          <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !name || !url || selectedEvents.length === 0}
+            className="px-4 py-2 text-sm rounded-lg text-white font-medium disabled:opacity-50"
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}>
+            {saveMut.isPending ? "Speichert…" : (isEdit ? "Speichern" : "Erstellen")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WebhooksSection() {
+  const qc = useQueryClient();
+  const [modal, setModal] = useState<"create" | { webhook: any } | null>(null);
+
+  const { data: webhooks = [] } = useQuery<any[]>({
+    queryKey: ["webhooks"],
+    queryFn: () => webhooksApi.list().then(r => r.data),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => webhooksApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["webhooks"] }); toast.success("Webhook gelöscht"); },
+    onError: () => toast.error("Fehler beim Löschen"),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      webhooksApi.update(id, { is_active }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks"] }),
+  });
+
+  const testMut = useMutation({
+    mutationFn: (id: string) => webhooksApi.test(id),
+    onSuccess: (r) => {
+      if (r.data.success) toast.success("Test-Ping erfolgreich");
+      else toast.error(`Test fehlgeschlagen: ${r.data.message}`);
+    },
+    onError: () => toast.error("Test fehlgeschlagen"),
+  });
+
+  return (
+    <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Webhook size={18} style={{ color: "rgb(var(--ctp-teal))" }} />
+          <h2 className="font-semibold text-foreground">Webhooks</h2>
+        </div>
+        <button onClick={() => setModal("create")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+          style={{ backgroundColor: "rgb(var(--ctp-teal))" }}>
+          <Plus size={13} /> Webhook hinzufügen
+        </button>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Empfange VERA-Events in n8n, Make oder eigenen Endpoints (HTTP POST JSON).
+        Mit einem Secret wird jede Anfrage mit <code className="font-mono bg-accent px-1 rounded">X-VERA-Signature: sha256=…</code> signiert.
+      </p>
+
+      {webhooks.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Noch keine Webhooks konfiguriert.</p>
+      ) : (
+        <div className="space-y-2">
+          {webhooks.map((wh: any) => (
+            <div key={wh.id} className="border border-border rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-foreground">{wh.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${wh.is_active ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                      {wh.is_active ? "Aktiv" : "Pausiert"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate font-mono">{wh.url}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => testMut.mutate(wh.id)} disabled={testMut.isPending} title="Test senden"
+                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+                    <Play size={13} />
+                  </button>
+                  <button onClick={() => setModal({ webhook: wh })} title="Bearbeiten"
+                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+                    <Pencil size={13} />
+                  </button>
+                  <button onClick={() => toggleMut.mutate({ id: wh.id, is_active: !wh.is_active })}
+                    title={wh.is_active ? "Pausieren" : "Aktivieren"}
+                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+                    {wh.is_active ? <EyeOff size={13} /> : <Eye size={13} />}
+                  </button>
+                  <button onClick={() => { if (confirm(`Webhook "${wh.name}" löschen?`)) deleteMut.mutate(wh.id); }}
+                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {wh.events.map((evt: string) => (
+                  <span key={evt} className="text-xs px-1.5 py-0.5 rounded font-mono bg-accent text-muted-foreground">
+                    {evt}
+                  </span>
+                ))}
+              </div>
+              {wh.last_triggered && (
+                <p className="text-xs text-muted-foreground">
+                  Zuletzt ausgelöst: {new Date(wh.last_triggered).toLocaleString("de-DE")}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal === "create" && (
+        <WebhookModal onClose={() => setModal(null)} onSaved={() => setModal(null)} />
+      )}
+      {modal && typeof modal === "object" && (
+        <WebhookModal webhook={modal.webhook} onClose={() => setModal(null)} onSaved={() => setModal(null)} />
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -1103,6 +1306,9 @@ export default function SettingsPage() {
 
       {/* API-Keys (admin only) */}
       {role === "admin" && <ApiKeysSection />}
+
+      {/* Webhooks (admin only) */}
+      {role === "admin" && <WebhooksSection />}
 
       {/* Ferienprofile (admin/manager only) */}
       {isPrivileged && <FerienprofileSection />}
