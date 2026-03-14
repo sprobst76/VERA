@@ -1587,10 +1587,16 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                             const ct = contractTypes.find(t => t.id === c.contract_type_id);
                             return ct ? (
                               <span className="text-xs px-1.5 py-0.5 rounded font-medium"
-                                style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.10)", color: "rgb(var(--ctp-blue))" }}>
-                                {ct.name}
+                                style={ct.is_active
+                                  ? { backgroundColor: "rgb(var(--ctp-blue) / 0.10)", color: "rgb(var(--ctp-blue))" }
+                                  : { backgroundColor: "rgb(var(--ctp-surface1))", color: "rgb(var(--ctp-subtext0))" }}>
+                                {ct.name}{!ct.is_active && " (inaktiv)"}
                               </span>
-                            ) : null;
+                            ) : (
+                              <span className="text-xs px-1.5 py-0.5 rounded font-medium text-muted-foreground italic">
+                                (gelöscht)
+                              </span>
+                            );
                           })()}
                         </td>
                         <td className="py-2">

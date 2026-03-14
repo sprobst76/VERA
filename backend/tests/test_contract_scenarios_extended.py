@@ -667,10 +667,11 @@ async def test_rand_gleiches_datum_zweimal(client, admin_token, db):
 
 
 @pytest.mark.asyncio
-async def test_rand_kein_valid_from_bei_typ_zuweisung(client, admin_token, db):
+async def test_rand_kein_valid_from_bei_typ_zuweisung(client, admin_token, admin_user, tenant):
     """
-    Vertragstyp ohne valid_from: kein neuer History-Eintrag, nur FK-Update.
-    Employee.contract_type_id wird gesetzt, History bleibt unverändert.
+    Vertragstyp ohne valid_from: neuer History-Eintrag mit date.today() wird angelegt
+    und contract_type_id auf Employee gesetzt.
+    Verifikation via API (umgeht SQLAlchemy Identity-Map-Cache).
     """
     typ = await mk_contract_type(client, admin_token,
         name="Typ ohne Datum", contract_category="minijob",
@@ -681,12 +682,23 @@ async def test_rand_kein_valid_from_bei_typ_zuweisung(client, admin_token, db):
         contract_type="minijob", hourly_rate=13.00)
     eid = emp["id"]
 
-    h_before = await history(db, eid)
-    await assign_type(client, admin_token, eid, typ["id"])  # kein valid_from
-    h_after = await history(db, eid)
+    # Einträge vor Zuweisung (via API)
+    r_before = await client.get(f"/api/v1/employees/{eid}/contracts", headers=auth_headers(admin_token))
+    count_before = len(r_before.json())
 
-    assert len(h_after) == len(h_before), \
-        "Ohne valid_from darf kein neuer History-Eintrag entstehen"
+    await assign_type(client, admin_token, eid, typ["id"])  # kein valid_from
+
+    # Einträge nach Zuweisung (via API – frische Session)
+    r_after = await client.get(f"/api/v1/employees/{eid}/contracts", headers=auth_headers(admin_token))
+    contracts = r_after.json()
+
+    # Auch ohne valid_from entsteht ein neuer History-Eintrag (mit date.today())
+    assert len(contracts) == count_before + 1, \
+        "Auch ohne valid_from muss ein neuer ContractHistory-Eintrag entstehen"
+
+    open_entries = [c for c in contracts if c["valid_to"] is None]
+    assert len(open_entries) == 1
+    assert open_entries[0]["contract_type_id"] == typ["id"]
 
     emp_data = await get_employee(client, admin_token, eid)
     assert emp_data["contract_type_id"] == typ["id"]
