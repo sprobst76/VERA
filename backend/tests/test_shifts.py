@@ -1,9 +1,12 @@
 """
-Tests für /api/v1/shifts und /api/v1/shift-templates – CRUD, RBAC, Bulk.
+Tests für /api/v1/shifts und /api/v1/shift-templates – CRUD, RBAC, Bulk, Claim/Pool.
 """
 import uuid
 import pytest
+import pytest_asyncio
+from datetime import datetime, timezone
 from tests.conftest import auth_headers
+from app.models.employee import Employee
 
 SHIFTS_URL = "/api/v1/shifts"
 TEMPLATES_URL = "/api/v1/shift-templates"
@@ -173,3 +176,91 @@ async def test_bulk_shift_creation(client, admin_token, admin_user, tenant):
     shifts = resp.json()
     assert len(shifts) == 10  # 5 Mo–Fr × 2 Wochen
     assert all(s["status"] == "planned" for s in shifts)
+
+
+# ── POST /shifts/{id}/claim ───────────────────────────────────────────────────
+
+@pytest_asyncio.fixture
+async def employee_with_profile(db, employee_user, tenant):
+    """Erstellt ein Employee-Profil, verknüpft mit employee_user."""
+    emp = Employee(
+        tenant_id=tenant.id,
+        user_id=employee_user.id,
+        first_name="Test",
+        last_name="Mitarbeiter",
+        contract_type="minijob",
+        hourly_rate=13.0,
+        qualifications=[],
+        notification_prefs={},
+        vacation_days=20,
+        vacation_carryover=0,
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+    return emp
+
+
+@pytest.mark.asyncio
+async def test_claim_open_shift(client, admin_token, employee_token,
+                                 admin_user, employee_user, employee_with_profile, tenant):
+    """Mitarbeiter nimmt offene Schicht (ohne employee_id) erfolgreich an."""
+    create = await client.post(SHIFTS_URL, json=SHIFT_PAYLOAD, headers=auth_headers(admin_token))
+    assert create.status_code == 201
+    shift_id = create.json()["id"]
+    assert create.json()["employee_id"] is None
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/claim", headers=auth_headers(employee_token))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["employee_id"] == str(employee_with_profile.id)
+
+
+@pytest.mark.asyncio
+async def test_claim_already_taken_shift(client, admin_token, employee_token,
+                                          admin_user, employee_user, employee_with_profile, tenant):
+    """Schicht mit employee_id kann nicht ge-claimed werden → 409."""
+    payload = {**SHIFT_PAYLOAD, "employee_id": str(employee_with_profile.id)}
+    create = await client.post(SHIFTS_URL, json=payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/claim", headers=auth_headers(employee_token))
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_claim_shift_admin_forbidden(client, admin_token, admin_user, tenant):
+    """Admin darf keine Schichten claimen (nur Mitarbeiter)."""
+    create = await client.post(SHIFTS_URL, json=SHIFT_PAYLOAD, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/claim", headers=auth_headers(admin_token))
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_employee_sees_open_shifts_in_list(client, admin_token, employee_token,
+                                                   admin_user, employee_user,
+                                                   employee_with_profile, tenant):
+    """Mitarbeiter sieht eigene Schichten + offene Schichten im Pool."""
+    # Offene Schicht (kein employee_id)
+    open_shift = await client.post(SHIFTS_URL, json=SHIFT_PAYLOAD, headers=auth_headers(admin_token))
+    open_id = open_shift.json()["id"]
+
+    # Eigene Schicht (mit employee_id)
+    own_payload = {**SHIFT_PAYLOAD, "date": "2025-09-02", "employee_id": str(employee_with_profile.id)}
+    own_shift = await client.post(SHIFTS_URL, json=own_payload, headers=auth_headers(admin_token))
+    own_id = own_shift.json()["id"]
+
+    # Andere Mitarbeiter-Schicht (anderer employee_id) → darf nicht sichtbar sein
+    other_emp_id = str(uuid.uuid4())
+    other_payload = {**SHIFT_PAYLOAD, "date": "2025-09-03"}
+    await client.post(SHIFTS_URL, json={**other_payload}, headers=auth_headers(admin_token))
+
+    resp = await client.get(SHIFTS_URL, headers=auth_headers(employee_token))
+    assert resp.status_code == 200
+    ids = [s["id"] for s in resp.json()]
+    assert open_id in ids    # offene Schicht sichtbar
+    assert own_id in ids     # eigene Schicht sichtbar
