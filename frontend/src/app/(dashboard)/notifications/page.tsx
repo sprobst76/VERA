@@ -42,7 +42,7 @@ interface Preferences {
   quiet_hours_end: string;
   notification_prefs: {
     channels?: { email?: boolean; telegram?: boolean };
-    events?: { shift_assigned?: boolean; shift_changed?: boolean; shift_reminder?: boolean; absence_approved?: boolean; absence_rejected?: boolean };
+    events?: { shift_assigned?: boolean; shift_changed?: boolean; shift_reminder?: boolean; absence_approved?: boolean; absence_rejected?: boolean; pool_shift_open?: boolean; minijob_limit_80?: boolean; minijob_limit_95?: boolean };
   };
 }
 
@@ -132,7 +132,10 @@ export default function NotificationsPage() {
   const [evtReminder, setEvtReminder]             = useState(true);
   const [evtAbsenceApproved, setEvtAbsenceApproved] = useState(true);
   const [evtAbsenceRejected, setEvtAbsenceRejected] = useState(true);
-  const [prefsSynced, setPrefsSynced]             = useState(false);
+  const [evtPoolShift, setEvtPoolShift]             = useState(true);
+  const [evtMinijob80, setEvtMinijob80]             = useState(true);
+  const [evtMinijob95, setEvtMinijob95]             = useState(true);
+  const [prefsSynced, setPrefsSynced]               = useState(false);
 
   // Prefs in lokalen State übernehmen (einmalig)
   if (prefs && !prefsSynced) {
@@ -148,6 +151,9 @@ export default function NotificationsPage() {
     setEvtReminder(ev.shift_reminder !== false);
     setEvtAbsenceApproved(ev.absence_approved !== false);
     setEvtAbsenceRejected(ev.absence_rejected !== false);
+    setEvtPoolShift(ev.pool_shift_open !== false);
+    setEvtMinijob80(ev.minijob_limit_80 !== false);
+    setEvtMinijob95(ev.minijob_limit_95 !== false);
     setPrefsSynced(true);
   }
 
@@ -159,7 +165,7 @@ export default function NotificationsPage() {
         quiet_hours_end:   quietEnd,
         notification_prefs: {
           channels: { email: emailOn, telegram: telegramOn },
-          events:   { shift_assigned: evtAssigned, shift_changed: evtChanged, shift_reminder: evtReminder, absence_approved: evtAbsenceApproved, absence_rejected: evtAbsenceRejected },
+          events:   { shift_assigned: evtAssigned, shift_changed: evtChanged, shift_reminder: evtReminder, absence_approved: evtAbsenceApproved, absence_rejected: evtAbsenceRejected, pool_shift_open: evtPoolShift, minijob_limit_80: evtMinijob80, minijob_limit_95: evtMinijob95 },
         },
       }),
     onSuccess: () => {
@@ -458,6 +464,9 @@ export default function NotificationsPage() {
                     { label: "Erinnerung vor dem Dienst", value: evtReminder, set: setEvtReminder },
                     { label: "Abwesenheit genehmigt", value: evtAbsenceApproved, set: setEvtAbsenceApproved },
                     { label: "Abwesenheit abgelehnt", value: evtAbsenceRejected, set: setEvtAbsenceRejected },
+                    { label: "Offener Dienst (Pool)", value: evtPoolShift, set: setEvtPoolShift },
+                    { label: "Minijob-Warnung 80 %", value: evtMinijob80, set: setEvtMinijob80 },
+                    { label: "Minijob-Warnung 95 %", value: evtMinijob95, set: setEvtMinijob95 },
                   ].map(({ label, value, set }) => (
                     <label key={label} className="flex items-center gap-3 cursor-pointer">
                       <input

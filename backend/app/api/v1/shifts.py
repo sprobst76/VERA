@@ -12,7 +12,10 @@ from app.models.audit import AuditLog
 from app.models.employee import Employee
 from app.models.shift import Shift, ShiftTemplate
 from app.services.compliance_service import ComplianceService
-from app.services.notification_service import notify_shift_assigned, notify_shift_changed
+from app.services.notification_service import (
+    notify_shift_assigned, notify_shift_changed,
+    notify_pool_shift_open, notify_shift_claimed,
+)
 from app.api.v1.webhooks import dispatch_event
 from app.schemas.shift import (
     ShiftCreate, ShiftUpdate, ShiftOut, ShiftActualTime, ShiftConfirm,
@@ -166,6 +169,9 @@ async def create_shift(payload: ShiftCreate, current_user: ManagerOrAdmin, db: D
         emp = await db.get(Employee, shift.employee_id)
         if emp:
             await notify_shift_assigned(shift, emp, db)
+    else:
+        # Offener Dienst → alle Mitarbeiter benachrichtigen
+        await notify_pool_shift_open(shift, db)
     await dispatch_event(db, current_user.tenant_id, "shift.created", {
         "shift_id": str(shift.id), "date": str(shift.date),
         "employee_id": str(shift.employee_id) if shift.employee_id else None,
@@ -374,6 +380,12 @@ async def claim_shift(shift_id: uuid.UUID, current_user: CurrentUser, db: DB):
 
     await db.commit()
     await db.refresh(shift)
+
+    # Admin/Manager über Dienstannahme informieren
+    claiming_emp = await db.get(Employee, own_id)
+    if claiming_emp:
+        await notify_shift_claimed(shift, claiming_emp, db)
+
     return shift
 
 

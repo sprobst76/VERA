@@ -24,11 +24,15 @@ if TYPE_CHECKING:
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
-EVENT_SHIFT_ASSIGNED   = "shift_assigned"
-EVENT_SHIFT_CHANGED    = "shift_changed"
-EVENT_SHIFT_REMINDER   = "shift_reminder"
-EVENT_ABSENCE_APPROVED = "absence_approved"
-EVENT_ABSENCE_REJECTED = "absence_rejected"
+EVENT_SHIFT_ASSIGNED    = "shift_assigned"
+EVENT_SHIFT_CHANGED     = "shift_changed"
+EVENT_SHIFT_REMINDER    = "shift_reminder"
+EVENT_ABSENCE_APPROVED  = "absence_approved"
+EVENT_ABSENCE_REJECTED  = "absence_rejected"
+EVENT_POOL_SHIFT_OPEN   = "pool_shift_open"
+EVENT_SHIFT_CLAIMED     = "shift_claimed"
+EVENT_MINIJOB_LIMIT_80  = "minijob_limit_80"
+EVENT_MINIJOB_LIMIT_95  = "minijob_limit_95"
 
 
 def _is_quiet_now(employee: "Employee") -> bool:
@@ -351,6 +355,158 @@ async def notify_absence_decision(
             message=msg,
             subject=f"Abwesenheitsantrag {label}: {absence.start_date.strftime('%d.%m.%Y')}",
             tenant_id=absence.tenant_id,
+        )
+    except Exception:
+        pass
+
+
+async def notify_pool_shift_open(
+    shift: "Shift",
+    db: "AsyncSession",
+) -> None:
+    """Benachrichtigt alle aktiven Mitarbeiter des Tenants über einen offenen Dienst."""
+    from sqlalchemy import select
+    from app.models.employee import Employee
+
+    result = await db.execute(
+        select(Employee).where(
+            Employee.tenant_id == shift.tenant_id,
+            Employee.is_active == True,
+        )
+    )
+    employees = result.scalars().all()
+
+    wday = _WEEKDAYS[shift.date.weekday()]
+    svc  = NotificationService(db)
+
+    for emp in employees:
+        prefs  = emp.notification_prefs or {}
+        events = prefs.get("events", {})
+        if not events.get(EVENT_POOL_SHIFT_OPEN, True):
+            continue
+
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"Es gibt einen offenen Dienst, der noch besetzt werden muss:\n"
+            f"Datum: {wday}, {shift.date.strftime('%d.%m.%Y')}\n"
+            f"Zeit:  {shift.start_time.strftime('%H:%M')} – {shift.end_time.strftime('%H:%M')} Uhr\n"
+        )
+        if shift.location:
+            msg += f"Ort:   {shift.location}\n"
+        msg += "\nMelde dich in VERA an, um den Dienst anzunehmen.\nVERA Schichtplanner"
+
+        try:
+            await svc.dispatch(
+                employee=emp,
+                event_type=EVENT_POOL_SHIFT_OPEN,
+                message=msg,
+                subject=f"Offener Dienst: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_shift_claimed(
+    shift: "Shift",
+    claiming_employee: "Employee",
+    db: "AsyncSession",
+) -> None:
+    """Benachrichtigt Admin/Manager-Mitarbeiter wenn ein Dienst angenommen wurde."""
+    from sqlalchemy import select
+    from app.models.employee import Employee
+    from app.models.user import User
+
+    # Alle Admin/Manager-User des Tenants holen, die ein Employee-Profil haben
+    result = await db.execute(
+        select(Employee).where(
+            Employee.tenant_id == shift.tenant_id,
+            Employee.is_active == True,
+            Employee.user_id.isnot(None),
+        )
+    )
+    candidates = result.scalars().all()
+
+    # Filtere auf admin/manager-Rollen via User
+    user_ids = [e.user_id for e in candidates if e.id != claiming_employee.id]
+    if not user_ids:
+        return
+
+    user_result = await db.execute(
+        select(User).where(
+            User.id.in_(user_ids),
+            User.role.in_(("admin", "manager")),
+            User.is_active == True,
+        )
+    )
+    admin_user_ids = {u.id for u in user_result.scalars().all()}
+
+    wday = _WEEKDAYS[shift.date.weekday()]
+    svc  = NotificationService(db)
+
+    for emp in candidates:
+        if emp.user_id not in admin_user_ids:
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"{claiming_employee.first_name} {claiming_employee.last_name} "
+            f"hat folgenden offenen Dienst angenommen:\n"
+            f"Datum: {wday}, {shift.date.strftime('%d.%m.%Y')}\n"
+            f"Zeit:  {shift.start_time.strftime('%H:%M')} – {shift.end_time.strftime('%H:%M')} Uhr\n"
+            f"\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=emp,
+                event_type=EVENT_SHIFT_ASSIGNED,
+                message=msg,
+                subject=f"Dienst angenommen: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_minijob_limit(
+    employee: "Employee",
+    ytd_gross: float,
+    annual_limit: float,
+    db: "AsyncSession",
+) -> None:
+    """Benachrichtigt bei 80% oder 95% der Minijob-Jahresgrenze."""
+    ratio = ytd_gross / annual_limit if annual_limit > 0 else 0
+
+    if ratio >= 0.95:
+        event_type = EVENT_MINIJOB_LIMIT_95
+        level = "95%"
+        emoji = "🔴"
+    elif ratio >= 0.80:
+        event_type = EVENT_MINIJOB_LIMIT_80
+        level = "80%"
+        emoji = "🟡"
+    else:
+        return
+
+    prefs  = employee.notification_prefs or {}
+    events = prefs.get("events", {})
+    if not events.get(event_type, True):
+        return
+
+    msg = (
+        f"Hallo {employee.first_name},\n\n"
+        f"{emoji} Minijob-Warnung: {level} der Jahresgrenze erreicht\n"
+        f"Aktuell:  {ytd_gross:.2f} € von {annual_limit:.2f} € ({ratio*100:.1f}%)\n"
+        f"Verbleibend: {annual_limit - ytd_gross:.2f} €\n"
+        f"\nBitte beachte die gesetzlichen Minijob-Grenzen.\nVERA Schichtplanner"
+    )
+    svc = NotificationService(db)
+    try:
+        await svc.dispatch(
+            employee=employee,
+            event_type=event_type,
+            message=msg,
+            subject=f"Minijob-Warnung {level}: {ytd_gross:.2f} € / {annual_limit:.2f} €",
+            tenant_id=employee.tenant_id,
         )
     except Exception:
         pass

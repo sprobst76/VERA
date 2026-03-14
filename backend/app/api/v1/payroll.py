@@ -16,6 +16,7 @@ from app.schemas.payroll import PayrollEntryOut, PayrollCalculateRequest, Payrol
 from app.services.payroll_service import PayrollService
 from app.services.pdf_service import generate_payslip_pdf
 from app.api.v1.webhooks import dispatch_event
+from app.services.notification_service import notify_minijob_limit
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
 
@@ -223,6 +224,16 @@ async def update_payroll_entry(
 
     await db.commit()
     await db.refresh(entry)
+
+    # Minijob-Limit-Warnung nach Genehmigung prüfen
+    if payload.status == "approved":
+        emp_result2 = await db.execute(select(Employee).where(Employee.id == entry.employee_id))
+        emp = emp_result2.scalar_one_or_none()
+        if emp and emp.contract_type == "minijob" and emp.annual_salary_limit:
+            # YTD-Brutto = bereits gebuchte Vormonats-Summe + diese Abrechnung
+            ytd = float(entry.ytd_gross or 0) + float(entry.total_gross or 0)
+            await notify_minijob_limit(emp, ytd, float(emp.annual_salary_limit), db)
+
     return entry
 
 
