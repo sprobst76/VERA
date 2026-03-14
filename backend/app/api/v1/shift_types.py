@@ -5,8 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.core.database import DB
-from app.core.security import CurrentUser, ManagerOrAdmin
+from app.api.deps import DB, CurrentUser, ManagerOrAdmin
 from app.models.shift_type import ShiftType
 from app.schemas.shift import ShiftTypeCreate, ShiftTypeOut, ShiftTypeUpdate
 
