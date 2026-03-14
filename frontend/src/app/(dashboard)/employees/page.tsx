@@ -370,6 +370,11 @@ interface ContractTypeItem {
   name: string;
   contract_category: string;
   is_active: boolean;
+  hourly_rate: number;
+  monthly_hours_limit: number | null;
+  annual_salary_limit: number | null;
+  annual_hours_target: number | null;
+  weekly_hours: number | null;
 }
 
 function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProps) {
@@ -1299,6 +1304,13 @@ interface ContractEntry {
 function ContractHistoryModal({ employee, onClose, inline = false }: { employee: Employee; onClose: () => void; inline?: boolean }) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [templateTypeId, setTemplateTypeId] = useState<string>("");
+
+  const { data: contractTypes = [] } = useQuery<ContractTypeItem[]>({
+    queryKey: ["contract-types"],
+    queryFn: () => contractTypesApi.list().then((r) => r.data),
+  });
+
   const [form, setForm] = useState({
     valid_from: new Date().toISOString().slice(0, 10),
     contract_type: employee.contract_type,
@@ -1350,6 +1362,7 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
       qc.invalidateQueries({ queryKey: ["employees"] });
       toast.success("Neue Vertragsperiode gespeichert");
       setShowForm(false);
+      setTemplateTypeId("");
     },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -1425,6 +1438,21 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
       }
       return next;
     });
+  }
+
+  function applyTemplate(typeId: string) {
+    const ct = contractTypes.find((t) => t.id === typeId);
+    if (!ct) return;
+    setForm((f) => ({
+      ...f,
+      contract_type: ct.contract_category,
+      hourly_rate: ct.hourly_rate.toString(),
+      monthly_hours_limit: ct.monthly_hours_limit?.toString() ?? "",
+      annual_salary_limit: ct.annual_salary_limit?.toString() ?? "6672",
+      annual_hours_target: ct.annual_hours_target?.toString() ?? "",
+      weekly_hours: ct.weekly_hours?.toString() ?? "",
+    }));
+    setTemplateTypeId(typeId);
   }
 
   const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("de-DE");
@@ -1619,6 +1647,36 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                   Der aktuelle Vertrag endet automatisch am Vortag. Ab dem gewählten Datum gelten die neuen Konditionen.
                 </p>
               </div>
+
+              {contractTypes.filter((ct) => ct.is_active).length > 0 && (
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">
+                      Vorlage aus Vertragstyp
+                    </label>
+                    <select
+                      value={templateTypeId}
+                      onChange={(e) => applyTemplate(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    >
+                      <option value="">— Felder manuell ausfüllen —</option>
+                      {contractTypes.filter((ct) => ct.is_active).map((ct) => (
+                        <option key={ct.id} value={ct.id}>{ct.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {templateTypeId && (
+                    <button
+                      type="button"
+                      onClick={() => { setTemplateTypeId(""); }}
+                      className="px-3 py-2 rounded-lg text-xs border border-border text-muted-foreground hover:bg-muted"
+                      title="Vorlage entfernen"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1829,7 +1887,7 @@ function ContractHistoryModal({ employee, onClose, inline = false }: { employee:
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={() => { setShowForm(false); setTemplateTypeId(""); }}
                   className="px-4 py-2.5 rounded-xl text-sm border border-border text-muted-foreground hover:bg-muted"
                 >
                   Abbrechen
