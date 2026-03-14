@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi, shiftTypesApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi, shiftTypesApi, usersApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff, Users, UserPlus, Lock, Power, Shield } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -881,6 +881,322 @@ function NewKeyAlert({ rawKey, onDismiss }: { rawKey: string; onDismiss: () => v
   );
 }
 
+// ── Benutzerverwaltung Section ────────────────────────────────────────────────
+
+const ROLE_BADGE: Record<string, { label: string; cssVar: string }> = {
+  admin:    { label: "Administrator", cssVar: "--ctp-red" },
+  manager:  { label: "Verwalter",     cssVar: "--ctp-peach" },
+  employee: { label: "Mitarbeiter",   cssVar: "--ctp-blue" },
+};
+
+interface UserEntry {
+  id: string;
+  email: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  has_employee: boolean;
+}
+
+function CreateUserModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ email: "", password: "", role: "admin" });
+  const [visible, setVisible] = useState(false);
+
+  const mut = useMutation({
+    mutationFn: () => usersApi.create(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      toast.success("Benutzer angelegt");
+      onClose();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail ?? "Fehler beim Anlegen");
+    },
+  });
+
+  const valid = form.email.includes("@") && form.password.length >= 8;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-card rounded-2xl border border-border w-full max-w-sm p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <UserPlus size={16} /> Neuer Benutzer
+          </h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+            <Plus size={16} className="rotate-45" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Rolle</label>
+            <div className="flex gap-2">
+              {(["admin", "manager", "employee"] as const).map(r => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, role: r }))}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.role === r ? "border-blue-500 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+                  style={form.role === r ? { backgroundColor: `rgb(var(${ROLE_BADGE[r].cssVar}))` } : {}}
+                >
+                  {ROLE_BADGE[r].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">E-Mail</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="name@example.com"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Passwort (min. 8 Zeichen)</label>
+            <div className="relative">
+              <input
+                type={visible ? "text" : "password"}
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="••••••••"
+                className="w-full border border-border rounded-lg px-3 py-2 pr-10 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button type="button" onClick={() => setVisible(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>
+                {visible ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+
+          {form.role === "admin" && (
+            <p className="text-xs rounded-lg px-3 py-2 flex items-start gap-2" style={{ backgroundColor: "rgb(var(--ctp-red) / 0.10)", color: "rgb(var(--ctp-red))" }}>
+              <Shield size={13} className="mt-0.5 shrink-0" />
+              Administratoren haben vollen Zugriff auf alle Daten und Einstellungen.
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => mut.mutate()}
+            disabled={!valid || mut.isPending}
+            className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+          >
+            {mut.isPending ? "Anlegen…" : "Benutzer anlegen"}
+          </button>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm border border-border text-muted-foreground hover:bg-muted">
+            Abbrechen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditUserModal({ user, currentUserId, onClose }: { user: UserEntry; currentUserId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [role, setRole] = useState(user.role);
+  const [newPw, setNewPw] = useState("");
+  const [visible, setVisible] = useState(false);
+  const isSelf = user.id === currentUserId;
+
+  const updateMut = useMutation({
+    mutationFn: (data: { role?: string; is_active?: boolean; password?: string }) =>
+      usersApi.update(user.id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      toast.success("Gespeichert");
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail ?? "Fehler"),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-card rounded-2xl border border-border w-full max-w-sm p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-foreground">{user.email}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+            <Plus size={16} className="rotate-45" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Rolle */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-2">Rolle</label>
+            {isSelf ? (
+              <p className="text-xs text-muted-foreground italic">Eigene Rolle kann nicht geändert werden.</p>
+            ) : (
+              <div className="flex gap-2">
+                {(["admin", "manager", "employee"] as const).map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRole(r)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${role === r ? "border-blue-500 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+                    style={role === r ? { backgroundColor: `rgb(var(${ROLE_BADGE[r].cssVar}))` } : {}}
+                  >
+                    {ROLE_BADGE[r].label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Passwort zurücksetzen */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1 flex items-center gap-1">
+              <Lock size={11} /> Neues Passwort (optional)
+            </label>
+            <div className="relative">
+              <input
+                type={visible ? "text" : "password"}
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+                placeholder="Leer lassen = unverändert"
+                className="w-full border border-border rounded-lg px-3 py-2 pr-10 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button type="button" onClick={() => setVisible(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>
+                {visible ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Status */}
+          {!isSelf && (
+            <div className="flex items-center justify-between rounded-xl border border-border px-4 py-3">
+              <span className="text-sm text-foreground flex items-center gap-1.5">
+                <Power size={14} /> Konto aktiv
+              </span>
+              <button
+                type="button"
+                onClick={() => updateMut.mutate({ is_active: !user.is_active })}
+                className={`relative w-10 h-5 rounded-full transition-colors ${user.is_active ? "bg-green-500" : "bg-muted-foreground/30"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${user.is_active ? "translate-x-5" : ""}`} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              const data: any = {};
+              if (!isSelf && role !== user.role) data.role = role;
+              if (newPw.length >= 8) data.password = newPw;
+              if (Object.keys(data).length > 0) updateMut.mutate(data, { onSuccess: onClose });
+              else onClose();
+            }}
+            disabled={updateMut.isPending}
+            className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+          >
+            {updateMut.isPending ? "Speichern…" : "Speichern"}
+          </button>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm border border-border text-muted-foreground hover:bg-muted">
+            Abbrechen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BenutzerSection() {
+  const { user: currentUser } = useAuthStore();
+  const [showCreate, setShowCreate] = useState(false);
+  const [editUser, setEditUser] = useState<UserEntry | null>(null);
+
+  const { data: users = [], isLoading } = useQuery<UserEntry[]>({
+    queryKey: ["users"],
+    queryFn: () => usersApi.list().then(r => r.data),
+  });
+
+  return (
+    <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Users size={18} className="text-muted-foreground" />
+          <h2 className="font-semibold text-foreground">Benutzerverwaltung</h2>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium text-white"
+          style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+        >
+          <UserPlus size={13} /> Neu
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Lade…</p>
+      ) : (
+        <div className="space-y-2">
+          {users.map(u => {
+            const badge = ROLE_BADGE[u.role] ?? { label: u.role, cssVar: "--ctp-overlay1" };
+            const isSelf = u.id === currentUser?.id;
+            return (
+              <div
+                key={u.id}
+                className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${u.is_active ? "border-border hover:bg-muted/30" : "border-dashed border-border opacity-50"}`}
+              >
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
+                  style={{ backgroundColor: `rgb(var(${badge.cssVar}))` }}>
+                  {u.email[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-foreground truncate">{u.email}</span>
+                    {isSelf && <span className="text-xs text-muted-foreground">(du)</span>}
+                    {!u.is_active && <span className="text-xs text-muted-foreground">· deaktiviert</span>}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: `rgb(var(${badge.cssVar}) / 0.15)`, color: `rgb(var(${badge.cssVar}))` }}>
+                      {badge.label}
+                    </span>
+                    {u.has_employee && (
+                      <span className="text-xs text-muted-foreground">· Mitarbeiter-Profil</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEditUser(u)}
+                  className="p-2 rounded-lg hover:bg-muted text-muted-foreground shrink-0"
+                  title="Bearbeiten"
+                >
+                  <Pencil size={14} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showCreate && <CreateUserModal onClose={() => setShowCreate(false)} />}
+      {editUser && (
+        <EditUserModal
+          user={editUser}
+          currentUserId={currentUser?.id ?? ""}
+          onClose={() => setEditUser(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── API Keys Section ──────────────────────────────────────────────────────────
+
 function ApiKeysSection() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -1544,6 +1860,9 @@ export default function SettingsPage() {
 
       {/* SMTP-Konfiguration (admin only) */}
       {role === "admin" && <SMTPSection />}
+
+      {/* Benutzerverwaltung (admin only) */}
+      {role === "admin" && <BenutzerSection />}
 
       {/* API-Keys (admin only) */}
       {role === "admin" && <ApiKeysSection />}
