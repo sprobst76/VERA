@@ -30,6 +30,7 @@ class Employee(Base):
     vacation_days: Mapped[int] = mapped_column(Integer, default=30)
     vacation_carryover: Mapped[int] = mapped_column(Integer, default=0)
 
+    emergency_contact: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     qualifications: Mapped[list] = mapped_column(JSON, default=list)
     notification_prefs: Mapped[dict] = mapped_column(JSON, default=dict)
 

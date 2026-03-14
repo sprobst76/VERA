@@ -41,6 +41,7 @@ interface Employee {
   annual_hours_target: number | null;
   vacation_days: number;
   vacation_carryover: number;
+  emergency_contact: { name?: string; phone?: string; relation?: string } | null;
   qualifications: string[];
   is_active: boolean;
   user_id: string | null;
@@ -377,6 +378,9 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
     annual_hours_target: employee?.annual_hours_target?.toString() ?? "",
     vacation_days: employee?.vacation_days?.toString() ?? "20",
     vacation_carryover: employee?.vacation_carryover?.toString() ?? "0",
+    ec_name: employee?.emergency_contact?.name ?? "",
+    ec_phone: employee?.emergency_contact?.phone ?? "",
+    ec_relation: employee?.emergency_contact?.relation ?? "",
   });
   const [qualifications, setQualifications] = useState<string[]>(
     employee?.qualifications ?? []
@@ -434,6 +438,9 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
       annual_hours_target: form.annual_hours_target ? parseFloat(form.annual_hours_target) : null,
       vacation_days: parseInt(form.vacation_days) || 20,
       vacation_carryover: parseInt(form.vacation_carryover) || 0,
+      emergency_contact: (form.ec_name || form.ec_phone)
+        ? { name: form.ec_name || undefined, phone: form.ec_phone || undefined, relation: form.ec_relation || undefined }
+        : null,
     };
     mutation.mutate(payload);
   }
@@ -584,6 +591,45 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                   onChange={(e) => set("vacation_carryover", e.target.value)}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Notfallkontakt */}
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Notfallkontakt
+            </div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Name</label>
+                  <input
+                    value={form.ec_name}
+                    onChange={(e) => set("ec_name", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="Max Mustermann"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Beziehung</label>
+                  <input
+                    value={form.ec_relation}
+                    onChange={(e) => set("ec_relation", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="Ehepartner, Elternteil…"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Telefon</label>
+                <input
+                  type="tel"
+                  value={form.ec_phone}
+                  onChange={(e) => set("ec_phone", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="+49 151 12345678"
                 />
               </div>
             </div>
@@ -887,6 +933,45 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
                   onChange={(e) => set("vacation_carryover", e.target.value)}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Notfallkontakt */}
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Notfallkontakt
+            </div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Name</label>
+                  <input
+                    value={form.ec_name}
+                    onChange={(e) => set("ec_name", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="Max Mustermann"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Beziehung</label>
+                  <input
+                    value={form.ec_relation}
+                    onChange={(e) => set("ec_relation", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="Ehepartner, Elternteil…"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Telefon</label>
+                <input
+                  type="tel"
+                  value={form.ec_phone}
+                  onChange={(e) => set("ec_phone", e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="+49 151 12345678"
                 />
               </div>
             </div>
@@ -2005,6 +2090,16 @@ function EmployeeCard({
               {q}
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Emergency contact */}
+      {isAdmin && emp.emergency_contact?.name && (
+        <div className="text-xs text-muted-foreground flex items-center gap-1">
+          <span className="font-medium text-foreground">Notfall:</span>
+          {emp.emergency_contact.name}
+          {emp.emergency_contact.relation && ` (${emp.emergency_contact.relation})`}
+          {emp.emergency_contact.phone && ` · ${emp.emergency_contact.phone}`}
         </div>
       )}
 

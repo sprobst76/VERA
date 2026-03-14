@@ -2,15 +2,20 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useSwipe } from "@/hooks/useSwipe";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
+import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import { format, parse, startOfWeek, endOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, eachDayOfInterval } from "date-fns";
 import { de } from "date-fns/locale";
 import { shiftsApi, templatesApi, employeesApi, calendarDataApi, recurringShiftsApi, shiftTypesApi } from "@/lib/api";
 import { ChevronLeft, ChevronRight, AlertCircle, Plus } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { CreateShiftModal } from "@/components/shared/CreateShiftModal";
+import toast from "react-hot-toast";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
+
+const DnDCalendar = withDragAndDrop(Calendar as any);
 
 const localizer = dateFnsLocalizer({
   format,
@@ -36,6 +41,7 @@ export default function CalendarPage() {
   const [selectedShift, setSelectedShift] = useState<any>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createDate, setCreateDate] = useState("");
+  const [dragging, setDragging] = useState(false);
 
   const rangeStart = format(
     view === "month" ? startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 })
@@ -90,6 +96,50 @@ export default function CalendarPage() {
   const shiftTypeMap = useMemo(() =>
     Object.fromEntries((shiftTypes as any[]).map((st: any) => [st.id, st])), [shiftTypes]);
 
+  // ── Drag & Drop mutation ─────────────────────────────────────────────────────
+  const moveMutation = useMutation({
+    mutationFn: ({ id, date, start_time, end_time }: {
+      id: string; date: string; start_time: string; end_time: string;
+    }) => shiftsApi.update(id, { date, start_time, end_time }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      toast.success("Dienst verschoben");
+    },
+    onError: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      toast.error("Verschieben fehlgeschlagen – Compliance-Prüfung?");
+    },
+  });
+
+  const handleEventDrop = useCallback(({ event, start, end }: any) => {
+    const shift = event.resource?.shift;
+    if (!shift || !isPrivileged) return;
+
+    // Don't move holiday/vacation labels
+    const t = event.resource?.type;
+    if (t === "vacation_label" || t === "holiday_label") return;
+
+    const newDate   = format(start, "yyyy-MM-dd");
+    const newStart  = format(start, "HH:mm:ss");
+    const newEnd    = format(end,   "HH:mm:ss");
+
+    // No change?
+    if (newDate === shift.date && newStart === shift.start_time.slice(0, 8)) return;
+
+    moveMutation.mutate({ id: shift.id, date: newDate, start_time: newStart, end_time: newEnd });
+  }, [isPrivileged, moveMutation]);
+
+  const handleEventResize = useCallback(({ event, start, end }: any) => {
+    const shift = event.resource?.shift;
+    if (!shift || !isPrivileged) return;
+
+    const newDate  = format(start, "yyyy-MM-dd");
+    const newStart = format(start, "HH:mm:ss");
+    const newEnd   = format(end,   "HH:mm:ss");
+
+    moveMutation.mutate({ id: shift.id, date: newDate, start_time: newStart, end_time: newEnd });
+  }, [isPrivileged, moveMutation]);
+
   // Shifts → Calendar Events
   const events = useMemo(() => shifts.map((s: any) => {
     const tpl       = templateMap[s.template_id];
@@ -106,7 +156,7 @@ export default function CalendarPage() {
     };
   }), [shifts, templateMap, employeeMap, shiftTypeMap]);
 
-  // Holiday display events: vacation periods + public holidays as visible all-day bars
+  // Holiday display events
   const holidayEvents = useMemo(() => {
     const hevents: any[] = [];
     if (vacationData) {
@@ -146,21 +196,18 @@ export default function CalendarPage() {
 
   const allEvents = useMemo(() => [...events, ...holidayEvents], [events, holidayEvents]);
 
-  // Background events: only recurring shift Schienen (time-based overlays in week/day view)
+  // Background events: recurring shift Schienen
   const backgroundEvents = useMemo(() => {
     const bgs: any[] = [];
-
-    // Recurring shift Schienen (colored time bands in week/day view)
     if (view !== "month") {
       const rangeStartDate = parseISO(rangeStart);
       const rangeEndDate = parseISO(rangeEnd);
       for (const rs of recurringShifts as any[]) {
         const tpl = templateMap[rs.template_id];
         const color = tpl?.color ?? "rgb(var(--ctp-blue))";
-        // Generate one background event per matching weekday in range
         const allDays = eachDayOfInterval({ start: rangeStartDate, end: rangeEndDate });
         for (const d of allDays) {
-          if (getDay(d) === (rs.weekday + 1) % 7) { // convert Mon=0 to JS day (Sun=0)
+          if (getDay(d) === (rs.weekday + 1) % 7) {
             const [sh, sm] = rs.start_time.slice(0, 5).split(":").map(Number);
             const [eh, em] = rs.end_time.slice(0, 5).split(":").map(Number);
             const startDt = new Date(d);
@@ -178,15 +225,13 @@ export default function CalendarPage() {
         }
       }
     }
-
     return bgs;
   }, [recurringShifts, templateMap, rangeStart, rangeEnd, view]);
 
-  // Farbe je Template, grau für offene Dienste; Ferien/Feiertage als bunte Labels
+  // Event color / style
   const eventPropGetter = useCallback((event: any) => {
     const { shift, template, shiftType, type, color: labelColor } = event.resource ?? {};
 
-    // Schulferien / Feiertag – farbiger, nicht-interaktiver Balken
     if (type === "vacation_label" || type === "holiday_label") {
       return {
         style: {
@@ -215,18 +260,17 @@ export default function CalendarPage() {
         textDecoration: isCancelled ? "line-through" : "none",
         fontSize: "0.75rem",
         border: shift.notes ? `2px dashed ${c}` : `1px solid ${c}`,
+        cursor: isPrivileged ? (dragging ? "grabbing" : "grab") : "pointer",
       },
     };
-  }, []);
+  }, [isPrivileged, dragging]);
 
-  // Background event styling
   const backgroundEventPropGetter = useCallback((event: any) => {
     const { color, type } = event.resource;
-    const opacity = type === "recurring_shift" ? 0.2 : 0.18;
     return {
       style: {
         backgroundColor: color,
-        opacity,
+        opacity: type === "recurring_shift" ? 0.2 : 0.18,
         border: "none",
         borderRadius: "0",
         cursor: "default",
@@ -234,18 +278,11 @@ export default function CalendarPage() {
     };
   }, []);
 
-  // Day column tinting for public holidays
   const dayPropGetter = useCallback((date: Date) => {
     const ds = format(date, "yyyy-MM-dd");
-    const isPublicHoliday = (vacationData?.public_holidays ?? []).some(
-      (ph: any) => ph.date === ds
-    );
-    const isVacation = (vacationData?.vacation_periods ?? []).some(
-      (vp: any) => ds >= vp.start_date && ds <= vp.end_date
-    );
-    const isCustom = (vacationData?.custom_holidays ?? []).some(
-      (ch: any) => ch.date === ds
-    );
+    const isPublicHoliday = (vacationData?.public_holidays ?? []).some((ph: any) => ph.date === ds);
+    const isVacation = (vacationData?.vacation_periods ?? []).some((vp: any) => ds >= vp.start_date && ds <= vp.end_date);
+    const isCustom = (vacationData?.custom_holidays ?? []).some((ch: any) => ch.date === ds);
     if (isPublicHoliday) return { style: { backgroundColor: "rgba(243, 139, 168, 0.18)" } };
     if (isVacation) return { style: { backgroundColor: "rgba(166, 227, 161, 0.15)" } };
     if (isCustom) return { style: { backgroundColor: "rgba(250, 179, 135, 0.16)" } };
@@ -254,19 +291,16 @@ export default function CalendarPage() {
 
   const handleNavigate = (dir: "prev" | "next" | "today") => {
     if (dir === "today") { setCurrentDate(new Date()); return; }
-    const delta = view === "month" ? 1 : view === "week" ? 7 : 1;
     setCurrentDate(prev => {
       const d = new Date(prev);
-      if (view === "month") {
-        return dir === "next" ? addMonths(d, 1) : subMonths(d, 1);
-      }
+      if (view === "month") return dir === "next" ? addMonths(d, 1) : subMonths(d, 1);
+      const delta = view === "week" ? 7 : 1;
       d.setDate(d.getDate() + (dir === "next" ? delta : -delta));
       return d;
     });
   };
 
-  // Legend items
-  const legend = templates.map((t: any) => ({ name: t.name, color: t.color, type: "template" }));
+  const legend = templates.map((t: any) => ({ name: t.name, color: t.color }));
 
   const swipeHandlers = useSwipe({
     onSwipeLeft:  () => handleNavigate("next"),
@@ -286,14 +320,12 @@ export default function CalendarPage() {
           </button>
         )}
 
-        {/* Navigation */}
         <div className="flex items-center gap-1 bg-card rounded-lg border border-border p-1">
           <button onClick={() => handleNavigate("prev")} className="p-2.5 hover:bg-accent rounded"><ChevronLeft size={16} /></button>
           <button onClick={() => handleNavigate("today")} className="px-3 py-2 text-sm hover:bg-accent rounded font-medium">Heute</button>
           <button onClick={() => handleNavigate("next")} className="p-2.5 hover:bg-accent rounded"><ChevronRight size={16} /></button>
         </div>
 
-        {/* Ansicht */}
         <div className="flex gap-1 bg-card rounded-lg border border-border p-1">
           {VIEWS.map(v => (
             <button key={v.key} onClick={() => setView(v.key)}
@@ -336,11 +368,16 @@ export default function CalendarPage() {
             Beweglicher Tag
           </span>
         )}
+        {isPrivileged && (
+          <span className="ml-auto text-muted-foreground italic">
+            Dienste verschieben per Drag &amp; Drop
+          </span>
+        )}
       </div>
 
       {/* Kalender */}
       <div className="bg-card rounded-xl border border-border overflow-hidden" style={{ height: "calc(100svh - 220px)", minHeight: 380 }}>
-        <Calendar
+        <DnDCalendar
           localizer={localizer}
           events={allEvents}
           backgroundEvents={backgroundEvents}
@@ -351,7 +388,28 @@ export default function CalendarPage() {
           eventPropGetter={eventPropGetter}
           {...({ backgroundEventPropGetter } as any)}
           dayPropGetter={dayPropGetter}
+          // Drag & Drop – nur für Admins/Manager
+          draggableAccessor={(event: any) => {
+            if (!isPrivileged) return false;
+            const t = event.resource?.type;
+            if (t === "vacation_label" || t === "holiday_label") return false;
+            const status = event.resource?.shift?.status ?? "";
+            return !status.startsWith("cancelled") && status !== "completed";
+          }}
+          resizable={isPrivileged}
+          resizableAccessor={(event: any) => {
+            if (!isPrivileged) return false;
+            const t = event.resource?.type;
+            if (t === "vacation_label" || t === "holiday_label") return false;
+            const status = event.resource?.shift?.status ?? "";
+            return !status.startsWith("cancelled") && status !== "completed";
+          }}
+          onEventDrop={handleEventDrop}
+          onEventResize={handleEventResize}
+          onDragStart={() => setDragging(true)}
+          onDropFromOutside={() => setDragging(false)}
           onSelectEvent={(e: any) => {
+            if (dragging) return;
             const t = e.resource?.type;
             if (t === "vacation_label" || t === "holiday_label") return;
             setSelectedShift(e.resource);
@@ -365,8 +423,10 @@ export default function CalendarPage() {
           toolbar={false}
           messages={{
             noEventsInRange: "Keine Dienste in diesem Zeitraum",
-            showMore: (n) => `+${n} weitere`,
+            showMore: (n: number) => `+${n} weitere`,
           }}
+          step={30}
+          timeslots={2}
         />
       </div>
 
@@ -410,8 +470,6 @@ export default function CalendarPage() {
               {selectedShift.shift.notes && (
                 <Row label="Notiz" value={<span className="text-ctp-yellow">{selectedShift.shift.notes}</span>} />
               )}
-              {selectedShift.shift.is_sunday && <Row label="" value={<span className="text-ctp-peach">Sonntagszuschlag +50%</span>} />}
-              {selectedShift.shift.is_weekend && !selectedShift.shift.is_sunday && <Row label="" value={<span className="text-ctp-yellow">Samstagsz. +25%</span>} />}
             </div>
 
             <button onClick={() => setSelectedShift(null)}
