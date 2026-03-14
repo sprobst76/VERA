@@ -1,6 +1,7 @@
 from app.models.superadmin import SuperAdmin
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.contract_type import ContractType
 from app.models.employee import Employee
 from app.models.holiday_profile import HolidayProfile, VacationPeriod, CustomHoliday
 from app.models.recurring_shift import RecurringShift
@@ -36,4 +37,5 @@ __all__ = [
     "Webhook",
     "ContractHistory",
     "ShiftType",
+    "ContractType",
 ]

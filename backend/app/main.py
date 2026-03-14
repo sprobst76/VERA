@@ -22,6 +22,7 @@ from app.api.v1.api_keys import router as api_keys_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.shift_types import router as shift_types_router
+from app.api.v1.contract_types import router as contract_types_router
 
 
 @asynccontextmanager
@@ -73,6 +74,7 @@ app.include_router(api_keys_router, prefix=API_PREFIX)
 app.include_router(reports_router, prefix=API_PREFIX)
 app.include_router(webhooks_router, prefix=API_PREFIX)
 app.include_router(shift_types_router, prefix=API_PREFIX)
+app.include_router(contract_types_router, prefix=API_PREFIX)
 app.include_router(calendar_router)  # public, no auth prefix
 
 

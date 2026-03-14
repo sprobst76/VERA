@@ -24,6 +24,7 @@ class EmployeeOut(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
     user_id: uuid.UUID | None
+    contract_type_id: uuid.UUID | None
     first_name: str
     last_name: str
     email: str | None

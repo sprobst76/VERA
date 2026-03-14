@@ -33,6 +33,9 @@ class RecurringShift(Base):
     )
     skip_public_holidays: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    shift_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("shift_types.id", ondelete="SET NULL"), nullable=True
+    )
     label: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Freitext-Bezeichnung
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

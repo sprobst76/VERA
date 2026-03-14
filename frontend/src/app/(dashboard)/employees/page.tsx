@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { employeesApi, usersApi, contractsApi, payrollApi } from "@/lib/api";
+import { employeesApi, usersApi, contractsApi, payrollApi, contractTypesApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 
@@ -45,6 +45,7 @@ interface Employee {
   qualifications: string[];
   is_active: boolean;
   user_id: string | null;
+  contract_type_id: string | null;
   created_at: string;
 }
 
@@ -362,8 +363,30 @@ interface ModalProps {
   onSaved: () => void;
 }
 
+interface ContractTypeItem {
+  id: string;
+  name: string;
+  contract_category: string;
+  is_active: boolean;
+}
+
 function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProps) {
   const isEdit = !!employee;
+
+  const [contractTypeId, setContractTypeId] = useState<string | null>(
+    employee?.contract_type_id ?? null
+  );
+
+  const { data: contractTypes = [] } = useQuery<ContractTypeItem[]>({
+    queryKey: ["contract-types"],
+    queryFn: () => contractTypesApi.list().then((r) => r.data),
+    enabled: isEdit,
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (ctId: string | null) =>
+      contractTypesApi.assignToEmployee(employee!.id, ctId),
+  });
 
   const [form, setForm] = useState({
     first_name: employee?.first_name ?? "",
@@ -404,10 +427,16 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
   }
 
   const mutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      isEdit
-        ? employeesApi.update(employee!.id, data)
-        : employeesApi.create(data),
+    mutationFn: async (data: Record<string, unknown>) => {
+      if (isEdit) {
+        await employeesApi.update(employee!.id, data);
+        if (contractTypeId !== (employee?.contract_type_id ?? null)) {
+          await assignMutation.mutateAsync(contractTypeId);
+        }
+      } else {
+        await employeesApi.create(data);
+      }
+    },
     onSuccess: () => {
       toast.success(isEdit ? "Mitarbeiter aktualisiert" : "Mitarbeiter angelegt");
       onSaved();
@@ -756,6 +785,27 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
             </p>
           )}
 
+          {isEdit && contractTypes.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Vertragsvorlage
+              </div>
+              <select
+                value={contractTypeId ?? ""}
+                onChange={(e) => setContractTypeId(e.target.value || null)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              >
+                <option value="">— Keine Vorlage —</option>
+                {contractTypes.filter((ct) => ct.is_active).map((ct) => (
+                  <option key={ct.id} value={ct.id}>{ct.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Gruppenvertrag zuweisen – Änderungen an der Vorlage gelten dann automatisch für diesen Mitarbeiter.
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-2 pt-1">
             <button
@@ -1096,6 +1146,27 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
               Vertragseinstellungen (Lohn, Stunden, Limits) bitte im Tab
               <strong> Vertragsverlauf</strong> anpassen.
             </p>
+          )}
+
+          {isEdit && contractTypes.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Vertragsvorlage
+              </div>
+              <select
+                value={contractTypeId ?? ""}
+                onChange={(e) => setContractTypeId(e.target.value || null)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              >
+                <option value="">— Keine Vorlage —</option>
+                {contractTypes.filter((ct) => ct.is_active).map((ct) => (
+                  <option key={ct.id} value={ct.id}>{ct.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Gruppenvertrag zuweisen – Änderungen an der Vorlage gelten dann automatisch für diesen Mitarbeiter.
+              </p>
+            </div>
           )}
 
           {/* Actions */}
@@ -1725,6 +1796,15 @@ export default function EmployeesPage() {
       employeesApi.list(!showInactive).then((r) => r.data),
   });
 
+  const { data: contractTypesList = [] } = useQuery<ContractTypeItem[]>({
+    queryKey: ["contract-types"],
+    queryFn: () => contractTypesApi.list().then((r) => r.data),
+    enabled: isAdmin,
+  });
+  const contractTypeNameMap = Object.fromEntries(
+    contractTypesList.map((ct) => [ct.id, ct.name])
+  );
+
   const deactivateMutation = useMutation({
     mutationFn: (id: string) => employeesApi.deactivate(id),
     onSuccess: () => {
@@ -1837,6 +1917,7 @@ export default function EmployeesPage() {
                       key={emp.id}
                       emp={emp}
                       isAdmin={isAdmin}
+                      contractTypeName={emp.contract_type_id ? contractTypeNameMap[emp.contract_type_id] : undefined}
                       onOpen={() => setSelectedEmployee(emp)}
                       onEdit={() => setEditing(emp)}
                       onLink={() => setLinking(emp)}
@@ -1891,6 +1972,7 @@ export default function EmployeesPage() {
                     emp={emp}
                     isAdmin={isAdmin}
                     inactive
+                    contractTypeName={emp.contract_type_id ? contractTypeNameMap[emp.contract_type_id] : undefined}
                     onOpen={() => setSelectedEmployee(emp)}
                     onEdit={() => setEditing(emp)}
                     onContracts={() => setContractsEmployee(emp)}
@@ -1939,6 +2021,7 @@ function EmployeeCard({
   emp,
   isAdmin,
   inactive,
+  contractTypeName,
   onOpen,
   onEdit,
   onLink,
@@ -1949,6 +2032,7 @@ function EmployeeCard({
   emp: Employee;
   isAdmin: boolean;
   inactive?: boolean;
+  contractTypeName?: string;
   onOpen: () => void;
   onEdit: () => void;
   onLink?: () => void;
@@ -1980,15 +2064,22 @@ function EmployeeCard({
           <div className="font-semibold text-foreground truncate">
             {emp.first_name} {emp.last_name}
           </div>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-medium inline-block mt-0.5"
-            style={{
-              color,
-              backgroundColor: color.replace(")", " / 0.12)").replace("rgb(", "rgb("),
-            }}
-          >
-            {CONTRACT_LABELS[emp.contract_type] ?? emp.contract_type}
-          </span>
+          <div className="flex items-center gap-1 flex-wrap mt-0.5">
+            <span
+              className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{
+                color,
+                backgroundColor: color.replace(")", " / 0.12)").replace("rgb(", "rgb("),
+              }}
+            >
+              {CONTRACT_LABELS[emp.contract_type] ?? emp.contract_type}
+            </span>
+            {contractTypeName && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
+                {contractTypeName}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Action buttons (Admin only) */}

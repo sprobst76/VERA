@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi, shiftTypesApi, usersApi, calendarDataApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi, shiftTypesApi, usersApi, calendarDataApi, contractTypesApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
@@ -1799,6 +1799,239 @@ function ShiftTypesSection() {
   );
 }
 
+// ── Vertragstypen Section ─────────────────────────────────────────────────────
+
+interface ContractTypeItem {
+  id: string;
+  name: string;
+  description?: string;
+  contract_category: string;
+  hourly_rate: number;
+  monthly_hours_limit?: number;
+  annual_salary_limit?: number;
+  annual_hours_target?: number;
+  weekly_hours?: number;
+  is_active: boolean;
+  employee_count: number;
+}
+
+const CONTRACT_CATEGORY_LABELS: Record<string, string> = {
+  minijob: "Minijob",
+  part_time: "Teilzeit",
+  full_time: "Vollzeit",
+};
+
+function ContractTypeModal({
+  existing, onClose,
+}: {
+  existing?: ContractTypeItem;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name,         setName]         = useState(existing?.name ?? "");
+  const [desc,         setDesc]         = useState(existing?.description ?? "");
+  const [category,     setCategory]     = useState(existing?.contract_category ?? "minijob");
+  const [rate,         setRate]         = useState(String(existing?.hourly_rate ?? ""));
+  const [monthlyLim,   setMonthlyLim]   = useState(String(existing?.monthly_hours_limit ?? ""));
+  const [annualSal,    setAnnualSal]    = useState(String(existing?.annual_salary_limit ?? "6672"));
+  const [weeklyH,      setWeeklyH]      = useState(String(existing?.weekly_hours ?? ""));
+  const [annualH,      setAnnualH]      = useState(String(existing?.annual_hours_target ?? ""));
+  const [applyFrom,    setApplyFrom]    = useState("");
+  const [note,         setNote]         = useState("");
+
+  const isEdit = !!existing;
+
+  const mut = useMutation({
+    mutationFn: () => {
+      const payload = {
+        name, description: desc || undefined,
+        contract_category: category,
+        hourly_rate: parseFloat(rate),
+        monthly_hours_limit: monthlyLim ? parseFloat(monthlyLim) : undefined,
+        annual_salary_limit: annualSal ? parseFloat(annualSal) : undefined,
+        annual_hours_target: annualH ? parseFloat(annualH) : undefined,
+        weekly_hours: weeklyH ? parseFloat(weeklyH) : undefined,
+      };
+      if (isEdit) {
+        return contractTypesApi.update(existing.id, {
+          ...payload,
+          apply_from: applyFrom || undefined,
+          note: note || undefined,
+        });
+      }
+      return contractTypesApi.create(payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract-types"] });
+      toast.success(isEdit ? "Vertragstyp aktualisiert" : "Vertragstyp angelegt");
+      onClose();
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail ?? "Fehler"),
+  });
+
+  const iCls = "w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  const lCls = "block text-xs font-medium text-muted-foreground mb-1";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h2 className="font-semibold text-foreground">{isEdit ? "Vertragstyp bearbeiten" : "Neuer Vertragstyp"}</h2>
+          <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground"><Trash2 size={14} /></button>
+        </div>
+        <div className="px-5 pb-5 space-y-3">
+          <div><label className={lCls}>Name</label>
+            <input className={iCls} value={name} onChange={e => setName(e.target.value)} placeholder="z.B. Minijob Standard" />
+          </div>
+          <div><label className={lCls}>Beschreibung (optional)</label>
+            <input className={iCls} value={desc} onChange={e => setDesc(e.target.value)} />
+          </div>
+          <div>
+            <label className={lCls}>Vertragsart</label>
+            <select className={iCls} value={category} onChange={e => setCategory(e.target.value)}>
+              <option value="minijob">Minijob</option>
+              <option value="part_time">Teilzeit</option>
+              <option value="full_time">Vollzeit</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={lCls}>Stundenlohn (€)</label>
+              <input type="number" step="0.01" className={iCls} value={rate} onChange={e => setRate(e.target.value)} />
+            </div>
+            <div><label className={lCls}>Wochenst. (optional)</label>
+              <input type="number" step="0.5" className={iCls} value={weeklyH} onChange={e => setWeeklyH(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={lCls}>Monatsl. Std.-Limit (opt.)</label>
+              <input type="number" step="0.5" className={iCls} value={monthlyLim} onChange={e => setMonthlyLim(e.target.value)} />
+            </div>
+            <div><label className={lCls}>Jahresgehaltslimit € (opt.)</label>
+              <input type="number" step="1" className={iCls} value={annualSal} onChange={e => setAnnualSal(e.target.value)} />
+            </div>
+          </div>
+          <div><label className={lCls}>Jahressoll Std. (optional)</label>
+            <input type="number" step="1" className={iCls} value={annualH} onChange={e => setAnnualH(e.target.value)} />
+          </div>
+          {isEdit && (
+            <>
+              <hr className="border-border" />
+              <p className="text-xs text-muted-foreground">
+                Lohnparameter-Änderungen werden als neue Vertragsperiode für alle {existing.employee_count} zugewiesenen Mitarbeiter angelegt, wenn „Gültig ab" gesetzt ist.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={lCls}>Gültig ab (leer = nur Typ)</label>
+                  <input type="date" className={iCls} value={applyFrom} onChange={e => setApplyFrom(e.target.value)} />
+                </div>
+                <div><label className={lCls}>Notiz für Vertragshistorie</label>
+                  <input className={iCls} value={note} onChange={e => setNote(e.target.value)} placeholder="optional" />
+                </div>
+              </div>
+            </>
+          )}
+          <button onClick={() => mut.mutate()} disabled={mut.isPending || !name || !rate}
+            className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            {mut.isPending ? "Wird gespeichert…" : isEdit ? "Änderungen speichern" : "Vertragstyp anlegen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VertragstypenSection() {
+  const qc = useQueryClient();
+  const [modal, setModal] = useState<null | "create" | ContractTypeItem>(null);
+
+  const { data: contractTypes = [] } = useQuery<ContractTypeItem[]>({
+    queryKey: ["contract-types"],
+    queryFn: () => contractTypesApi.list().then(r => r.data),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => contractTypesApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract-types"] });
+      toast.success("Vertragstyp deaktiviert");
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail ?? "Fehler beim Löschen"),
+  });
+
+  const activeTypes = contractTypes.filter((ct: ContractTypeItem) => ct.is_active);
+
+  return (
+    <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Users size={18} className="text-muted-foreground" />
+          <h2 className="font-semibold text-foreground">Vertragstypen</h2>
+        </div>
+        <button onClick={() => setModal("create")}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium text-white"
+          style={{ backgroundColor: "rgb(var(--ctp-blue))" }}>
+          <Plus size={13} /> Neu
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Vertragstypen bündeln Lohnparameter für Gruppen. Bei Änderung eines Typs werden alle
+        zugewiesenen Mitarbeiter automatisch mit neuem Vertragseintrag aktualisiert.
+      </p>
+
+      {activeTypes.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          Noch keine Vertragstypen angelegt.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {activeTypes.map((ct: ContractTypeItem) => (
+            <div key={ct.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/30 transition-colors">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-foreground">{ct.name}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.12)", color: "rgb(var(--ctp-blue))" }}>
+                    {CONTRACT_CATEGORY_LABELS[ct.contract_category] ?? ct.contract_category}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{ct.hourly_rate.toFixed(2)} €/h</span>
+                  {ct.employee_count > 0 && (
+                    <span className="text-xs text-muted-foreground">{ct.employee_count} MA</span>
+                  )}
+                </div>
+                {ct.description && (
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">{ct.description}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setModal(ct)}
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                  <Pencil size={13} />
+                </button>
+                <button onClick={() => {
+                  if (ct.employee_count > 0) {
+                    toast.error(`${ct.employee_count} Mitarbeiter zugewiesen – erst entfernen`);
+                  } else if (confirm(`Vertragstyp "${ct.name}" deaktivieren?`)) {
+                    deleteMut.mutate(ct.id);
+                  }
+                }}
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal && (
+        <ContractTypeModal
+          existing={modal === "create" ? undefined : modal}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Webhooks Section ──────────────────────────────────────────────────────────
 
 function WebhooksSection() {
@@ -2030,6 +2263,9 @@ export default function SettingsPage() {
 
       {/* Diensttypen (admin/manager) */}
       {isPrivileged && <ShiftTypesSection />}
+
+      {/* Vertragstypen (admin/manager) */}
+      {isPrivileged && <VertragstypenSection />}
 
       {/* Webhooks (admin only) */}
       {role === "admin" && <WebhooksSection />}

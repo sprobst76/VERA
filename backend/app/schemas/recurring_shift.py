@@ -14,6 +14,7 @@ class RecurringShiftCreate(BaseModel):
     break_minutes: int = 0
     employee_id: uuid.UUID | None = None
     template_id: uuid.UUID | None = None
+    shift_type_id: uuid.UUID | None = None
     valid_from: date
     valid_until: date
     holiday_profile_id: uuid.UUID | None = None
@@ -28,6 +29,7 @@ class RecurringShiftUpdate(BaseModel):
     break_minutes: int | None = None
     employee_id: uuid.UUID | None = None
     template_id: uuid.UUID | None = None
+    shift_type_id: uuid.UUID | None = None
     valid_from: date | None = None
     valid_until: date | None = None
     holiday_profile_id: uuid.UUID | None = None
@@ -45,6 +47,7 @@ class RecurringShiftUpdateFrom(BaseModel):
     break_minutes: int | None = None
     employee_id: uuid.UUID | None = None
     template_id: uuid.UUID | None = None
+    shift_type_id: uuid.UUID | None = None
     holiday_profile_id: uuid.UUID | None = None
     skip_public_holidays: bool | None = None
     label: str | None = None
@@ -67,6 +70,7 @@ class RecurringShiftOut(BaseModel):
     break_minutes: int
     employee_id: uuid.UUID | None
     template_id: uuid.UUID | None
+    shift_type_id: uuid.UUID | None
     valid_from: date
     valid_until: date
     holiday_profile_id: uuid.UUID | None
@@ -88,6 +92,7 @@ class RecurringShiftOut(BaseModel):
             "break_minutes": obj.break_minutes,
             "employee_id": obj.employee_id,
             "template_id": obj.template_id,
+            "shift_type_id": obj.shift_type_id,
             "valid_from": obj.valid_from,
             "valid_until": obj.valid_until,
             "holiday_profile_id": obj.holiday_profile_id,

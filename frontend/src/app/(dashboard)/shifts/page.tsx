@@ -248,8 +248,8 @@ function TimeCorrectionReviewModal({ shift, onClose, onDone }: { shift: any; onC
 
 // ── Create Recurring Shift Modal ──────────────────────────────────────────────
 
-function CreateRecurringShiftModal({ employees, templates, profiles, onClose, onDone }: {
-  employees: any[]; templates: any[]; profiles: any[]; onClose: () => void; onDone: () => void;
+function CreateRecurringShiftModal({ employees, templates, profiles, shiftTypes, onClose, onDone }: {
+  employees: any[]; templates: any[]; profiles: any[]; shiftTypes: any[]; onClose: () => void; onDone: () => void;
 }) {
   const [weekday,     setWeekday]     = useState(0);
   const [startTime,   setStartTime]   = useState("08:00");
@@ -257,6 +257,7 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
   const [breakMin,    setBreakMin]    = useState(0);
   const [employeeId,  setEmployeeId]  = useState("");
   const [templateId,  setTemplateId]  = useState("");
+  const [shiftTypeId, setShiftTypeId] = useState("");
   const [validFrom,   setValidFrom]   = useState("");
   const [validUntil,  setValidUntil]  = useState("");
   const [profileId,   setProfileId]   = useState("");
@@ -286,6 +287,7 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
     mutationFn: () => recurringShiftsApi.create({
       weekday, start_time: startTime, end_time: endTime, break_minutes: breakMin,
       employee_id: employeeId || null, template_id: templateId || null,
+      shift_type_id: shiftTypeId || null,
       valid_from: validFrom, valid_until: validUntil,
       holiday_profile_id: profileId || null, skip_public_holidays: skipHols,
       label: label || null,
@@ -321,7 +323,7 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
             <div><label className={labelCls}>Bezeichnung</label><input className={inputCls} value={label} onChange={e => setLabel(e.target.value)} placeholder="optional" /></div>
           </div>
 
-          {/* Employee + Template */}
+          {/* Employee + Template + Shift Type */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Mitarbeiter</label>
@@ -337,6 +339,15 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
                 {templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
+            {shiftTypes.length > 0 && (
+              <div className="col-span-2">
+                <label className={labelCls}>Diensttyp</label>
+                <select className={inputCls} value={shiftTypeId} onChange={e => setShiftTypeId(e.target.value)}>
+                  <option value="">– Kein Typ –</option>
+                  {shiftTypes.map((st: any) => <option key={st.id} value={st.id}>{st.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Valid range */}
@@ -387,7 +398,7 @@ function CreateRecurringShiftModal({ employees, templates, profiles, onClose, on
 
 type EditScope = "from_date" | "all";
 
-function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; employees: any[]; onClose: () => void; onDone: () => void }) {
+function EditRecurringShiftModal({ rs, employees, shiftTypes, onClose, onDone }: { rs: any; employees: any[]; shiftTypes: any[]; onClose: () => void; onDone: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
   const [scope,        setScope]       = useState<EditScope>("from_date");
   const [fromDate,     setFromDate]    = useState(today);
@@ -397,6 +408,7 @@ function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; 
   const [endTime,      setEndTime]     = useState(rs.end_time?.slice(0, 5) ?? "");
   const [breakMinutes, setBreakMinutes]= useState(String(rs.break_minutes ?? 0));
   const [employeeId,   setEmployeeId]  = useState(rs.employee_id ?? "");
+  const [shiftTypeId,  setShiftTypeId] = useState(rs.shift_type_id ?? "");
 
   const effectiveFrom = scope === "all" ? rs.valid_from : fromDate;
 
@@ -408,6 +420,7 @@ function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; 
       end_time: endTime || undefined,
       break_minutes: breakMinutes !== "" ? parseInt(breakMinutes) : undefined,
       employee_id: employeeId || null,
+      shift_type_id: shiftTypeId || null,
       label: label || null,
     }),
     onSuccess: (res) => {
@@ -477,13 +490,24 @@ function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; 
             />
           </div>
 
-          {/* Employee */}
-          <div>
-            <label className={labelCls}>Mitarbeiter</label>
-            <select className={inputCls} value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
-              <option value="">– Offen –</option>
-              {employees.map((e: any) => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
-            </select>
+          {/* Employee + Shift Type */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Mitarbeiter</label>
+              <select className={inputCls} value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+                <option value="">– Offen –</option>
+                {employees.map((e: any) => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+              </select>
+            </div>
+            {shiftTypes.length > 0 && (
+              <div>
+                <label className={labelCls}>Diensttyp</label>
+                <select className={inputCls} value={shiftTypeId} onChange={e => setShiftTypeId(e.target.value)}>
+                  <option value="">– Kein Typ –</option>
+                  {shiftTypes.map((st: any) => <option key={st.id} value={st.id}>{st.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Times + break */}
@@ -519,7 +543,7 @@ function EditRecurringShiftModal({ rs, employees, onClose, onDone }: { rs: any; 
 
 // ── Regeltermine Tab ──────────────────────────────────────────────────────────
 
-function RegeltermineTab({ employees, templates }: { employees: any[]; templates: any[] }) {
+function RegeltermineTab({ employees, templates, shiftTypes }: { employees: any[]; templates: any[]; shiftTypes: any[] }) {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [editRs, setEditRs] = useState<any>(null);
@@ -615,14 +639,14 @@ function RegeltermineTab({ employees, templates }: { employees: any[]; templates
 
       {showCreate && (
         <CreateRecurringShiftModal
-          employees={employees} templates={templates} profiles={profiles as any[]}
+          employees={employees} templates={templates} profiles={profiles as any[]} shiftTypes={shiftTypes}
           onClose={() => setShowCreate(false)}
           onDone={() => { setShowCreate(false); refresh(); }}
         />
       )}
       {editRs && (
         <EditRecurringShiftModal
-          rs={editRs} employees={employees}
+          rs={editRs} employees={employees} shiftTypes={shiftTypes}
           onClose={() => setEditRs(null)}
           onDone={() => { setEditRs(null); refresh(); }}
         />
@@ -878,7 +902,7 @@ export default function ShiftsPage() {
 
       {/* ── Tab: Regeltermine ── */}
       {tab === "regeltermine" && isPrivileged && (
-        <RegeltermineTab employees={employees as any[]} templates={templates as any[]} />
+        <RegeltermineTab employees={employees as any[]} templates={templates as any[]} shiftTypes={shiftTypes as any[]} />
       )}
 
       {/* ── Tab: Dienste ── */}

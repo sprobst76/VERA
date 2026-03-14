@@ -79,6 +79,7 @@ async def generate_shifts(
                     tenant_id=rs.tenant_id,
                     employee_id=rs.employee_id,
                     template_id=rs.template_id,
+                    shift_type_id=rs.shift_type_id,
                     date=current,
                     start_time=rs.start_time,
                     end_time=rs.end_time,

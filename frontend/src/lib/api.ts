@@ -313,3 +313,33 @@ export const shiftTypesApi = {
     api.put(`/shift-types/${id}`, data),
   delete: (id: string) => api.delete(`/shift-types/${id}`),
 };
+
+export const contractTypesApi = {
+  list: () => api.get("/contract-types"),
+  create: (data: {
+    name: string;
+    description?: string;
+    contract_category: string;
+    hourly_rate: number;
+    monthly_hours_limit?: number;
+    annual_salary_limit?: number;
+    annual_hours_target?: number;
+    weekly_hours?: number;
+  }) => api.post("/contract-types", data),
+  update: (id: string, data: {
+    name?: string;
+    description?: string;
+    contract_category?: string;
+    hourly_rate?: number;
+    monthly_hours_limit?: number;
+    annual_salary_limit?: number;
+    annual_hours_target?: number;
+    weekly_hours?: number;
+    apply_from?: string;
+    note?: string;
+  }) => api.put(`/contract-types/${id}`, data),
+  delete: (id: string) => api.delete(`/contract-types/${id}`),
+  employees: (id: string) => api.get(`/contract-types/${id}/employees`),
+  assignToEmployee: (employeeId: string, contractTypeId: string | null) =>
+    api.post(`/employees/${employeeId}/assign-contract-type`, { contract_type_id: contractTypeId }),
+};

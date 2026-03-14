@@ -3,6 +3,7 @@ from datetime import datetime, time, timezone
 
 from sqlalchemy import String, DateTime, Boolean, ForeignKey, Numeric, Integer, Time, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+import uuid as _uuid_mod
 
 from app.core.database import Base
 
@@ -13,6 +14,7 @@ class Employee(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    contract_type_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contract_types.id", ondelete="SET NULL"), nullable=True)
 
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -49,6 +51,10 @@ class Employee(Base):
     # Relationships
     tenant: Mapped["Tenant"] = relationship(back_populates="employees")
     user: Mapped["User | None"] = relationship(back_populates="employee")
+    contract_type_obj: Mapped["ContractType | None"] = relationship(  # type: ignore[name-defined]
+        back_populates="employees",
+        foreign_keys=[contract_type_id],
+    )
     shifts: Mapped[list["Shift"]] = relationship(back_populates="employee")
     absences: Mapped[list["EmployeeAbsence"]] = relationship(back_populates="employee")
     payroll_entries: Mapped[list["PayrollEntry"]] = relationship(back_populates="employee")

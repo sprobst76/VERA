@@ -369,6 +369,48 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
 
 
 
+@router.post("/{employee_id}/assign-contract-type", response_model=EmployeeOut)
+async def assign_contract_type(
+    employee_id: uuid.UUID,
+    payload: dict,
+    current_user: ManagerOrAdmin,
+    db: DB,
+):
+    """
+    Vertragstyp einem Mitarbeiter zuweisen (oder entfernen wenn contract_type_id=null).
+    Setzt nur den FK – keine neue ContractHistory wird angelegt.
+    """
+    from app.models.contract_type import ContractType
+    result = await db.execute(
+        select(Employee).where(
+            Employee.id == employee_id,
+            Employee.tenant_id == current_user.tenant_id,
+        )
+    )
+    employee = result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
+
+    ct_id = payload.get("contract_type_id")
+    if ct_id:
+        ct_id = uuid.UUID(str(ct_id))
+        ct_result = await db.execute(
+            select(ContractType).where(
+                ContractType.id == ct_id,
+                ContractType.tenant_id == current_user.tenant_id,
+            )
+        )
+        if not ct_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Vertragstyp nicht gefunden")
+        employee.contract_type_id = ct_id
+    else:
+        employee.contract_type_id = None
+
+    await db.commit()
+    await db.refresh(employee)
+    return employee
+
+
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_employee(employee_id: uuid.UUID, current_user: AdminUser, db: DB):
     result = await db.execute(
