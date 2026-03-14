@@ -265,13 +265,18 @@ class PayrollService:
             # Bei mehreren Perioden: anteilig nach Kalendertagen
             monthly_days = (month_end - month_start).days + 1
             base_wage_sum = 0.0
-            for idx, (c, ps, pe) in enumerate(contract_periods):
-                if c.monthly_salary:
-                    days_in_period = (min(pe - timedelta(days=1), month_end) - ps).days + 1
-                    period_base = float(c.monthly_salary) * (days_in_period / monthly_days)
-                    base_wage_sum += period_base
-                    total_gross += period_base
-                    period_stats[idx]["amount"] = round(period_base, 2)
+            if not contract_periods:
+                # Kein ContractHistory-Eintrag → volles Monatsgehalt vom Employee-Feld
+                base_wage_sum = primary_monthly_salary
+                total_gross += primary_monthly_salary
+            else:
+                for idx, (c, ps, pe) in enumerate(contract_periods):
+                    if c.monthly_salary:
+                        days_in_period = (min(pe - timedelta(days=1), month_end) - ps).days + 1
+                        period_base = float(c.monthly_salary) * (days_in_period / monthly_days)
+                        base_wage_sum += period_base
+                        total_gross += period_base
+                        period_stats[idx]["amount"] = round(period_base, 2)
 
         paid_hours = total_hours + carryover_hours
         new_carryover = 0.0

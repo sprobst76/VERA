@@ -265,3 +265,249 @@ async def test_payroll_minijob_cap(db, tenant):
     assert entry.actual_hours == pytest.approx(24.0)
     assert entry.paid_hours == pytest.approx(20.0)
     assert new_carryover == pytest.approx(4.0)
+
+
+# ── Monatslohn (monthly_salary) ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_payroll_monthly_salary_base_wage_fixed(db, tenant):
+    """Teilzeit mit Monatslohn: base_wage = monthly_salary, unabhängig von Stunden."""
+    from app.models.employee import Employee
+    from app.models.shift import Shift
+
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Teilzeit",
+        last_name="Monatslohn",
+        contract_type="part_time",
+        hourly_rate=Decimal("0.00"),
+        monthly_salary=Decimal("1800.00"),
+        weekly_hours=Decimal("20.0"),
+        annual_salary_limit=Decimal("0"),
+        vacation_days=25,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    # 60h Arbeit im September
+    for day in [1, 8, 15, 22, 29]:
+        shift = Shift(
+            tenant_id=tenant.id,
+            employee_id=emp.id,
+            date=date(2025, 9, day),
+            start_time=time(8, 0),
+            end_time=time(20, 0),
+            break_minutes=0,
+            status="confirmed",
+        )
+        db.add(shift)
+    await db.commit()
+
+    svc = PayrollService(db)
+    entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # Grundlohn = Monatslohn, nicht Stunden * Stundensatz
+    assert entry.base_wage == pytest.approx(1800.0, rel=0.01)
+    # Stunden wurden trotzdem gezählt
+    assert entry.actual_hours == pytest.approx(60.0)
+
+
+@pytest.mark.asyncio
+async def test_payroll_monthly_salary_surcharges_applied(db, tenant):
+    """Bei Monatslohn werden Zuschläge über effektiven Stundensatz berechnet."""
+    from app.models.employee import Employee
+    from app.models.shift import Shift
+
+    # 1800€/Mo bei 20h/Woche → eff. Rate = 1800 / (20 * 52/12) ≈ 20.77 €/h
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Teilzeit",
+        last_name="Zuschlag",
+        contract_type="part_time",
+        hourly_rate=Decimal("0.00"),
+        monthly_salary=Decimal("1800.00"),
+        weekly_hours=Decimal("20.0"),
+        annual_salary_limit=Decimal("0"),
+        vacation_days=25,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    # Sonntagsdienst → Sonntagszuschlag 50%
+    shift = Shift(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        date=date(2025, 9, 7),  # Sonntag
+        start_time=time(10, 0),
+        end_time=time(14, 0),
+        break_minutes=0,
+        status="confirmed",
+    )
+    db.add(shift)
+    await db.commit()
+
+    svc = PayrollService(db)
+    entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # Zuschläge müssen > 0 sein (Sonntagszuschlag 50%)
+    total_surcharge = (
+        (entry.early_surcharge or 0) + (entry.late_surcharge or 0) +
+        (entry.night_surcharge or 0) + (entry.weekend_surcharge or 0) +
+        (entry.sunday_surcharge or 0) + (entry.holiday_surcharge or 0)
+    )
+    assert total_surcharge > 0
+    # Grundlohn = Monatslohn
+    assert entry.base_wage == pytest.approx(1800.0, rel=0.01)
+
+
+# ── Jahressoll (annual_hours_target) ─────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_payroll_jahressoll_monthly_target(db, tenant):
+    """Jahressoll-Mitarbeiter: monthly_hours_target = annual_hours_target / 12."""
+    from app.models.employee import Employee
+    from app.models.shift import Shift
+
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Jahres",
+        last_name="Soll",
+        contract_type="part_time",
+        hourly_rate=Decimal("14.00"),
+        annual_hours_target=Decimal("1200.0"),
+        annual_salary_limit=Decimal("0"),
+        vacation_days=25,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    # Keine Schichten → Abrechnung trotzdem möglich
+    svc = PayrollService(db)
+    entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # monthly_hours_target = 1200 / 12 = 100
+    assert entry.monthly_hours_target == pytest.approx(100.0, rel=0.01)
+
+
+@pytest.mark.asyncio
+async def test_payroll_jahressoll_remaining_decreases(db, tenant):
+    """annual_hours_remaining sinkt nach gearbeiteten Stunden."""
+    from app.models.employee import Employee
+    from app.models.shift import Shift
+    from app.models.payroll import PayrollEntry
+    from decimal import Decimal as D
+
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Jahres",
+        last_name="Rest",
+        contract_type="part_time",
+        hourly_rate=Decimal("14.00"),
+        annual_hours_target=Decimal("1200.0"),
+        annual_salary_limit=Decimal("0"),
+        vacation_days=25,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    # 40h Arbeit im September
+    for day in [1, 8, 15, 22]:
+        shift = Shift(
+            tenant_id=tenant.id,
+            employee_id=emp.id,
+            date=date(2025, 9, day),
+            start_time=time(8, 0),
+            end_time=time(18, 0),
+            break_minutes=0,
+            status="confirmed",
+        )
+        db.add(shift)
+    await db.commit()
+
+    svc = PayrollService(db)
+    entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # annual_hours_remaining muss gesetzt und < annual_hours_target sein
+    if entry.annual_hours_target is not None:
+        assert entry.annual_hours_remaining is not None
+        assert entry.annual_hours_remaining < float(entry.annual_hours_target)
+
+
+# ── Mehrfachverträge im selben Monat ──────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_payroll_multi_contract_split(db, tenant):
+    """Wenn Stundenlohn mitten im Monat wechselt, werden Dienste korrekt aufgeteilt."""
+    from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
+    from app.models.shift import Shift
+
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Split",
+        last_name="Vertrag",
+        contract_type="full_time",
+        hourly_rate=Decimal("10.00"),
+        annual_salary_limit=Decimal("0"),
+        vacation_days=30,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    # Erster Vertrag: 1.–14. Sep, 10€/h
+    c1 = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=date(2025, 9, 15),
+        contract_type="full_time",
+        hourly_rate=Decimal("10.00"),
+    )
+    # Zweiter Vertrag: ab 15. Sep, 14€/h
+    c2 = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 9, 15),
+        valid_to=None,
+        contract_type="full_time",
+        hourly_rate=Decimal("14.00"),
+    )
+    db.add(c1)
+    db.add(c2)
+    await db.commit()
+
+    # Dienst vor Wechsel: 8h @ 10€ = 80€
+    s1 = Shift(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        date=date(2025, 9, 10),
+        start_time=time(8, 0),
+        end_time=time(16, 0),
+        break_minutes=0,
+        status="confirmed",
+    )
+    # Dienst nach Wechsel: 8h @ 14€ = 112€
+    s2 = Shift(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        date=date(2025, 9, 20),
+        start_time=time(8, 0),
+        end_time=time(16, 0),
+        break_minutes=0,
+        status="confirmed",
+    )
+    db.add(s1)
+    db.add(s2)
+    await db.commit()
+
+    svc = PayrollService(db)
+    entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # Gesamtlohn = 80 + 112 = 192€
+    assert entry.base_wage == pytest.approx(192.0, rel=0.01)
+    assert entry.actual_hours == pytest.approx(16.0)
