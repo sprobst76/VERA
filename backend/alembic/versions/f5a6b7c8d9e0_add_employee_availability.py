@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine.reflection import Inspector
 
 revision = 'f5a6b7c8d9e0'
-down_revision = 'f4a5b6c7d8e9'
+down_revision = 'a0b1c2d3e4f5'
 branch_labels = None
 depends_on = None
 
