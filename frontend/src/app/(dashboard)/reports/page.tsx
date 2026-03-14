@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { employeesApi, shiftsApi, payrollApi } from "@/lib/api";
+import { employeesApi, shiftsApi, payrollApi, shiftTypesApi, reportsApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import {
   format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO,
@@ -10,7 +10,7 @@ import {
 import { de } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, Clock, AlertTriangle,
-  CheckCircle2, Users, TrendingUp, CalendarOff, Download,
+  CheckCircle2, TrendingUp, Download, Layers,
 } from "lucide-react";
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
@@ -337,7 +337,75 @@ function MinijobUtilization({ employees, payrollEntries, selectedMonth }: {
   );
 }
 
-// ── 3. Compliance-Warnungen ───────────────────────────────────────────────────
+// ── 3. Diensttypen-Auswertung ─────────────────────────────────────────────────
+
+function ShiftTypeReport({ shifts, shiftTypes }: { shifts: any[]; shiftTypes: any[] }) {
+  const typeMap = useMemo(() =>
+    Object.fromEntries(shiftTypes.map((st: any) => [st.id, st])),
+    [shiftTypes]
+  );
+
+  const byType = useMemo(() => {
+    const map: Record<string, { name: string; color: string; count: number; hours: number }> = {
+      __none__: { name: "Kein Typ", color: "rgb(var(--ctp-overlay1))", count: 0, hours: 0 },
+    };
+    for (const s of shifts) {
+      if (s.status === "cancelled" || s.status === "cancelled_absence") continue;
+      const key = s.shift_type_id ?? "__none__";
+      if (!map[key]) {
+        const st = typeMap[key];
+        if (!st) continue;
+        map[key] = { name: st.name, color: st.color, count: 0, hours: 0 };
+      }
+      map[key].count++;
+      map[key].hours += calcShiftHours(s.start_time, s.end_time, s.break_minutes);
+    }
+    return Object.entries(map)
+      .filter(([, v]) => v.count > 0)
+      .sort((a, b) => b[1].hours - a[1].hours);
+  }, [shifts, typeMap]);
+
+  const totalHours = byType.reduce((s, [, v]) => s + v.hours, 0);
+
+  if (byType.length === 0) {
+    return <p className="text-sm text-muted-foreground">Keine Dienste mit Diensttyp in diesem Monat.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {byType.map(([key, { name, color, count, hours }]) => {
+        const pct = totalHours > 0 ? (hours / totalHours) * 100 : 0;
+        return (
+          <div key={key}>
+            <div className="flex items-center justify-between text-sm mb-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: key === "__none__" ? "rgb(var(--ctp-overlay1))" : color }} />
+                <span className="font-medium text-foreground">{name}</span>
+                <span className="text-xs text-muted-foreground">{count} Dienste</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs tabular-nums">
+                <span className="text-muted-foreground">{pct.toFixed(0)}%</span>
+                <span className="font-medium text-foreground w-14 text-right">{fmtHours(hours)}</span>
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-accent overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, backgroundColor: key === "__none__" ? "rgb(var(--ctp-overlay1))" : color }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-xs text-muted-foreground pt-1">
+        Gesamt: {fmtHours(totalHours)} in {byType.reduce((s, [, v]) => s + v.count, 0)} Diensten
+      </p>
+    </div>
+  );
+}
+
+// ── 4. Compliance-Warnungen ───────────────────────────────────────────────────
 
 function ComplianceWarnings({ shifts, employees }: { shifts: any[]; employees: any[] }) {
   const empMap = useMemo(() =>
@@ -463,6 +531,26 @@ export default function ReportsPage() {
     enabled: isPrivileged,
   });
 
+  const { data: shiftTypes = [] } = useQuery({
+    queryKey: ["shift-types"],
+    queryFn: () => shiftTypesApi.list().then((r) => r.data),
+  });
+
+  const handleCsvExport = async () => {
+    try {
+      const resp = await reportsApi.exportCsv({ from: monthStart, to: monthEnd });
+      const blob = new Blob([resp.data], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `stundenbericht_${monthLabel.replace(" ", "_")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // fallback to client-side export handled in HoursReport
+    }
+  };
+
   // Quick stats for summary row
   const activeShifts = (shifts as any[]).filter(
     (s: any) => s.status !== "cancelled" && s.status !== "cancelled_absence"
@@ -482,8 +570,17 @@ export default function ReportsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-foreground">Berichte</h1>
 
-        {/* Month picker */}
-        <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
+        <div className="flex items-center gap-2">
+          {isPrivileged && (
+            <button
+              onClick={handleCsvExport}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <Download size={13} /> CSV exportieren
+            </button>
+          )}
+          {/* Month picker */}
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
           <button
             onClick={() => setSelectedMonth((m) => startOfMonth(subMonths(m, 1)))}
             className="p-1.5 rounded hover:bg-accent transition-colors"
@@ -499,6 +596,7 @@ export default function ReportsPage() {
           >
             <ChevronRight size={16} className="text-muted-foreground" />
           </button>
+          </div>
         </div>
       </div>
 
@@ -561,7 +659,14 @@ export default function ReportsPage() {
         </Section>
       )}
 
-      {/* Section 3: Compliance */}
+      {/* Section 3: Diensttypen */}
+      {(shiftTypes as any[]).length > 0 && (
+        <Section title="Diensttypen-Auswertung" icon={Layers} color="--ctp-mauve">
+          <ShiftTypeReport shifts={shifts as any[]} shiftTypes={shiftTypes as any[]} />
+        </Section>
+      )}
+
+      {/* Section 4: Compliance */}
       <Section title="Compliance-Warnungen" icon={AlertTriangle} color="--ctp-peach">
         <ComplianceWarnings shifts={shifts as any[]} employees={employees as any[]} />
       </Section>

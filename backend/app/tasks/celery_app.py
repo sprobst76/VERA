@@ -17,15 +17,15 @@ celery_app.conf.update(
     timezone="Europe/Berlin",
     enable_utc=True,
     beat_schedule={
-        # Täglich um 08:00: Erinnerungen für morgige Dienste
+        # Alle 5 Minuten: Diensttyp-basierte Erinnerungen (präzises Timing)
+        "type-shift-reminders": {
+            "task": "app.tasks.reminder_tasks.send_type_reminders",
+            "schedule": crontab(minute="*/5"),
+        },
+        # Täglich um 08:00: Generelle 24h-Erinnerungen für alle Dienste morgen
         "daily-shift-reminders": {
             "task": "app.tasks.reminder_tasks.send_daily_reminders",
             "schedule": crontab(hour=8, minute=0),
-        },
-        # Stündlich: Fällige Erinnerungen senden
-        "hourly-shift-reminders": {
-            "task": "app.tasks.reminder_tasks.send_hourly_reminders",
-            "schedule": crontab(minute=0),
         },
         # Monatlich am 1. um 07:00: Lohnabrechnungen für Vormonat erstellen
         "monthly-payroll": {
