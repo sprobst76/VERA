@@ -1125,6 +1125,119 @@ function NewKeyAlert({ rawKey, onDismiss }: { rawKey: string; onDismiss: () => v
   );
 }
 
+// ── Zuschlagsätze Section ─────────────────────────────────────────────────────
+
+const SURCHARGE_LABELS: Record<string, { label: string; desc: string }> = {
+  early:   { label: "Frühzuschlag",   desc: "vor 06:00 Uhr" },
+  late:    { label: "Spätzuschlag",   desc: "ab 20:00 Uhr" },
+  night:   { label: "Nachtzuschlag",  desc: "23:00–06:00 Uhr" },
+  weekend: { label: "Samstag",        desc: "Samstagsdienste" },
+  sunday:  { label: "Sonntag",        desc: "Sonntagsdienste" },
+  holiday: { label: "Feiertag",       desc: "gesetzliche Feiertage" },
+};
+
+type SurchargeRates = { early: number; late: number; night: number; weekend: number; sunday: number; holiday: number };
+
+function SurchargeSection() {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<SurchargeRates | null>(null);
+
+  const { data: rates } = useQuery<SurchargeRates>({
+    queryKey: ["surcharge-rates"],
+    queryFn: () => adminSettingsApi.getSurcharges().then(r => r.data),
+  });
+
+  const saveMut = useMutation({
+    mutationFn: (data: SurchargeRates) => adminSettingsApi.updateSurcharges(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["surcharge-rates"] });
+      toast.success("Zuschlagsätze gespeichert");
+      setEditing(false);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Fehler beim Speichern"),
+  });
+
+  const startEdit = () => {
+    setDraft(rates ? { ...rates } : { early: 0.125, late: 0.125, night: 0.25, weekend: 0.25, sunday: 0.5, holiday: 1.25 });
+    setEditing(true);
+  };
+
+  const inputCls = "w-24 border border-border rounded-lg px-2.5 py-1.5 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring text-right";
+  const labelCls = "text-xs font-medium text-muted-foreground block mb-1";
+
+  return (
+    <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Settings size={18} className="text-muted-foreground" />
+          <h2 className="font-semibold text-foreground">Zuschlagsätze (§3b EStG)</h2>
+        </div>
+        {!editing && (
+          <button onClick={startEdit} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground">
+            <Pencil size={12} /> Bearbeiten
+          </button>
+        )}
+      </div>
+
+      {!editing ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {rates && Object.entries(SURCHARGE_LABELS).map(([key, { label, desc }]) => (
+            <div key={key} className="bg-muted/30 rounded-xl p-3">
+              <div className="text-xs text-muted-foreground">{label}</div>
+              <div className="text-sm text-muted-foreground">{desc}</div>
+              <div className="text-lg font-semibold text-foreground mt-1">
+                {((rates as any)[key] * 100).toFixed(1)} %
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : draft && (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Werte als Dezimalzahl: 12,5 % = 0,125 · Steuerfreie Maximalwerte nach §3b EStG nicht überschreiten.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Object.entries(SURCHARGE_LABELS).map(([key, { label, desc }]) => (
+              <div key={key}>
+                <label className={labelCls}>{label} <span className="text-muted-foreground font-normal">({desc})</span></label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    max="5"
+                    className={inputCls}
+                    value={(draft as any)[key]}
+                    onChange={e => setDraft({ ...draft, [key]: parseFloat(e.target.value) || 0 })}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    = {(((draft as any)[key] || 0) * 100).toFixed(1)} %
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => saveMut.mutate(draft)}
+              disabled={saveMut.isPending}
+              className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+            >
+              {saveMut.isPending ? "Speichern…" : "Speichern"}
+            </button>
+            <button onClick={() => setEditing(false)} className="px-4 py-2 rounded-xl text-sm border border-border text-muted-foreground hover:bg-muted">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ── Benutzerverwaltung Section ────────────────────────────────────────────────
 
 const ROLE_BADGE: Record<string, { label: string; cssVar: string }> = {
@@ -2371,6 +2484,9 @@ export default function SettingsPage() {
 
       {/* SMTP-Konfiguration (admin only) */}
       {role === "admin" && <SMTPSection />}
+
+      {/* Zuschlagsätze (admin only) */}
+      {role === "admin" && <SurchargeSection />}
 
       {/* Benutzerverwaltung (admin only) */}
       {role === "admin" && <BenutzerSection />}

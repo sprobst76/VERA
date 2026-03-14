@@ -123,10 +123,18 @@ class PayrollService:
         from app.models.employee import Employee
         from app.models.payroll import PayrollEntry, HoursCarryover
         from app.models.shift import Shift
+        from app.models.tenant import Tenant
+        from app.api.v1.admin_settings import DEFAULT_SURCHARGE_RATES
 
         # Employee laden
         emp_result = await self.db.execute(select(Employee).where(Employee.id == employee_id))
         employee = emp_result.scalar_one()
+
+        # Zuschlagsätze: Tenant-Konfiguration mit Defaults mergen
+        tenant_result = await self.db.execute(select(Tenant).where(Tenant.id == employee.tenant_id))
+        tenant = tenant_result.scalar_one_or_none()
+        surcharge_cfg = ((tenant.settings or {}).get("surcharges", {}) if tenant else {})
+        rates = {k: surcharge_cfg.get(k, v) for k, v in DEFAULT_SURCHARGE_RATES.items()}
 
         month_start = month.replace(day=1)
         month_end = (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
@@ -236,7 +244,7 @@ class PayrollService:
         for shift in shifts:
             rate = _rate_for_date(shift.date)
             net_hours = self._calc_net_hours(shift)
-            surcharges = self._calc_surcharges(shift, rate)
+            surcharges = self._calc_surcharges(shift, rate, rates)
 
             total_hours += net_hours
             # Bei Monatslohn: Grundlohn wird separat gesetzt (kein Stunden × Rate)
@@ -401,8 +409,10 @@ class PayrollService:
         net_minutes = gross_minutes - break_min
         return max(0, net_minutes / 60)
 
-    def _calc_surcharges(self, shift, hourly_rate: float) -> dict:
+    def _calc_surcharges(self, shift, hourly_rate: float, rates: dict | None = None) -> dict:
         """Berechnet Zuschlagsstunden und -beträge für einen Dienst."""
+        if rates is None:
+            rates = SURCHARGE_RATES
         hours_by_type: dict[str, float] = defaultdict(float)
         amounts_by_type: dict[str, float] = defaultdict(float)
 
@@ -423,13 +433,13 @@ class PayrollService:
 
         if holiday_ok:
             hours_by_type["holiday"] += net_hours
-            amounts_by_type["holiday"] += net_hours * hourly_rate * SURCHARGE_RATES["holiday"]
+            amounts_by_type["holiday"] += net_hours * hourly_rate * rates["holiday"]
         elif is_sunday:
             hours_by_type["sunday"] += net_hours
-            amounts_by_type["sunday"] += net_hours * hourly_rate * SURCHARGE_RATES["sunday"]
+            amounts_by_type["sunday"] += net_hours * hourly_rate * rates["sunday"]
         elif is_saturday:
             hours_by_type["weekend"] += net_hours
-            amounts_by_type["weekend"] += net_hours * hourly_rate * SURCHARGE_RATES["weekend"]
+            amounts_by_type["weekend"] += net_hours * hourly_rate * rates["weekend"]
 
         # Zeit-Zuschläge (unabhängig vom Wochentag)
         current = start_dt
@@ -442,13 +452,13 @@ class PayrollService:
 
             if h < 6:  # Früh (00–06)
                 hours_by_type["early"] += fraction
-                amounts_by_type["early"] += fraction * hourly_rate * SURCHARGE_RATES["early"]
+                amounts_by_type["early"] += fraction * hourly_rate * rates["early"]
             if h >= 20:  # Spät (20–24)
                 hours_by_type["late"] += fraction
-                amounts_by_type["late"] += fraction * hourly_rate * SURCHARGE_RATES["late"]
+                amounts_by_type["late"] += fraction * hourly_rate * rates["late"]
             if h >= 23 or h < 6:  # Nacht (23–06)
                 hours_by_type["night"] += fraction
-                amounts_by_type["night"] += fraction * hourly_rate * SURCHARGE_RATES["night"]
+                amounts_by_type["night"] += fraction * hourly_rate * rates["night"]
 
             current = next_tick
 

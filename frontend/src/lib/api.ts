@@ -270,6 +270,11 @@ export const adminSettingsApi = {
     host: string; port: number; user: string; password: string; from_email: string;
   }) => api.put("/admin/settings/smtp", data),
   testSmtp: () => api.post("/admin/settings/smtp/test"),
+  getSurcharges: () => api.get("/admin/settings/surcharges"),
+  updateSurcharges: (data: {
+    early: number; late: number; night: number;
+    weekend: number; sunday: number; holiday: number;
+  }) => api.put("/admin/settings/surcharges", data),
 };
 
 // Calendar vacation data

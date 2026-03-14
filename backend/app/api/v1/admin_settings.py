@@ -1,8 +1,8 @@
 """
-Admin Settings API – SMTP-Konfiguration pro Tenant.
+Admin Settings API – SMTP-Konfiguration + Zuschlagsätze pro Tenant.
 
-Gespeichert in Tenant.settings["smtp"] (vorhandene JSON-Spalte, keine Migration nötig).
-Das Passwort wird nie im GET zurückgegeben – nur has_password: bool.
+Gespeichert in Tenant.settings["smtp"] / Tenant.settings["surcharges"]
+(vorhandene JSON-Spalte, keine Migration nötig).
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -114,6 +114,44 @@ async def test_smtp_config(current_user: AdminUser, db: DB):
         raise HTTPException(status_code=502, detail=f"SMTP-Fehler: {str(e)[:200]}")
 
     return {"detail": f"Test-Mail an {to_addr} gesendet"}
+
+
+# ── Surcharge rates ───────────────────────────────────────────────────────────
+
+DEFAULT_SURCHARGE_RATES = {
+    "early":   0.125,  # 12.5% vor 06:00
+    "late":    0.125,  # 12.5% nach 20:00
+    "night":   0.25,   # 25%   23:00–06:00
+    "weekend": 0.25,   # 25%   Samstag
+    "sunday":  0.50,   # 50%   Sonntag
+    "holiday": 1.25,   # 125%  Feiertag
+}
+
+
+class SurchargeRates(BaseModel):
+    early:   float  # Frühzuschlag (vor 06:00)
+    late:    float  # Spätzuschlag (nach 20:00)
+    night:   float  # Nachtzuschlag (23:00–06:00)
+    weekend: float  # Samstag
+    sunday:  float  # Sonntag
+    holiday: float  # Feiertag
+
+
+@router.get("/settings/surcharges", response_model=SurchargeRates)
+async def get_surcharge_rates(current_user: AdminUser, db: DB):
+    """Zuschlagsätze des Tenants lesen (Fallback auf gesetzliche §3b-EStG-Defaults)."""
+    tenant = await _get_tenant(db, current_user.tenant_id)
+    cfg = (tenant.settings or {}).get("surcharges", {})
+    return SurchargeRates(**{k: cfg.get(k, v) for k, v in DEFAULT_SURCHARGE_RATES.items()})
+
+
+@router.put("/settings/surcharges", response_model=SurchargeRates)
+async def update_surcharge_rates(payload: SurchargeRates, current_user: AdminUser, db: DB):
+    """Zuschlagsätze speichern (in Tenant.settings['surcharges'])."""
+    tenant = await _get_tenant(db, current_user.tenant_id)
+    tenant.settings = {**(tenant.settings or {}), "surcharges": payload.model_dump()}
+    await db.commit()
+    return payload
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────
