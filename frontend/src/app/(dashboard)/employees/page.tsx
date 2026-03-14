@@ -554,117 +554,126 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
             </div>
           </div>
 
-          {/* Jobeinstellungen */}
-          <div className="space-y-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Jobeinstellungen
+          {/* Jobeinstellungen – nur beim Neuanlegen */}
+          {!isEdit && (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Jobeinstellungen
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Vertragsart
+                  </label>
+                  <select
+                    value={form.contract_type}
+                    onChange={(e) => {
+                      const ct = e.target.value;
+                      setForm((f) => ({
+                        ...f,
+                        contract_type: ct,
+                        annual_salary_limit: ct === "minijob" ? "6672" : f.annual_salary_limit,
+                        monthly_hours_limit: ct === "minijob" && !f.monthly_hours_limit ? "43" : f.monthly_hours_limit,
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="minijob">Minijob</option>
+                    <option value="part_time">Teilzeit</option>
+                    <option value="full_time">Vollzeit</option>
+                    <option value="ehrenamt">Ehrenamt</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    {(form.contract_type === "part_time" || form.contract_type === "full_time")
+                      ? "Stundensatz f. Zuschläge (€)"
+                      : "Stundenlohn (€)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.hourly_rate}
+                    onChange={(e) => set("hourly_rate", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="12.41"
+                  />
+                </div>
+              </div>
+              {(form.contract_type === "part_time" || form.contract_type === "full_time") && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Monatslohn (€) – fixer Grundlohn
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.monthly_salary}
+                    onChange={(e) => set("monthly_salary", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="z.B. 1850.00"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Wenn gesetzt: fixer Grundlohn statt Stunden × Stundensatz. Zuschläge kommen oben drauf.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Std.-Limit / Monat
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.monthly_hours_limit}
+                    onChange={(e) => set("monthly_hours_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder={form.contract_type === "minijob" ? "43" : ""}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Jahresgehaltsgrenze (€)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.annual_salary_limit}
+                    onChange={(e) => set("annual_salary_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                </div>
+              </div>
+              {(form.contract_type === "full_time" || form.contract_type === "part_time") && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Jahressoll (Std./Jahr)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.annual_hours_target}
+                    onChange={(e) => set("annual_hours_target", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="z.B. 1800"
+                  />
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Vertragsart
-                </label>
-                <select
-                  value={form.contract_type}
-                  onChange={(e) => {
-                    const ct = e.target.value;
-                    setForm((f) => ({
-                      ...f,
-                      contract_type: ct,
-                      annual_salary_limit: ct === "minijob" ? "6672" : f.annual_salary_limit,
-                      monthly_hours_limit: ct === "minijob" && !f.monthly_hours_limit ? "43" : f.monthly_hours_limit,
-                    }));
-                  }}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                >
-                  <option value="minijob">Minijob</option>
-                  <option value="part_time">Teilzeit</option>
-                  <option value="full_time">Vollzeit</option>
-                  <option value="ehrenamt">Ehrenamt</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  {(form.contract_type === "part_time" || form.contract_type === "full_time")
-                    ? "Stundensatz f. Zuschläge (€)"
-                    : "Stundenlohn (€)"}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.hourly_rate}
-                  onChange={(e) => set("hourly_rate", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder="12.41"
-                />
-              </div>
-            </div>
-            {(form.contract_type === "part_time" || form.contract_type === "full_time") && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Monatslohn (€) – fixer Grundlohn
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.monthly_salary}
-                  onChange={(e) => set("monthly_salary", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder="z.B. 1850.00"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Wenn gesetzt: fixer Grundlohn statt Stunden × Stundensatz. Zuschläge kommen oben drauf.
-                </p>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Std.-Limit / Monat
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={form.monthly_hours_limit}
-                  onChange={(e) => set("monthly_hours_limit", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder={form.contract_type === "minijob" ? "43" : ""}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Jahresgehaltsgrenze (€)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.annual_salary_limit}
-                  onChange={(e) => set("annual_salary_limit", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                />
-              </div>
-            </div>
-            {(form.contract_type === "full_time" || form.contract_type === "part_time") && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Jahressoll (Std./Jahr)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={form.annual_hours_target}
-                  onChange={(e) => set("annual_hours_target", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder="z.B. 1800"
-                />
-              </div>
-            )}
-          </div>
+          )}
+
+          {isEdit && (
+            <p className="text-xs text-muted-foreground rounded-lg bg-muted px-3 py-2">
+              Vertragseinstellungen (Lohn, Stunden, Limits) bitte im Tab
+              <strong> Vertragsverlauf</strong> anpassen.
+            </p>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">
@@ -815,117 +824,126 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
             </div>
           </div>
 
-          {/* Jobeinstellungen */}
-          <div className="space-y-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Jobeinstellungen
+          {/* Jobeinstellungen – nur beim Neuanlegen */}
+          {!isEdit && (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Jobeinstellungen
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Vertragsart
+                  </label>
+                  <select
+                    value={form.contract_type}
+                    onChange={(e) => {
+                      const ct = e.target.value;
+                      setForm((f) => ({
+                        ...f,
+                        contract_type: ct,
+                        annual_salary_limit: ct === "minijob" ? "6672" : f.annual_salary_limit,
+                        monthly_hours_limit: ct === "minijob" && !f.monthly_hours_limit ? "43" : f.monthly_hours_limit,
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="minijob">Minijob</option>
+                    <option value="part_time">Teilzeit</option>
+                    <option value="full_time">Vollzeit</option>
+                    <option value="ehrenamt">Ehrenamt</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    {(form.contract_type === "part_time" || form.contract_type === "full_time")
+                      ? "Stundensatz f. Zuschläge (€)"
+                      : "Stundenlohn (€)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.hourly_rate}
+                    onChange={(e) => set("hourly_rate", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="12.41"
+                  />
+                </div>
+              </div>
+              {(form.contract_type === "part_time" || form.contract_type === "full_time") && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Monatslohn (€) – fixer Grundlohn
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.monthly_salary}
+                    onChange={(e) => set("monthly_salary", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="z.B. 1850.00"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Wenn gesetzt: fixer Grundlohn statt Stunden × Stundensatz. Zuschläge kommen oben drauf.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Std.-Limit / Monat
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.monthly_hours_limit}
+                    onChange={(e) => set("monthly_hours_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder={form.contract_type === "minijob" ? "43" : ""}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Jahresgehaltsgrenze (€)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.annual_salary_limit}
+                    onChange={(e) => set("annual_salary_limit", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  />
+                </div>
+              </div>
+              {(form.contract_type === "full_time" || form.contract_type === "part_time") && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Jahressoll (Std./Jahr)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.annual_hours_target}
+                    onChange={(e) => set("annual_hours_target", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    placeholder="z.B. 1800"
+                  />
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Vertragsart
-                </label>
-                <select
-                  value={form.contract_type}
-                  onChange={(e) => {
-                    const ct = e.target.value;
-                    setForm((f) => ({
-                      ...f,
-                      contract_type: ct,
-                      annual_salary_limit: ct === "minijob" ? "6672" : f.annual_salary_limit,
-                      monthly_hours_limit: ct === "minijob" && !f.monthly_hours_limit ? "43" : f.monthly_hours_limit,
-                    }));
-                  }}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                >
-                  <option value="minijob">Minijob</option>
-                  <option value="part_time">Teilzeit</option>
-                  <option value="full_time">Vollzeit</option>
-                  <option value="ehrenamt">Ehrenamt</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  {(form.contract_type === "part_time" || form.contract_type === "full_time")
-                    ? "Stundensatz f. Zuschläge (€)"
-                    : "Stundenlohn (€)"}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.hourly_rate}
-                  onChange={(e) => set("hourly_rate", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder="12.41"
-                />
-              </div>
-            </div>
-            {(form.contract_type === "part_time" || form.contract_type === "full_time") && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Monatslohn (€) – fixer Grundlohn
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.monthly_salary}
-                  onChange={(e) => set("monthly_salary", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder="z.B. 1850.00"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Wenn gesetzt: fixer Grundlohn statt Stunden × Stundensatz. Zuschläge kommen oben drauf.
-                </p>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Std.-Limit / Monat
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={form.monthly_hours_limit}
-                  onChange={(e) => set("monthly_hours_limit", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder={form.contract_type === "minijob" ? "43" : ""}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Jahresgehaltsgrenze (€)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.annual_salary_limit}
-                  onChange={(e) => set("annual_salary_limit", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                />
-              </div>
-            </div>
-            {(form.contract_type === "full_time" || form.contract_type === "part_time") && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Jahressoll (Std./Jahr)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={form.annual_hours_target}
-                  onChange={(e) => set("annual_hours_target", e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  placeholder="z.B. 1800"
-                />
-              </div>
-            )}
-          </div>
+          )}
+
+          {isEdit && (
+            <p className="text-xs text-muted-foreground rounded-lg bg-muted px-3 py-2">
+              Vertragseinstellungen (Lohn, Stunden, Limits) bitte im Tab
+              <strong> Vertragsverlauf</strong> anpassen.
+            </p>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">

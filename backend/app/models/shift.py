@@ -87,12 +87,21 @@ class Shift(Base):
     )
     is_override: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Shift type (Diensttyp)
+    shift_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("shift_types.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Relationships
     employee: Mapped["Employee | None"] = relationship(back_populates="shifts")
     template: Mapped["ShiftTemplate | None"] = relationship(back_populates="shifts")
     recurring_shift: Mapped["RecurringShift | None"] = relationship(  # type: ignore[name-defined]
         back_populates="generated_shifts",
         foreign_keys=[recurring_shift_id],
+    )
+    shift_type: Mapped["ShiftType | None"] = relationship(  # type: ignore[name-defined]
+        back_populates="shifts",
+        foreign_keys=[shift_type_id],
     )
 
     @property

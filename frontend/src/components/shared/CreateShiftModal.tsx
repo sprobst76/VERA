@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { shiftsApi } from "@/lib/api";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { shiftsApi, shiftTypesApi } from "@/lib/api";
 import { addDays } from "date-fns";
 import { X, CalendarRange } from "lucide-react";
 import toast from "react-hot-toast";
@@ -44,8 +44,14 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
   const [sStart,    setSStart]    = useState("");
   const [sEnd,      setSEnd]      = useState("");
   const [sBreak,    setSBreak]    = useState(0);
-  const [sLocation, setSLocation] = useState("");
-  const [sNotes,    setSNotes]    = useState("");
+  const [sLocation,    setSLocation]    = useState("");
+  const [sNotes,       setSNotes]       = useState("");
+  const [sShiftTypeId, setSShiftTypeId] = useState("");
+
+  const { data: shiftTypes = [] } = useQuery<any[]>({
+    queryKey: ["shift-types"],
+    queryFn: () => shiftTypesApi.list().then(r => r.data),
+  });
 
   const selectedSingleTpl = templates.find((t: any) => t.id === sTplId);
 
@@ -75,6 +81,7 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
       shiftsApi.create({
         template_id: sTplId || undefined,
         employee_id: sEmpId || undefined,
+        shift_type_id: sShiftTypeId || undefined,
         date: sDate,
         start_time: sStart,
         end_time: sEnd,
@@ -141,6 +148,32 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
                 {templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
+
+            {shiftTypes.length > 0 && (
+              <div>
+                <label className={labelCls}>Diensttyp</label>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setSShiftTypeId("")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${!sShiftTypeId ? "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400" : "border-border text-muted-foreground hover:bg-muted"}`}
+                  >
+                    Kein Typ
+                  </button>
+                  {shiftTypes.map((st: any) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setSShiftTypeId(st.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${sShiftTypeId === st.id ? "border-blue-500 bg-blue-500/10" : "border-border text-muted-foreground hover:bg-muted"}`}
+                    >
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: st.color }} />
+                      {st.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className={labelCls}>Datum *</label>

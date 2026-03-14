@@ -290,3 +290,12 @@ export const webhooksApi = {
   test: (id: string) => api.post(`/webhooks/${id}/test`),
   events: () => api.get("/webhooks/events"),
 };
+
+export const shiftTypesApi = {
+  list: () => api.get("/shift-types"),
+  create: (data: { name: string; color: string; description?: string; reminder_enabled: boolean; reminder_minutes_before: number }) =>
+    api.post("/shift-types", data),
+  update: (id: string, data: Partial<{ name: string; color: string; description: string; reminder_enabled: boolean; reminder_minutes_before: number; is_active: boolean }>) =>
+    api.put(`/shift-types/${id}`, data),
+  delete: (id: string) => api.delete(`/shift-types/${id}`),
+};

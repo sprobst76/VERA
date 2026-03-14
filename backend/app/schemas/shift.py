@@ -4,6 +4,39 @@ from datetime import date as Date, datetime as DateTime, time as Time
 from typing import Optional
 
 
+# ── ShiftType schemas ────────────────────────────────────────────────────────
+
+class ShiftTypeCreate(BaseModel):
+    name: str
+    color: str = "#1E3A5F"
+    description: Optional[str] = None
+    reminder_enabled: bool = False
+    reminder_minutes_before: int = 60
+
+
+class ShiftTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    description: Optional[str] = None
+    reminder_enabled: Optional[bool] = None
+    reminder_minutes_before: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class ShiftTypeOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    name: str
+    color: str
+    description: Optional[str]
+    reminder_enabled: bool
+    reminder_minutes_before: int
+    is_active: bool
+    created_at: DateTime
+
+    model_config = {"from_attributes": True}
+
+
 class ShiftTemplateCreate(BaseModel):
     name: str
     weekdays: list[int]  # 0=Mo ... 6=So
@@ -41,6 +74,7 @@ class ShiftTemplateOut(BaseModel):
 class ShiftCreate(BaseModel):
     employee_id: Optional[uuid.UUID] = None
     template_id: Optional[uuid.UUID] = None
+    shift_type_id: Optional[uuid.UUID] = None
     date: Date
     start_time: Time
     end_time: Time
@@ -51,6 +85,7 @@ class ShiftCreate(BaseModel):
 
 class ShiftUpdate(BaseModel):
     employee_id: Optional[uuid.UUID] = None
+    shift_type_id: Optional[uuid.UUID] = None
     date: Optional[Date] = None
     start_time: Optional[Time] = None
     end_time: Optional[Time] = None
@@ -82,6 +117,7 @@ class ShiftOut(BaseModel):
     tenant_id: uuid.UUID
     employee_id: Optional[uuid.UUID]
     template_id: Optional[uuid.UUID]
+    shift_type_id: Optional[uuid.UUID]
     date: Date
     start_time: Time
     end_time: Time

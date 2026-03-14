@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
 import { format, parse, startOfWeek, endOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, eachDayOfInterval } from "date-fns";
 import { de } from "date-fns/locale";
-import { shiftsApi, templatesApi, employeesApi, calendarDataApi, recurringShiftsApi } from "@/lib/api";
+import { shiftsApi, templatesApi, employeesApi, calendarDataApi, recurringShiftsApi, shiftTypesApi } from "@/lib/api";
 import { ChevronLeft, ChevronRight, AlertCircle, Plus } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { CreateShiftModal } from "@/components/shared/CreateShiftModal";
@@ -77,25 +77,34 @@ export default function CalendarPage() {
     enabled: isPrivileged,
   });
 
+  const { data: shiftTypes = [] } = useQuery({
+    queryKey: ["shift-types"],
+    queryFn: () => shiftTypesApi.list().then(r => r.data),
+  });
+
   // Lookup-Maps
-  const templateMap = useMemo(() =>
+  const templateMap  = useMemo(() =>
     Object.fromEntries(templates.map((t: any) => [t.id, t])), [templates]);
-  const employeeMap = useMemo(() =>
+  const employeeMap  = useMemo(() =>
     Object.fromEntries(employees.map((e: any) => [e.id, e])), [employees]);
+  const shiftTypeMap = useMemo(() =>
+    Object.fromEntries((shiftTypes as any[]).map((st: any) => [st.id, st])), [shiftTypes]);
 
   // Shifts → Calendar Events
   const events = useMemo(() => shifts.map((s: any) => {
-    const tpl = templateMap[s.template_id];
-    const emp = employeeMap[s.employee_id];
-    const empName = emp ? `${emp.first_name} ${emp.last_name[0]}.` : "Offen";
+    const tpl       = templateMap[s.template_id];
+    const emp       = employeeMap[s.employee_id];
+    const shiftType = shiftTypeMap[s.shift_type_id];
+    const empName   = emp ? `${emp.first_name} ${emp.last_name[0]}.` : "Offen";
+    const typeLabel = shiftType ? ` [${shiftType.name}]` : "";
     return {
       id: s.id,
-      title: tpl ? `${tpl.name} – ${empName}` : empName,
+      title: tpl ? `${tpl.name}${typeLabel} – ${empName}` : empName,
       start: new Date(`${s.date}T${s.start_time}`),
       end:   new Date(`${s.date}T${s.end_time}`),
-      resource: { shift: s, template: tpl, employee: emp },
+      resource: { shift: s, template: tpl, employee: emp, shiftType },
     };
-  }), [shifts, templateMap, employeeMap]);
+  }), [shifts, templateMap, employeeMap, shiftTypeMap]);
 
   // Holiday display events: vacation periods + public holidays as visible all-day bars
   const holidayEvents = useMemo(() => {
@@ -175,7 +184,7 @@ export default function CalendarPage() {
 
   // Farbe je Template, grau für offene Dienste; Ferien/Feiertage als bunte Labels
   const eventPropGetter = useCallback((event: any) => {
-    const { shift, template, type, color: labelColor } = event.resource ?? {};
+    const { shift, template, shiftType, type, color: labelColor } = event.resource ?? {};
 
     // Schulferien / Feiertag – farbiger, nicht-interaktiver Balken
     if (type === "vacation_label" || type === "holiday_label") {
@@ -196,7 +205,7 @@ export default function CalendarPage() {
 
     if (!shift) return {};
     const isOpen = !shift.employee_id;
-    const c = isOpen ? "#ef4444" : (template?.color ?? "#1E3A5F");
+    const c = isOpen ? "#ef4444" : (shiftType?.color ?? template?.color ?? "#1E3A5F");
     const isCancelled = shift.status.startsWith("cancelled");
     return {
       style: {

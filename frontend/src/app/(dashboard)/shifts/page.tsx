@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi } from "@/lib/api";
+import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi, shiftTypesApi } from "@/lib/api";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck } from "lucide-react";
@@ -656,8 +656,14 @@ export default function ShiftsPage() {
     onError:   () => toast.error("Löschen fehlgeschlagen"),
   });
 
-  const templateMap = Object.fromEntries((templates as any[]).map((t: any) => [t.id, t]));
-  const employeeMap = Object.fromEntries((employees as any[]).map((e: any) => [e.id, e]));
+  const { data: shiftTypes = [] } = useQuery({
+    queryKey: ["shift-types"],
+    queryFn: () => shiftTypesApi.list().then(r => r.data),
+  });
+
+  const templateMap  = Object.fromEntries((templates as any[]).map((t: any) => [t.id, t]));
+  const employeeMap  = Object.fromEntries((employees as any[]).map((e: any) => [e.id, e]));
+  const shiftTypeMap = Object.fromEntries((shiftTypes as any[]).map((st: any) => [st.id, st]));
 
   const isPastMonth = month < startOfMonth(new Date());
 
@@ -829,19 +835,28 @@ export default function ShiftsPage() {
                     {grouped[date].map((shift: any) => {
                       const tpl = templateMap[shift.template_id];
                       const emp = employeeMap[shift.employee_id];
+                      const shiftType = shiftTypeMap[shift.shift_type_id];
                       const isOwnShift = !isPrivileged && ownProfile && shift.employee_id === (ownProfile as any).id;
                       const hasActualTime = shift.actual_start || shift.actual_end;
+                      // Color priority: shift type > template > fallback
+                      const dotColor = shiftType?.color ?? tpl?.color ?? "rgb(var(--ctp-overlay1))";
 
                       return (
                         <div key={shift.id} className="flex items-center gap-2 px-3 py-3 sm:px-4">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: tpl?.color ?? "rgb(var(--ctp-overlay1))" }} />
+                            style={{ backgroundColor: dotColor }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-medium text-foreground shrink-0">
                                 {shift.start_time?.slice(0,5)} – {shift.end_time?.slice(0,5)}
                               </span>
                               <span className="text-sm text-foreground truncate">{tpl?.name ?? "–"}</span>
+                              {shiftType && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0"
+                                  style={{ backgroundColor: shiftType.color + "22", color: shiftType.color }}>
+                                  {shiftType.name}
+                                </span>
+                              )}
                               {shift.recurring_shift_id && (
                                 <span title="Aus Regeltermin"><RepeatIcon size={11} className="text-muted-foreground shrink-0" /></span>
                               )}

@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi, webhooksApi, shiftTypesApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -1086,6 +1086,247 @@ function WebhookModal({ webhook, onClose, onSaved }: {
   );
 }
 
+// ── Diensttypen Section ───────────────────────────────────────────────────────
+
+interface ShiftType {
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  reminder_enabled: boolean;
+  reminder_minutes_before: number;
+  is_active: boolean;
+}
+
+function ShiftTypeModal({ existing, onClose }: { existing?: ShiftType; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: existing?.name ?? "",
+    color: existing?.color ?? "#4A90D9",
+    description: existing?.description ?? "",
+    reminder_enabled: existing?.reminder_enabled ?? false,
+    reminder_minutes_before: existing?.reminder_minutes_before ?? 60,
+  });
+
+  const mut = useMutation({
+    mutationFn: () =>
+      existing
+        ? shiftTypesApi.update(existing.id, {
+            ...form,
+            description: form.description || undefined,
+          })
+        : shiftTypesApi.create({
+            ...form,
+            description: form.description || undefined,
+          }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shift-types"] });
+      toast.success(existing ? "Diensttyp aktualisiert" : "Diensttyp angelegt");
+      onClose();
+    },
+    onError: () => toast.error("Fehler beim Speichern"),
+  });
+
+  const PRESET_COLORS = [
+    "#4A90D9", "#E74C3C", "#2ECC71", "#F39C12", "#9B59B6",
+    "#1ABC9C", "#E67E22", "#34495E", "#E91E63", "#00BCD4",
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-card rounded-2xl border border-border w-full max-w-sm p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-foreground">
+            {existing ? "Diensttyp bearbeiten" : "Neuer Diensttyp"}
+          </h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+            <Plus size={16} className="rotate-45" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Name</label>
+            <input
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="z.B. Nachtdienst"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Farbe</label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {PRESET_COLORS.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, color: c }))}
+                  className="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110"
+                  style={{
+                    backgroundColor: c,
+                    borderColor: form.color === c ? "rgb(var(--ctp-blue))" : "transparent",
+                  }}
+                />
+              ))}
+              <input
+                type="color"
+                value={form.color}
+                onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
+                className="w-7 h-7 rounded-full cursor-pointer border border-border bg-transparent"
+                title="Eigene Farbe"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Beschreibung (optional)</label>
+            <input
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="z.B. Betreuung von 22–6 Uhr"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div className="rounded-xl border border-border p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                <Bell size={14} /> Erinnerung
+              </span>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, reminder_enabled: !f.reminder_enabled }))}
+                className={`relative w-10 h-5 rounded-full transition-colors ${form.reminder_enabled ? "bg-blue-500" : "bg-muted-foreground/30"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.reminder_enabled ? "translate-x-5" : ""}`} />
+              </button>
+            </div>
+            {form.reminder_enabled && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={5}
+                  max={1440}
+                  step={5}
+                  value={form.reminder_minutes_before}
+                  onChange={e => setForm(f => ({ ...f, reminder_minutes_before: parseInt(e.target.value) || 60 }))}
+                  className="w-20 border border-border rounded-lg px-2 py-1 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <span className="text-xs text-muted-foreground">Minuten vor Dienstbeginn</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={() => mut.mutate()}
+            disabled={!form.name || mut.isPending}
+            className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+          >
+            {mut.isPending ? "Speichern…" : "Speichern"}
+          </button>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm border border-border text-muted-foreground hover:bg-muted">
+            Abbrechen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShiftTypesSection() {
+  const qc = useQueryClient();
+  const [modal, setModal] = useState<null | "create" | ShiftType>(null);
+
+  const { data: shiftTypes = [] } = useQuery<ShiftType[]>({
+    queryKey: ["shift-types"],
+    queryFn: () => shiftTypesApi.list().then(r => r.data),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => shiftTypesApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shift-types"] });
+      toast.success("Diensttyp deaktiviert");
+    },
+    onError: () => toast.error("Fehler beim Löschen"),
+  });
+
+  return (
+    <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Layers size={18} className="text-muted-foreground" />
+          <h2 className="font-semibold text-foreground">Diensttypen</h2>
+        </div>
+        <button
+          onClick={() => setModal("create")}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium text-white"
+          style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+        >
+          <Plus size={13} /> Neu
+        </button>
+      </div>
+
+      {shiftTypes.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          Noch keine Diensttypen angelegt.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {shiftTypes.map(st => (
+            <div key={st.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/30 transition-colors">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: st.color }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">{st.name}</span>
+                  {st.reminder_enabled ? (
+                    <Bell size={12} className="text-muted-foreground" title={`Erinnerung ${st.reminder_minutes_before} Min. vorher`} />
+                  ) : (
+                    <BellOff size={12} className="text-muted-foreground/40" title="Keine Erinnerung" />
+                  )}
+                </div>
+                {st.description && (
+                  <p className="text-xs text-muted-foreground truncate">{st.description}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setModal(st)}
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Diensttyp "${st.name}" deaktivieren?`)) deleteMut.mutate(st.id);
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal && (
+        <ShiftTypeModal
+          existing={modal === "create" ? undefined : modal}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Webhooks Section ──────────────────────────────────────────────────────────
+
 function WebhooksSection() {
   const qc = useQueryClient();
   const [modal, setModal] = useState<"create" | { webhook: any } | null>(null);
@@ -1306,6 +1547,9 @@ export default function SettingsPage() {
 
       {/* API-Keys (admin only) */}
       {role === "admin" && <ApiKeysSection />}
+
+      {/* Diensttypen (admin/manager) */}
+      {isPrivileged && <ShiftTypesSection />}
 
       {/* Webhooks (admin only) */}
       {role === "admin" && <WebhooksSection />}
