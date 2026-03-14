@@ -195,38 +195,45 @@ export default function CalendarPage() {
     return hevents;
   }, [vacationData]);
 
-  // Recurring shift events (clickable, visually distinct)
+  // Recurring shift events – nur anzeigen wenn kein echter Dienst an dem Tag existiert
   const recurringEvents = useMemo(() => {
     const evts: any[] = [];
-    if (view !== "month") {
-      const rangeStartDate = parseISO(rangeStart);
-      const rangeEndDate = parseISO(rangeEnd);
-      for (const rs of recurringShifts as any[]) {
-        const tpl = templateMap[rs.template_id];
-        const color = tpl?.color ?? "rgb(var(--ctp-blue))";
-        const allDays = eachDayOfInterval({ start: rangeStartDate, end: rangeEndDate });
-        for (const d of allDays) {
-          if (getDay(d) === (rs.weekday + 1) % 7) {
-            const [sh, sm] = rs.start_time.slice(0, 5).split(":").map(Number);
-            const [eh, em] = rs.end_time.slice(0, 5).split(":").map(Number);
-            const startDt = new Date(d);
-            startDt.setHours(sh, sm, 0, 0);
-            const endDt = new Date(d);
-            endDt.setHours(eh, em, 0, 0);
-            evts.push({
-              id: `rs-${rs.id}-${format(d, "yyyy-MM-dd")}`,
-              title: `↻ ${rs.label || tpl?.name || "Regeltermin"}`,
-              start: startDt,
-              end: endDt,
-              allDay: false,
-              resource: { type: "recurring_shift", color, recurringShift: rs, template: tpl },
-            });
-          }
+    if (view === "month") return evts;
+
+    // Alle Tage mit echten Diensten als Set
+    const shiftDates = new Set((shifts as any[]).map((s: any) => s.date));
+
+    const rangeStartDate = parseISO(rangeStart);
+    const rangeEndDate = parseISO(rangeEnd);
+    for (const rs of recurringShifts as any[]) {
+      const tpl = templateMap[rs.template_id];
+      const color = tpl?.color ?? "rgb(var(--ctp-blue))";
+      const allDays = eachDayOfInterval({ start: rangeStartDate, end: rangeEndDate });
+      for (const d of allDays) {
+        if (getDay(d) === (rs.weekday + 1) % 7) {
+          const dateStr = format(d, "yyyy-MM-dd");
+          // Kein Regeltermin-Event wenn an diesem Tag bereits ein echter Dienst existiert
+          if (shiftDates.has(dateStr)) continue;
+
+          const [sh, sm] = rs.start_time.slice(0, 5).split(":").map(Number);
+          const [eh, em] = rs.end_time.slice(0, 5).split(":").map(Number);
+          const startDt = new Date(d);
+          startDt.setHours(sh, sm, 0, 0);
+          const endDt = new Date(d);
+          endDt.setHours(eh, em, 0, 0);
+          evts.push({
+            id: `rs-${rs.id}-${dateStr}`,
+            title: `↻ ${rs.label || tpl?.name || "Regeltermin"}`,
+            start: startDt,
+            end: endDt,
+            allDay: false,
+            resource: { type: "recurring_shift", color, recurringShift: rs, template: tpl },
+          });
         }
       }
     }
     return evts;
-  }, [recurringShifts, templateMap, rangeStart, rangeEnd, view]);
+  }, [recurringShifts, templateMap, rangeStart, rangeEnd, view, shifts]);
 
   const allEvents = useMemo(() => [...events, ...holidayEvents, ...recurringEvents], [events, holidayEvents, recurringEvents]);
 
