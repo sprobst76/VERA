@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi } from "@/lib/api";
+import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil } from "lucide-react";
+import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -741,6 +741,260 @@ function FerienprofileSection() {
   );
 }
 
+// ── API Keys Section (Admin only) ─────────────────────────────────────────────
+
+const ALL_SCOPES = ["read", "write", "admin"] as const;
+type ScopeValue = typeof ALL_SCOPES[number];
+
+const SCOPE_LABELS: Record<ScopeValue, string> = {
+  read: "Lesen",
+  write: "Schreiben",
+  admin: "Admin",
+};
+
+const SCOPE_COLORS: Record<ScopeValue, string> = {
+  read:  "--ctp-blue",
+  write: "--ctp-peach",
+  admin: "--ctp-red",
+};
+
+interface ApiKeyItem {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  is_active: boolean;
+  expires_at: string | null;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+function CreateApiKeyModal({ onClose, onCreated }: { onClose: () => void; onCreated: (key: string) => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [scopes, setScopes] = useState<string[]>(["read"]);
+
+  const toggleScope = (scope: string) => {
+    setScopes(prev =>
+      prev.includes(scope) ? prev.filter(s => s !== scope) : [...prev, scope]
+    );
+  };
+
+  const mut = useMutation({
+    mutationFn: () => apiKeysApi.create({ name, scopes }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["api-keys"] });
+      onCreated(res.data.key);
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || "Fehler beim Erstellen"),
+  });
+
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h2 className="font-semibold text-foreground">Neuen API-Key erstellen</h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-accent text-muted-foreground">✕</button>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Name / Verwendungszweck</label>
+            <input
+              className={inputCls}
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="z.B. n8n Automatisierung"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-2">Berechtigungen</label>
+            <div className="flex gap-2 flex-wrap">
+              {ALL_SCOPES.map(scope => (
+                <label key={scope} className="flex items-center gap-1.5 cursor-pointer text-sm select-none">
+                  <input
+                    type="checkbox"
+                    checked={scopes.includes(scope)}
+                    onChange={() => toggleScope(scope)}
+                    className="rounded"
+                  />
+                  <span style={{ color: `rgb(var(${SCOPE_COLORS[scope]}))` }}>{SCOPE_LABELS[scope]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => mut.mutate()}
+            disabled={!name || scopes.length === 0 || mut.isPending}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity"
+            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}>
+            {mut.isPending ? "Wird erstellt…" : "API-Key erstellen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewKeyAlert({ rawKey, onDismiss }: { rawKey: string; onDismiss: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyKey = () => {
+    navigator.clipboard.writeText(rawKey).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="rounded-lg border p-4 space-y-3"
+      style={{ borderColor: "rgb(var(--ctp-yellow) / 0.5)", backgroundColor: "rgb(var(--ctp-yellow) / 0.08)" }}>
+      <div className="flex items-start gap-2">
+        <AlertTriangle size={16} className="shrink-0 mt-0.5" style={{ color: "rgb(var(--ctp-yellow))" }} />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Key nur einmal anzeigbar!</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Dieser Key wird nicht gespeichert und kann nicht wiederhergestellt werden. Kopiere ihn jetzt.
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 text-xs font-mono px-3 py-2 rounded-lg bg-background border border-border text-foreground break-all">
+          {rawKey}
+        </code>
+        <button
+          onClick={copyKey}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-border hover:bg-accent transition-colors"
+          title="In Zwischenablage kopieren">
+          {copied ? <Check size={14} style={{ color: "rgb(var(--ctp-green))" }} /> : <Copy size={14} />}
+          {copied ? "Kopiert" : "Kopieren"}
+        </button>
+      </div>
+      <button
+        onClick={onDismiss}
+        className="text-xs text-muted-foreground hover:text-foreground underline transition-colors">
+        Ich habe den Key gespeichert – ausblenden
+      </button>
+    </div>
+  );
+}
+
+function ApiKeysSection() {
+  const qc = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [newRawKey, setNewRawKey] = useState<string | null>(null);
+
+  const { data: keys = [], isLoading } = useQuery<ApiKeyItem[]>({
+    queryKey: ["api-keys"],
+    queryFn: () => apiKeysApi.list().then(r => r.data),
+  });
+
+  const revokeMut = useMutation({
+    mutationFn: (id: string) => apiKeysApi.revoke(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["api-keys"] });
+      toast.success("API-Key widerrufen");
+    },
+    onError: () => toast.error("Fehler beim Widerrufen"),
+  });
+
+  const handleCreated = (rawKey: string) => {
+    setShowCreate(false);
+    setNewRawKey(rawKey);
+  };
+
+  return (
+    <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <KeyRound size={18} style={{ color: "rgb(var(--ctp-mauve))" }} />
+          <h2 className="font-semibold text-foreground">API-Keys</h2>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-accent text-foreground transition-colors">
+          <Plus size={13} /> Neuer Key
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Erstelle API-Keys für externe Clients wie n8n oder Zapier. Keys werden gehasht gespeichert – der Klartext ist nur einmalig beim Erstellen sichtbar.
+      </p>
+
+      {newRawKey && (
+        <NewKeyAlert rawKey={newRawKey} onDismiss={() => setNewRawKey(null)} />
+      )}
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Lade…</p>
+      ) : keys.length === 0 ? (
+        <div className="text-center py-6 space-y-2">
+          <p className="text-sm text-muted-foreground">Noch kein API-Key vorhanden</p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-lg text-white"
+            style={{ backgroundColor: "rgb(var(--ctp-mauve))" }}>
+            <Plus size={14} /> Ersten Key erstellen
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {keys.map((k) => (
+            <div key={k.id} className="flex items-start gap-3 px-4 py-3 rounded-lg border border-border bg-background">
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-sm text-foreground">{k.name}</span>
+                  {k.scopes.map(scope => (
+                    <span key={scope}
+                      className="text-xs px-1.5 py-0.5 rounded font-medium"
+                      style={{
+                        backgroundColor: `rgb(var(${SCOPE_COLORS[scope as ScopeValue] ?? "--ctp-blue"}) / 0.12)`,
+                        color: `rgb(var(${SCOPE_COLORS[scope as ScopeValue] ?? "--ctp-blue"}))`,
+                      }}>
+                      {SCOPE_LABELS[scope as ScopeValue] ?? scope}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <code className="text-xs font-mono text-muted-foreground">{k.key_prefix}</code>
+                  <span className="text-xs text-muted-foreground">
+                    Erstellt {format(new Date(k.created_at), "d. MMM yyyy", { locale: de })}
+                  </span>
+                  {k.last_used_at && (
+                    <span className="text-xs text-muted-foreground">
+                      Zuletzt genutzt {format(new Date(k.last_used_at), "d. MMM yyyy", { locale: de })}
+                    </span>
+                  )}
+                  {k.expires_at && (
+                    <span className="text-xs text-muted-foreground">
+                      Ablauf {format(new Date(k.expires_at), "d. MMM yyyy", { locale: de })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => { if (confirm(`API-Key "${k.name}" wirklich widerrufen?`)) revokeMut.mutate(k.id); }}
+                disabled={revokeMut.isPending}
+                className="shrink-0 p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                title="Key widerrufen">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateApiKeyModal
+          onClose={() => setShowCreate(false)}
+          onCreated={handleCreated}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -846,6 +1100,9 @@ export default function SettingsPage() {
 
       {/* SMTP-Konfiguration (admin only) */}
       {role === "admin" && <SMTPSection />}
+
+      {/* API-Keys (admin only) */}
+      {role === "admin" && <ApiKeysSection />}
 
       {/* Ferienprofile (admin/manager only) */}
       {isPrivileged && <FerienprofileSection />}

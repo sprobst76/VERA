@@ -374,6 +374,21 @@ async def delete_shift(shift_id: uuid.UUID, current_user: ManagerOrAdmin, db: DB
     await db.commit()
 
 
+@shifts_router.get("/{shift_id}/suggestions")
+async def suggest_employees_for_shift(
+    shift_id: uuid.UUID,
+    current_user: ManagerOrAdmin,
+    db: DB,
+):
+    """
+    Gibt sortierte Mitarbeiter-Vorschläge für einen offenen Dienst zurück.
+    Scoring: Keine Konflikte (+30), Qualifikation (+25), Limit (+20), Ruhezeit (+15).
+    """
+    from app.services.matching_service import MatchingService
+    svc = MatchingService(db)
+    return await svc.suggest_employees(shift_id, current_user.tenant_id)
+
+
 def _set_weekend_flags(shift: Shift) -> None:
     weekday = shift.date.weekday()
     shift.is_weekend = weekday >= 5

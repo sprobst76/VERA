@@ -110,6 +110,7 @@ export const shiftsApi = {
     confirmation_note?: string;
   }) => api.post(`/shifts/${id}/confirm`, data),
   claim: (id: string) => api.post(`/shifts/${id}/claim`, {}),
+  suggestions: (id: string) => api.get(`/shifts/${id}/suggestions`),
 };
 
 // Shift Templates
@@ -254,4 +255,12 @@ export const adminSettingsApi = {
 export const calendarDataApi = {
   vacationData: (from: string, to: string) =>
     api.get("/calendar/vacation-data", { params: { from, to } }),
+};
+
+// API Keys
+export const apiKeysApi = {
+  list: () => api.get("/api-keys"),
+  create: (data: { name: string; scopes: string[]; expires_at?: string | null }) =>
+    api.post("/api-keys", data),
+  revoke: (id: string) => api.delete(`/api-keys/${id}`),
 };
