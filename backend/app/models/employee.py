@@ -35,6 +35,9 @@ class Employee(Base):
     emergency_contact: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     qualifications: Mapped[list] = mapped_column(JSON, default=list)
     notification_prefs: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Wöchentliche Verfügbarkeit: {"0": {"available": true, "from_time": "08:00", "to_time": "20:00", "note": ""}, ...}
+    # Keys 0–6 (Montag–Sonntag, Python-Konvention)
+    availability_prefs: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     ical_token: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(100), nullable=True)

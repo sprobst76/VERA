@@ -42,6 +42,7 @@ class EmployeeOut(BaseModel):
     emergency_contact: dict | None
     qualifications: list[str]
     notification_prefs: dict[str, Any]
+    availability_prefs: dict | None
     ical_token: str | None
     telegram_chat_id: str | None
     matrix_user_id: str | None
@@ -103,3 +104,4 @@ class EmployeeUpdate(BaseModel):
     quiet_hours_end: time | None = None
     is_active: bool | None = None
     user_id: uuid.UUID | None = None  # link/unlink login account
+    availability_prefs: dict | None = None

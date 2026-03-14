@@ -154,6 +154,29 @@ async def update_surcharge_rates(payload: SurchargeRates, current_user: AdminUse
     return payload
 
 
+# ── General / Frontend URL ─────────────────────────────────────────────────────
+
+class GeneralSettings(BaseModel):
+    frontend_url: str = ""
+
+
+@router.get("/settings/general", response_model=GeneralSettings)
+async def get_general_settings(current_user: AdminUser, db: DB):
+    """Allgemeine Systemeinstellungen (Frontend-URL usw.)."""
+    tenant = await _get_tenant(db, current_user.tenant_id)
+    cfg = (tenant.settings or {}).get("general", {})
+    return GeneralSettings(frontend_url=cfg.get("frontend_url", ""))
+
+
+@router.put("/settings/general", response_model=GeneralSettings)
+async def update_general_settings(payload: GeneralSettings, current_user: AdminUser, db: DB):
+    """Allgemeine Systemeinstellungen speichern."""
+    tenant = await _get_tenant(db, current_user.tenant_id)
+    tenant.settings = {**(tenant.settings or {}), "general": payload.model_dump()}
+    await db.commit()
+    return payload
+
+
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 async def _get_tenant(db: DB, tenant_id) -> Tenant:

@@ -25,6 +25,7 @@ import { de } from "date-fns/locale";
 import { employeesApi, usersApi, contractsApi, payrollApi, contractTypesApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
+import { AvailabilityGrid, AvailabilityPrefs, emptyAvailabilityPrefs } from "@/components/shared/AvailabilityGrid";
 
 /* ── Types ────────────────────────────────────────────────────────── */
 interface Employee {
@@ -410,6 +411,9 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
     employee?.qualifications ?? []
   );
   const [qualInput, setQualInput] = useState("");
+  const [availabilityPrefs, setAvailabilityPrefs] = useState<AvailabilityPrefs>(
+    (employee as any)?.availability_prefs ?? emptyAvailabilityPrefs()
+  );
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -474,6 +478,7 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
       emergency_contact: (form.ec_name || form.ec_phone)
         ? { name: form.ec_name || undefined, phone: form.ec_phone || undefined, relation: form.ec_relation || undefined }
         : null,
+      availability_prefs: availabilityPrefs,
     };
     mutation.mutate(payload);
   }
@@ -825,6 +830,14 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
               </p>
             </div>
           )}
+
+          {/* Verfügbarkeit */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Verfügbarkeit
+            </div>
+            <AvailabilityGrid value={availabilityPrefs} onChange={setAvailabilityPrefs} />
+          </div>
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">
@@ -1204,6 +1217,14 @@ function EmployeeModal({ employee, inline = false, onClose, onSaved }: ModalProp
               </p>
             </div>
           )}
+
+          {/* Verfügbarkeit */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Verfügbarkeit
+            </div>
+            <AvailabilityGrid value={availabilityPrefs} onChange={setAvailabilityPrefs} />
+          </div>
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">

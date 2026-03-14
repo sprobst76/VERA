@@ -6,6 +6,7 @@ import { authApi, holidayProfilesApi, employeesApi, adminSettingsApi, apiKeysApi
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { AvailabilityGrid, AvailabilityPrefs, emptyAvailabilityPrefs } from "@/components/shared/AvailabilityGrid";
 import { Settings, KeyRound, User, ShieldCheck, Eye, EyeOff, CalendarDays, Plus, Trash2, ChevronDown, ChevronUp, Check, Phone, Mail, Send, Server, Pencil, Copy, AlertTriangle, Webhook, Play, Layers, Bell, BellOff, Users, UserPlus, Lock, Power, Shield, Link, RefreshCw, ExternalLink } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -426,16 +427,22 @@ function MeinProfilSection() {
 
   const [phone, setPhone] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [availabilityPrefs, setAvailabilityPrefs] = useState<AvailabilityPrefs | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   if (!initialized && profile) {
     setPhone((profile as any).phone ?? "");
     setEmail((profile as any).email ?? "");
+    setAvailabilityPrefs((profile as any).availability_prefs ?? emptyAvailabilityPrefs());
     setInitialized(true);
   }
 
   const saveMut = useMutation({
-    mutationFn: () => employeesApi.updateMe({ phone: phone || null, email: email || null }),
+    mutationFn: () => employeesApi.updateMe({
+      phone: phone || null,
+      email: email || null,
+      availability_prefs: availabilityPrefs ?? undefined,
+    }),
     onSuccess: () => {
       toast.success("Profil gespeichert");
       qc.invalidateQueries({ queryKey: ["employees", "me"] });
@@ -537,9 +544,109 @@ function MeinProfilSection() {
               {saveMut.isPending ? "Wird gespeichert…" : (<><Check size={15} />Speichern</>)}
             </button>
           </div>
+
+          {/* Verfügbarkeit */}
+          <div className="space-y-2 pt-1 border-t border-border">
+            <p className="text-xs text-muted-foreground">Wöchentliche Verfügbarkeit:</p>
+            <AvailabilityGrid
+              value={availabilityPrefs}
+              onChange={setAvailabilityPrefs}
+            />
+            <button
+              onClick={() => saveMut.mutate()}
+              disabled={saveMut.isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+              style={{ backgroundColor: "rgb(var(--ctp-sapphire))" }}
+            >
+              {saveMut.isPending ? "Wird gespeichert…" : (<><Check size={15} />Speichern</>)}
+            </button>
+          </div>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">Kein Mitarbeiterprofil verknüpft.</p>
+      )}
+    </div>
+  );
+}
+
+// ── Frontend-URL (Admin only) ─────────────────────────────────────────────────
+
+function FrontendUrlSection() {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState("");
+
+  const { data: cfg } = useQuery({
+    queryKey: ["admin-settings-general"],
+    queryFn: () => adminSettingsApi.getGeneral().then(r => r.data),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => adminSettingsApi.updateGeneral({ frontend_url: url }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-settings-general"] });
+      toast.success("Frontend-URL gespeichert");
+      setEditing(false);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Fehler beim Speichern"),
+  });
+
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Link size={16} className="text-muted-foreground" />
+          <span className="font-semibold text-sm">Frontend-URL</span>
+          {cfg?.frontend_url && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ backgroundColor: "rgb(var(--ctp-green) / 0.15)", color: "rgb(var(--ctp-green))" }}>
+              Konfiguriert
+            </span>
+          )}
+        </div>
+        {!editing && (
+          <button onClick={() => { setUrl(cfg?.frontend_url ?? ""); setEditing(true); }}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <Settings size={13} /> {cfg?.frontend_url ? "Bearbeiten" : "Einrichten"}
+          </button>
+        )}
+      </div>
+
+      {!editing ? (
+        <dl className="divide-y divide-border text-sm">
+          <div className="px-5 py-3 flex justify-between gap-4">
+            <dt className="text-muted-foreground">URL</dt>
+            <dd>{cfg?.frontend_url || <span className="text-muted-foreground italic">nicht gesetzt (Standard: localhost)</span>}</dd>
+          </div>
+          <div className="px-5 py-3">
+            <p className="text-xs text-muted-foreground">
+              Wird in Einladungslinks und Passwort-Reset-Mails verwendet.
+              Beispiel: <code className="bg-muted px-1 rounded">https://vera.lab.beispiel.de</code>
+            </p>
+          </div>
+        </dl>
+      ) : (
+        <div className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Frontend-URL (ohne abschließenden Schrägstrich)</label>
+            <input value={url} onChange={e => setUrl(e.target.value)}
+              placeholder="https://vera.lab.beispiel.de" className={inputCls} />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setEditing(false)}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-accent transition-colors">
+              Abbrechen
+            </button>
+            <button onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="px-3 py-1.5 text-sm rounded-lg text-white transition-colors disabled:opacity-50"
+              style={{ backgroundColor: "rgb(var(--ctp-blue))" }}>
+              {saveMutation.isPending ? "Speichern…" : "Speichern"}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -2534,6 +2641,7 @@ export default function SettingsPage() {
       {activeTab === "system" && role === "admin" && (
         <div className="space-y-6">
           <BenutzerSection />
+          <FrontendUrlSection />
           <SMTPSection />
           <ApiKeysSection />
           <WebhooksSection />

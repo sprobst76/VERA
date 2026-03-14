@@ -83,7 +83,7 @@ export const employeesApi = {
   list: (activeOnly = true) =>
     api.get("/employees", { params: { active_only: activeOnly } }),
   me: () => api.get("/employees/me"),           // vollständiges eigenes Profil
-  updateMe: (data: { phone?: string | null; email?: string | null }) =>
+  updateMe: (data: { phone?: string | null; email?: string | null; availability_prefs?: Record<string, unknown> | null }) =>
     api.put("/employees/me", data),
   get: (id: string) => api.get(`/employees/${id}`),
   create: (data: Record<string, unknown>) => api.post("/employees", data),
@@ -275,6 +275,9 @@ export const adminSettingsApi = {
     early: number; late: number; night: number;
     weekend: number; sunday: number; holiday: number;
   }) => api.put("/admin/settings/surcharges", data),
+  getGeneral: () => api.get("/admin/settings/general"),
+  updateGeneral: (data: { frontend_url: string }) =>
+    api.put("/admin/settings/general", data),
 };
 
 // Calendar vacation data

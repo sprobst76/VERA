@@ -17,6 +17,7 @@ from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, Em
 class EmployeeSelfUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
+    availability_prefs: dict | None = None
 
 
 class ContractHistoryCreate(BaseModel):
@@ -87,6 +88,8 @@ async def update_own_employee(payload: EmployeeSelfUpdate, current_user: Current
         employee.phone = payload.phone or None
     if payload.email is not None:
         employee.email = payload.email or None
+    if payload.availability_prefs is not None:
+        employee.availability_prefs = payload.availability_prefs
     await db.commit()
     await db.refresh(employee)
     return employee

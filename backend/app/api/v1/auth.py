@@ -176,9 +176,19 @@ async def forgot_password(payload: ForgotPasswordRequest, db: DB):
         token = secrets.token_urlsafe(32)
         user.reset_token = token
         user.reset_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        # Resolve frontend URL from tenant settings (fallback to global config)
+        tenant_res = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
+        tenant = tenant_res.scalar_one_or_none()
+        frontend_url = (
+            (tenant.settings or {}).get("general", {}).get("frontend_url")
+            if tenant else None
+        ) or settings.FRONTEND_URL
+        frontend_url = frontend_url.rstrip("/")
+
         await db.commit()
 
-        link = f"{settings.FRONTEND_URL}/auth/reset-password?token={token}"
+        link = f"{frontend_url}/auth/reset-password?token={token}"
         # Best-effort email – failures are silently ignored
         try:
             from app.services.notification_service import NotificationService

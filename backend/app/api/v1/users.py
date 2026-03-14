@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.employee import Employee
+from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -123,9 +124,18 @@ async def send_invite(user_id: uuid.UUID, current_user: AdminUser, db: DB):
     token = secrets.token_urlsafe(32)
     user.invite_token = token
     user.invite_expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    # Resolve frontend URL: tenant settings override global default
+    tenant_res = await db.execute(select(Tenant).where(Tenant.id == current_user.tenant_id))
+    tenant = tenant_res.scalar_one_or_none()
+    frontend_url = (
+        (tenant.settings or {}).get("general", {}).get("frontend_url")
+        or settings.FRONTEND_URL
+    ).rstrip("/")
+
     await db.commit()
 
-    link = f"{settings.FRONTEND_URL}/auth/accept-invite?token={token}"
+    link = f"{frontend_url}/auth/accept-invite?token={token}"
 
     # Best-effort email
     email_sent = False
