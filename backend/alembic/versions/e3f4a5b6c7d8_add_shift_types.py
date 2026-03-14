@@ -16,27 +16,35 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "shift_types",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("tenant_id", UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("name", sa.String(100), nullable=False),
-        sa.Column("color", sa.String(20), nullable=False, server_default="#1E3A5F"),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("reminder_enabled", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column("reminder_minutes_before", sa.Integer, nullable=False, server_default="60"),
-        sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), onupdate=sa.text("now()"), nullable=False),
-    )
-    op.create_index("ix_shift_types_tenant_id", "shift_types", ["tenant_id"])
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = inspector.get_table_names()
 
-    op.add_column("shifts", sa.Column(
-        "shift_type_id",
-        UUID(as_uuid=True),
-        sa.ForeignKey("shift_types.id", ondelete="SET NULL"),
-        nullable=True,
-    ))
+    if "shift_types" not in existing_tables:
+        op.create_table(
+            "shift_types",
+            sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+            sa.Column("tenant_id", UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("name", sa.String(100), nullable=False),
+            sa.Column("color", sa.String(20), nullable=False, server_default="#1E3A5F"),
+            sa.Column("description", sa.Text, nullable=True),
+            sa.Column("reminder_enabled", sa.Boolean, nullable=False, server_default="false"),
+            sa.Column("reminder_minutes_before", sa.Integer, nullable=False, server_default="60"),
+            sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), onupdate=sa.text("now()"), nullable=False),
+        )
+        op.create_index("ix_shift_types_tenant_id", "shift_types", ["tenant_id"])
+
+    # Add FK column to shifts if not already present
+    shift_columns = [col["name"] for col in inspector.get_columns("shifts")]
+    if "shift_type_id" not in shift_columns:
+        op.add_column("shifts", sa.Column(
+            "shift_type_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("shift_types.id", ondelete="SET NULL"),
+            nullable=True,
+        ))
 
 
 def downgrade() -> None:
