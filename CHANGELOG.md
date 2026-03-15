@@ -5,6 +5,153 @@ Format: [Semantic Versioning](https://semver.org/), neueste Version zuerst.
 
 ---
 
+## [0.20.0] – 2026-03-15
+
+### Fehlerbehebungen
+
+- **Einladungslink / Passwort-Reset-Link: falscher URL-Pfad** – Die generierten Links
+  enthielten `/auth/accept-invite` und `/auth/reset-password`. Da Next.js App-Router-Gruppen
+  wie `(auth)` nicht im URL erscheinen, sind die korrekten Pfade `/accept-invite` und
+  `/reset-password`. Betroffen: alle Einladungs- und Passwort-Reset-E-Mails.
+
+- **ContractTypeHistory: rückwärts-Einträge (`valid_to < valid_from`)** – Wenn ein
+  Vertragstyp mit `apply_from` aus der Vergangenheit aktualisiert wurde, der aktuelle
+  History-Eintrag aber ein neueres `valid_from` hatte, entstand ein rückwärts-Eintrag.
+  Fix: Wenn `effective_from ≤ prev_cth.valid_from`, wird der bestehende Eintrag
+  in-place aktualisiert statt ein neuer Eintrag mit kaputten Datumsangaben angelegt.
+
+- **`assign_contract_type`: Zero-Length-Einträge** – Beim Zuweisen eines Vertragstyps
+  ohne `valid_from` (Fallback: `date.today()`) entstand ein Zero-Length-Eintrag wenn
+  der Mitarbeiter bereits einen `ContractHistory`-Eintrag mit demselben Datum hatte.
+  Fix: gleicher In-place-Mechanismus – wenn `effective_from ≤ current_entry.valid_from`,
+  wird der offene Eintrag direkt aktualisiert.
+
+- **`PUT /contract-types/{id}/history/{hist_id}`: Mitarbeiter-ContractHistory nicht
+  mitgezogen** – Eine Datumskorrektur an einem `ContractTypeHistory`-Eintrag hatte
+  keinen Effekt auf die verknüpften `ContractHistory`-Einträge der Mitarbeiter.
+  Fix: Der Endpoint aktualisiert nun alle Mitarbeiter-Einträge mit `valid_from == altes_Datum`
+  und repariert deren Vorgänger-Einträge (`valid_to`-Korrektur).
+
+- **Quelle-Spalte: inaktive und gelöschte Vertragstypen** – Einträge mit inaktivem
+  Vertragstyp zeigten kein Badge. Fix: Inaktive Typen erhalten einen grauen
+  "(inaktiv)"-Badge, gelöschte Typen (FK = NULL) einen "(gelöscht)"-Hinweis.
+
+### Hinzugefügt
+
+- **Edit/Delete für `ContractTypeHistory`-Einträge** – In der Konditions-Verlauf-Tabelle
+  (Einstellungen → Vertragstypen → History-Icon) gibt es pro Zeile:
+  - **Stift-Icon**: `valid_from` direkt in der Tabelle korrigieren (Inline-Datepicker)
+  - **Papierkorb-Icon**: Eintrag löschen; die Kette (`valid_to` des Vorgängers) wird
+    automatisch repariert
+
+- **`PUT /contract-types/{id}/history/{hist_id}`** – Neuer Endpoint zum Korrigieren
+  von `valid_from` und `note` eines History-Eintrags; zieht Mitarbeiter-Einträge mit.
+
+- **`DELETE /contract-types/{id}/history/{hist_id}`** – Neuer Endpoint zum Löschen
+  eines History-Eintrags (mindestens 1 Eintrag bleibt erhalten); repariert Kette.
+
+- **8 neue Backend-Tests** in `test_memberships.py`:
+  `GET /memberships` (leer), Zuweisung mit/ohne `valid_from`, Typ-Wechsel
+  (Membership + ContractHistory geschlossen), Entfernung, RBAC, Name-Join.
+
+### Datenbereinigung Produktion
+
+- **6 kaputte Datenbankeinträge manuell entfernt** (direkte SQL-Transaktion auf VPS):
+  - 2 `contract_type_history`-Einträge (Zero-Length und rückwärts, `valid_from=2026-03-14`)
+  - 4 `contract_history`-Einträge bei 2 Mitarbeitern (je 1 Zero-Length + 1 rückwärts)
+  - Ursache: Vertragstyp-Zuweisung wurde vor dem In-place-Fix mehrfach ausgeführt
+
+### Infrastruktur
+
+- `contractTypesApi.updateHistory(id, histId, data)` in `api.ts`
+- `contractTypesApi.deleteHistory(id, histId)` in `api.ts`
+- Backend-Tests: 246 ✓
+
+---
+
+## [0.19.0] – 2026-03-14
+
+### Geändert (Breaking UX)
+- **Gruppenmitgliedschaft aus Stammdaten entfernt** – Der Vertragstyp-Dropdown ist nicht mehr
+  Teil der Mitarbeiter-Stammdaten. Begründung: Ein Vertragstyp ist keine Eigenschaft eines
+  Mitarbeiters (wie Name oder Stundenlohn), sondern eine Gruppenzugehörigkeit – konzeptuell
+  ein "Abo" auf einen Gruppenvertrag, der zukünftige Lohnänderungen automatisch mitgibt.
+
+### Hinzugefügt
+- **Neue Tabelle `employee_contract_type_memberships`** – Verlauf der Gruppenzegehörigkeit
+  (SCD Type 2: valid_from / valid_to). Jede Zuweisung zu einem Vertragstyp hinterlässt einen
+  datierbaren Eintrag. Backfill-Migration überträgt bestehende Zuweisungen mit
+  `COALESCE(start_date, created_at::date)` als `valid_from`.
+- **`GET /employees/{id}/memberships`** – Neuer Endpoint liefert den kompletten Verlauf
+  inkl. aufgelöstem `contract_type_name`.
+- **Verlauf-Tab: Gruppenzugehörigkeit-Block** – Ganz oben im Verlauf-Tab erscheint ein
+  neuer Block mit:
+  - Aktuelle Mitgliedschaft als grüner Badge (`● Standard Minijob seit 01.04.2024`)
+  - "Kein Gruppenvertrag"-Badge wenn nicht zugewiesen
+  - "Ändern"-Button → Inline-Formular (Typ, Gültig-ab, Notiz, Checkbox "Konditionen übernehmen")
+  - Aufklappbarer Verlauf wenn > 1 Eintrag vorhanden
+
+### Infrastruktur
+- Migration `i3j4k5l6m7n8`: Neue Tabelle `employee_contract_type_memberships` + Index + Backfill
+- `assign_contract_type`-Endpoint legt nun automatisch Membership-History-Einträge an
+- Backend-Tests: 238 ✓
+
+---
+
+## [0.18.0] – 2026-03-14
+
+### Hinzugefügt
+- **ContractType-Historisierung** – Neue Tabelle `contract_type_history` speichert Lohnparameter-
+  Änderungen an Vertragstypen als SCD-Type-2-Timeline. Beim Anlegen eines Typs entsteht
+  automatisch der erste Eintrag; bei Lohnänderungen via PUT wird der offene Eintrag geschlossen
+  und ein neuer angelegt.
+- **`GET /contract-types/{id}/history`** – Endpoint für den Konditions-Verlauf eines Typs.
+- **Einstellungen: History-Icon pro Vertragstyp** – Klappt eine Verlaufstabelle aus
+  (Ab | Bis | €/h | Std-Limit/Mo | Jahresgrenze), aktueller Eintrag grün hervorgehoben.
+- **"Quelle"-Spalte im Mitarbeiter-Verlauf** – Zeigt den ContractType-Namen als Badge
+  wenn ein ContractHistory-Eintrag automatisch durch einen Vertragstyp erzeugt wurde.
+  Dafür: `contract_type_id` jetzt Teil von `ContractHistoryOut`.
+- **Vertragstyp-Vorlage in Verlaufs-Formular** – Beim Hinzufügen einer neuen Vertragsperiode
+  kann ein bestehender Vertragstyp als Vorlage ausgewählt werden. Felder (Stundenlohn,
+  Limits etc.) werden vorausgefüllt und können individuell angepasst werden.
+
+### Infrastruktur
+- Migration `h2i3j4k5l6m7`: Neue Tabelle `contract_type_history` + Index
+- `ContractHistoryOut`-Schema: `contract_type_id` ergänzt
+- `contractTypesApi.getHistory(id)` in `api.ts`
+- Backend-Tests: 238 ✓
+
+---
+
+## [0.17.0] – 2026-03-14
+
+### Hinzugefügt
+- **Eintrittsdatum (start_date)** – Mitarbeiter können jetzt mit einem rückwirkenden
+  Eintrittsdatum angelegt werden. `start_date` wird als `valid_from` des ersten
+  ContractHistory-Eintrags verwendet (statt `date.today()`). UI: Datumsfeld in beiden
+  Formularen (Inline + Modal).
+- **Vertragsverlauf editierbar** – Pro Vertragsperiode in der Verlaufs-Tabelle gibt es jetzt
+  Stift- und Papierkorb-Buttons:
+  - `PUT /employees/{id}/contracts/{contract_id}` – ändert Felder der Periode; spiegelt auf
+    Employee wenn es die aktuelle Periode ist.
+  - `DELETE /employees/{id}/contracts/{contract_id}` – löscht Periode und repariert die Kette
+    (Vorgänger bekommt valid_to des gelöschten Eintrags). 422 wenn nur noch 1 Eintrag vorhanden.
+    Spiegelt Vorgänger-Konditionen auf Employee bei Löschen des aktuellen Eintrags.
+
+### Behoben
+- **Bug: delete_contract Mirror-Reihenfolge** – Mirror-Logik lief nach `prev.valid_to`-Änderung,
+  weshalb `new_current`-Query keinen Treffer fand. Fix: Mirror BEFORE Chain-Repair.
+- **Testsuite: auto-today-Problem** – Tests die Einträge mit Vergangenheitsdatum anlegen,
+  nutzten `start_date` nicht → der erste Eintrag landete auf `today` und rückwirkende Inserts
+  fanden keinen Container. Alle betroffenen Tests mit `start_date` behoben.
+
+### Infrastruktur
+- Migration `g1h2i3j4k5l6`: `start_date DATE NULL` auf `employees`-Tabelle
+- `contractsApi.update()` + `contractsApi.delete()` in `api.ts`
+- Backend-Tests: 238 ✓
+
+---
+
 ## [0.16.0] – 2026-03-14
 
 ### Hinzugefügt
