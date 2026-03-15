@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import DB, ManagerOrAdmin, AdminUser
+from app.api.v1.employees import _sync_employee_mirror
 from app.models.contract_type import ContractType
 from app.models.contract_type_history import ContractTypeHistory
 from app.models.employee import Employee
@@ -313,16 +314,7 @@ async def update_contract_type(
             db.add(new_entry)
 
             # Mirror to employee record
-            emp.contract_type = ct.contract_category
-            emp.hourly_rate = float(ct.hourly_rate)
-            if ct.monthly_hours_limit:
-                emp.monthly_hours_limit = float(ct.monthly_hours_limit)
-            if ct.annual_salary_limit:
-                emp.annual_salary_limit = float(ct.annual_salary_limit)
-            if ct.annual_hours_target:
-                emp.annual_hours_target = float(ct.annual_hours_target)
-            if ct.weekly_hours:
-                emp.weekly_hours = float(ct.weekly_hours)
+            _sync_employee_mirror(emp, new_entry)
 
             bulk_count += 1
 

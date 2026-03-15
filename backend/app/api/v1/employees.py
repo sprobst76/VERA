@@ -70,6 +70,18 @@ class MembershipOut(BaseModel):
 router = APIRouter(prefix="/employees", tags=["employees"])
 
 
+def _sync_employee_mirror(employee: "Employee", contract: "ContractHistory") -> None:
+    """Spiegelt alle ContractHistory-Felder auf die denormalisierten Employee-Mirror-Felder."""
+    employee.contract_type = contract.contract_type
+    employee.hourly_rate = float(contract.hourly_rate)
+    employee.weekly_hours = float(contract.weekly_hours) if contract.weekly_hours is not None else None
+    employee.full_time_percentage = float(contract.full_time_percentage) if contract.full_time_percentage is not None else None
+    employee.monthly_hours_limit = float(contract.monthly_hours_limit) if contract.monthly_hours_limit is not None else None
+    employee.annual_salary_limit = float(contract.annual_salary_limit) if contract.annual_salary_limit is not None else None
+    employee.annual_hours_target = float(contract.annual_hours_target) if contract.annual_hours_target is not None else None
+    employee.monthly_salary = float(contract.monthly_salary) if contract.monthly_salary is not None else None
+
+
 # ── Eigenes Profil (jeder Mitarbeiter) ───────────────────────────────────────
 
 @router.get("/me", response_model=EmployeeOut)
@@ -396,14 +408,7 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
 
     # Mirror-Felder auf Employee nur aktualisieren wenn neuer Eintrag der aktuelle ist
     if inherited_valid_to is None:
-        employee.contract_type = payload.contract_type
-        employee.hourly_rate = payload.hourly_rate
-        employee.weekly_hours = payload.weekly_hours
-        employee.full_time_percentage = payload.full_time_percentage
-        employee.monthly_hours_limit = payload.monthly_hours_limit
-        employee.annual_salary_limit = payload.annual_salary_limit
-        employee.annual_hours_target = payload.annual_hours_target
-        employee.monthly_salary = payload.monthly_salary
+        _sync_employee_mirror(employee, entry)
 
     await db.commit()
     await db.refresh(entry)
@@ -453,20 +458,7 @@ async def update_contract(
         )
         emp = emp_result.scalar_one_or_none()
         if emp:
-            if payload.contract_type is not None:
-                emp.contract_type = payload.contract_type
-            if payload.hourly_rate is not None:
-                emp.hourly_rate = payload.hourly_rate
-            if payload.weekly_hours is not None:
-                emp.weekly_hours = payload.weekly_hours
-            if payload.monthly_hours_limit is not None:
-                emp.monthly_hours_limit = payload.monthly_hours_limit
-            if payload.annual_salary_limit is not None:
-                emp.annual_salary_limit = payload.annual_salary_limit
-            if payload.annual_hours_target is not None:
-                emp.annual_hours_target = payload.annual_hours_target
-            if payload.monthly_salary is not None:
-                emp.monthly_salary = payload.monthly_salary
+            _sync_employee_mirror(emp, entry)
 
     await db.commit()
     await db.refresh(entry)
@@ -523,14 +515,7 @@ async def delete_contract(
         emp_result = await db.execute(select(Employee).where(Employee.id == employee_id))
         emp = emp_result.scalar_one_or_none()
         if emp:
-            emp.contract_type = prev.contract_type
-            emp.hourly_rate = float(prev.hourly_rate)
-            if prev.weekly_hours is not None:
-                emp.weekly_hours = float(prev.weekly_hours)
-            if prev.monthly_hours_limit is not None:
-                emp.monthly_hours_limit = float(prev.monthly_hours_limit)
-            if prev.annual_salary_limit is not None:
-                emp.annual_salary_limit = float(prev.annual_salary_limit)
+            _sync_employee_mirror(emp, prev)
 
     # Kette reparieren: Vorgänger übernimmt valid_to des gelöschten Eintrags
     if prev:
@@ -666,12 +651,13 @@ async def assign_contract_type(
             current_entry.valid_from = effective_from
             current_entry.contract_type = ct.contract_category
             current_entry.hourly_rate = D(str(ct.hourly_rate))
-            current_entry.monthly_hours_limit = D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit else None
-            current_entry.annual_salary_limit = D(str(ct.annual_salary_limit)) if ct.annual_salary_limit else None
-            current_entry.annual_hours_target = D(str(ct.annual_hours_target)) if ct.annual_hours_target else None
-            current_entry.weekly_hours = D(str(ct.weekly_hours)) if ct.weekly_hours else None
+            current_entry.monthly_hours_limit = D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit is not None else None
+            current_entry.annual_salary_limit = D(str(ct.annual_salary_limit)) if ct.annual_salary_limit is not None else None
+            current_entry.annual_hours_target = D(str(ct.annual_hours_target)) if ct.annual_hours_target is not None else None
+            current_entry.weekly_hours = D(str(ct.weekly_hours)) if ct.weekly_hours is not None else None
             current_entry.contract_type_id = ct_id
             current_entry.note = f"Vertragstyp '{ct.name}' zugewiesen"
+            active_ch = current_entry
         else:
             # Normaler SCD-Fall: alten Eintrag schließen, neuen anlegen
             if current_entry:
@@ -683,27 +669,19 @@ async def assign_contract_type(
                 valid_to=None,
                 contract_type=ct.contract_category,
                 hourly_rate=D(str(ct.hourly_rate)),
-                monthly_hours_limit=D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit else None,
-                annual_salary_limit=D(str(ct.annual_salary_limit)) if ct.annual_salary_limit else None,
-                annual_hours_target=D(str(ct.annual_hours_target)) if ct.annual_hours_target else None,
-                weekly_hours=D(str(ct.weekly_hours)) if ct.weekly_hours else None,
+                monthly_hours_limit=D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit is not None else None,
+                annual_salary_limit=D(str(ct.annual_salary_limit)) if ct.annual_salary_limit is not None else None,
+                annual_hours_target=D(str(ct.annual_hours_target)) if ct.annual_hours_target is not None else None,
+                weekly_hours=D(str(ct.weekly_hours)) if ct.weekly_hours is not None else None,
                 contract_type_id=ct_id,
                 note=f"Vertragstyp '{ct.name}' zugewiesen",
                 created_by_user_id=current_user.id,
             )
             db.add(new_entry)
+            active_ch = new_entry
 
         # Employee-Spiegel aktualisieren
-        employee.contract_type = ct.contract_category
-        employee.hourly_rate = float(ct.hourly_rate)
-        if ct.monthly_hours_limit is not None:
-            employee.monthly_hours_limit = float(ct.monthly_hours_limit)
-        if ct.annual_salary_limit is not None:
-            employee.annual_salary_limit = float(ct.annual_salary_limit)
-        if ct.annual_hours_target is not None:
-            employee.annual_hours_target = float(ct.annual_hours_target)
-        if ct.weekly_hours is not None:
-            employee.weekly_hours = float(ct.weekly_hours)
+        _sync_employee_mirror(employee, active_ch)
     else:
         employee.contract_type_id = None
         # Offene Membership schließen
