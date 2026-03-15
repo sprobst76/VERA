@@ -5,6 +5,22 @@ Format: [Semantic Versioning](https://semver.org/), neueste Version zuerst.
 
 ---
 
+## [0.20.1] – 2026-03-15
+
+### Refactoring
+
+- **Zentrale `_sync_employee_mirror()` Hilfsfunktion** – 5 verstreute, manuelle Sync-Blöcke
+  (in `add_contract`, `update_contract`, `delete_contract`, `assign_contract_type` und dem
+  Bulk-Update in `update_contract_type`) wurden durch eine einheitliche Funktion ersetzt.
+  Behebt dabei drei stille Bugs:
+  - `delete_contract`: fehlte `annual_hours_target`, `full_time_percentage`, `monthly_salary`
+    beim Zurücksetzen des Employee-Spiegels auf den Vorgänger-Eintrag.
+  - `update_contract_type` Bulk: Falsy-Check (`if ct.field:`) statt `is not None` –
+    ein Feldwert von `0` würde den Mirror-Wert nicht überschreiben.
+  - `assign_contract_type`: gleicher Falsy-Check-Bug in beiden Branches (in-place + neu).
+
+---
+
 ## [0.20.0] – 2026-03-15
 
 ### Fehlerbehebungen
