@@ -426,7 +426,12 @@ async def update_contract_type_history(
     db: DB,
     current_user: ManagerOrAdmin,
 ):
-    """valid_from eines History-Eintrags korrigieren."""
+    """
+    valid_from eines ContractTypeHistory-Eintrags korrigieren.
+    Passt automatisch alle verknüpften Mitarbeiter-ContractHistory-Einträge an:
+    - Einträge mit valid_from == altem Datum werden auf neues Datum gesetzt
+    - Vorgänger-Einträge (valid_to == altes Datum) werden ebenfalls aktualisiert
+    """
     result = await db.execute(
         select(ContractTypeHistory).where(
             ContractTypeHistory.id == history_id,
@@ -438,7 +443,43 @@ async def update_contract_type_history(
         raise HTTPException(status_code=404, detail="History-Eintrag nicht gefunden")
 
     if payload.valid_from is not None:
-        entry.valid_from = payload.valid_from
+        old_from = entry.valid_from
+        new_from = payload.valid_from
+
+        if old_from != new_from:
+            # ContractTypeHistory-Kette: Vorgänger-Eintrag (valid_to == old_from) anpassen
+            prev_cth_result = await db.execute(
+                select(ContractTypeHistory).where(
+                    ContractTypeHistory.contract_type_id == contract_type_id,
+                    ContractTypeHistory.valid_to == old_from,
+                )
+            )
+            prev_cth = prev_cth_result.scalar_one_or_none()
+            if prev_cth:
+                prev_cth.valid_to = new_from
+
+            # Mitarbeiter-ContractHistory: alle Einträge mit valid_from == old_from und diesem Typ
+            emp_ch_result = await db.execute(
+                select(ContractHistory).where(
+                    ContractHistory.contract_type_id == contract_type_id,
+                    ContractHistory.valid_from == old_from,
+                )
+            )
+            for emp_ch in emp_ch_result.scalars().all():
+                # Vorgänger-Eintrag des Mitarbeiters anpassen
+                prev_result = await db.execute(
+                    select(ContractHistory).where(
+                        ContractHistory.employee_id == emp_ch.employee_id,
+                        ContractHistory.valid_to == old_from,
+                    )
+                )
+                prev_emp_ch = prev_result.scalar_one_or_none()
+                if prev_emp_ch:
+                    prev_emp_ch.valid_to = new_from
+                emp_ch.valid_from = new_from
+
+            entry.valid_from = new_from
+
     if payload.note is not None:
         entry.note = payload.note
 

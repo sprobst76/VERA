@@ -669,9 +669,9 @@ async def test_rand_gleiches_datum_zweimal(client, admin_token, db):
 @pytest.mark.asyncio
 async def test_rand_kein_valid_from_bei_typ_zuweisung(client, admin_token, admin_user, tenant):
     """
-    Vertragstyp ohne valid_from: neuer History-Eintrag mit date.today() wird angelegt
-    und contract_type_id auf Employee gesetzt.
-    Verifikation via API (umgeht SQLAlchemy Identity-Map-Cache).
+    Vertragstyp ohne valid_from: effective_from = date.today().
+    Da der initiale ContractHistory-Eintrag ebenfalls valid_from=heute hat,
+    wird in-place aktualisiert (kein neuer Eintrag, kein Zero-Length-Eintrag).
     """
     typ = await mk_contract_type(client, admin_token,
         name="Typ ohne Datum", contract_category="minijob",
@@ -682,19 +682,17 @@ async def test_rand_kein_valid_from_bei_typ_zuweisung(client, admin_token, admin
         contract_type="minijob", hourly_rate=13.00)
     eid = emp["id"]
 
-    # Einträge vor Zuweisung (via API)
     r_before = await client.get(f"/api/v1/employees/{eid}/contracts", headers=auth_headers(admin_token))
     count_before = len(r_before.json())
 
     await assign_type(client, admin_token, eid, typ["id"])  # kein valid_from
 
-    # Einträge nach Zuweisung (via API – frische Session)
     r_after = await client.get(f"/api/v1/employees/{eid}/contracts", headers=auth_headers(admin_token))
     contracts = r_after.json()
 
-    # Auch ohne valid_from entsteht ein neuer History-Eintrag (mit date.today())
-    assert len(contracts) == count_before + 1, \
-        "Auch ohne valid_from muss ein neuer ContractHistory-Eintrag entstehen"
+    # In-place-Update: Anzahl bleibt gleich, kein Zero-Length-Eintrag
+    assert len(contracts) == count_before, \
+        "Gleiches Datum → In-place-Update, kein neuer Eintrag"
 
     open_entries = [c for c in contracts if c["valid_to"] is None]
     assert len(open_entries) == 1

@@ -649,10 +649,9 @@ async def assign_contract_type(
         )
         db.add(new_mem)
 
-        # ContractHistory anlegen (immer – auch wenn kein valid_from angegeben → date.today())
+        # ContractHistory anlegen (immer – auch ohne valid_from → date.today())
         effective_from = mem_from  # mem_from ist bereits date.today() wenn kein valid_from
 
-        # Aktuell offenen Eintrag schließen
         open_result = await db.execute(
             select(ContractHistory).where(
                 ContractHistory.employee_id == employee_id,
@@ -660,26 +659,39 @@ async def assign_contract_type(
             ).order_by(ContractHistory.valid_from.desc()).limit(1)
         )
         current_entry = open_result.scalar_one_or_none()
-        if current_entry:
-            current_entry.valid_to = effective_from
 
-        # Neuen Eintrag anlegen
-        new_entry = ContractHistory(
-            tenant_id=current_user.tenant_id,
-            employee_id=employee_id,
-            valid_from=effective_from,
-            valid_to=None,
-            contract_type=ct.contract_category,
-            hourly_rate=D(str(ct.hourly_rate)),
-            monthly_hours_limit=D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit else None,
-            annual_salary_limit=D(str(ct.annual_salary_limit)) if ct.annual_salary_limit else None,
-            annual_hours_target=D(str(ct.annual_hours_target)) if ct.annual_hours_target else None,
-            weekly_hours=D(str(ct.weekly_hours)) if ct.weekly_hours else None,
-            contract_type_id=ct_id,
-            note=f"Vertragstyp '{ct.name}' zugewiesen",
-            created_by_user_id=current_user.id,
-        )
-        db.add(new_entry)
+        if current_entry and effective_from <= current_entry.valid_from:
+            # Retroaktiv oder gleicher Tag: offenen Eintrag in-place aktualisieren
+            # (kein neuer Eintrag – das würde valid_to == valid_from erzeugen)
+            current_entry.valid_from = effective_from
+            current_entry.contract_type = ct.contract_category
+            current_entry.hourly_rate = D(str(ct.hourly_rate))
+            current_entry.monthly_hours_limit = D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit else None
+            current_entry.annual_salary_limit = D(str(ct.annual_salary_limit)) if ct.annual_salary_limit else None
+            current_entry.annual_hours_target = D(str(ct.annual_hours_target)) if ct.annual_hours_target else None
+            current_entry.weekly_hours = D(str(ct.weekly_hours)) if ct.weekly_hours else None
+            current_entry.contract_type_id = ct_id
+            current_entry.note = f"Vertragstyp '{ct.name}' zugewiesen"
+        else:
+            # Normaler SCD-Fall: alten Eintrag schließen, neuen anlegen
+            if current_entry:
+                current_entry.valid_to = effective_from
+            new_entry = ContractHistory(
+                tenant_id=current_user.tenant_id,
+                employee_id=employee_id,
+                valid_from=effective_from,
+                valid_to=None,
+                contract_type=ct.contract_category,
+                hourly_rate=D(str(ct.hourly_rate)),
+                monthly_hours_limit=D(str(ct.monthly_hours_limit)) if ct.monthly_hours_limit else None,
+                annual_salary_limit=D(str(ct.annual_salary_limit)) if ct.annual_salary_limit else None,
+                annual_hours_target=D(str(ct.annual_hours_target)) if ct.annual_hours_target else None,
+                weekly_hours=D(str(ct.weekly_hours)) if ct.weekly_hours else None,
+                contract_type_id=ct_id,
+                note=f"Vertragstyp '{ct.name}' zugewiesen",
+                created_by_user_id=current_user.id,
+            )
+            db.add(new_entry)
 
         # Employee-Spiegel aktualisieren
         employee.contract_type = ct.contract_category
