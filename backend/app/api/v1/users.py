@@ -135,7 +135,7 @@ async def send_invite(user_id: uuid.UUID, current_user: AdminUser, db: DB):
 
     await db.commit()
 
-    link = f"{frontend_url}/auth/accept-invite?token={token}"
+    link = f"{frontend_url}/accept-invite?token={token}"
 
     # Best-effort email
     email_sent = False

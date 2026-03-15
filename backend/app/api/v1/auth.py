@@ -188,7 +188,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: DB):
 
         await db.commit()
 
-        link = f"{frontend_url}/auth/reset-password?token={token}"
+        link = f"{frontend_url}/reset-password?token={token}"
         # Best-effort email – failures are silently ignored
         try:
             from app.services.notification_service import NotificationService
