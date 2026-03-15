@@ -374,6 +374,10 @@ export const contractTypesApi = {
   delete: (id: string) => api.delete(`/contract-types/${id}`),
   employees: (id: string) => api.get(`/contract-types/${id}/employees`),
   getHistory: (id: string) => api.get(`/contract-types/${id}/history`),
+  updateHistory: (id: string, histId: string, data: { valid_from?: string; note?: string }) =>
+    api.put(`/contract-types/${id}/history/${histId}`, data),
+  deleteHistory: (id: string, histId: string) =>
+    api.delete(`/contract-types/${id}/history/${histId}`),
   assignToEmployee: (employeeId: string, contractTypeId: string | null, validFrom?: string) =>
     api.post(`/employees/${employeeId}/assign-contract-type`, {
       contract_type_id: contractTypeId,

@@ -2292,6 +2292,8 @@ function VertragstypenSection() {
   const qc = useQueryClient();
   const [modal, setModal] = useState<null | "create" | ContractTypeItem>(null);
   const [historyTypeId, setHistoryTypeId] = useState<string | null>(null);
+  const [editHistoryId, setEditHistoryId] = useState<string | null>(null);
+  const [editHistoryDate, setEditHistoryDate] = useState("");
 
   const { data: contractTypes = [] } = useQuery<ContractTypeItem[]>({
     queryKey: ["contract-types"],
@@ -2302,6 +2304,26 @@ function VertragstypenSection() {
     queryKey: ["contract-type-history", historyTypeId],
     queryFn: () => contractTypesApi.getHistory(historyTypeId!).then(r => r.data),
     enabled: !!historyTypeId,
+  });
+
+  const updateHistoryMut = useMutation({
+    mutationFn: ({ histId, valid_from }: { histId: string; valid_from: string }) =>
+      contractTypesApi.updateHistory(historyTypeId!, histId, { valid_from }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract-type-history", historyTypeId] });
+      setEditHistoryId(null);
+      toast.success("Datum korrigiert");
+    },
+    onError: () => toast.error("Fehler beim Speichern"),
+  });
+
+  const deleteHistoryMut = useMutation({
+    mutationFn: (histId: string) => contractTypesApi.deleteHistory(historyTypeId!, histId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract-type-history", historyTypeId] });
+      toast.success("Eintrag gelöscht");
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Fehler beim Löschen"),
   });
 
   const deleteMut = useMutation({
@@ -2402,29 +2424,78 @@ function VertragstypenSection() {
                           <th className="text-left pb-1 pr-3 font-medium">Bis</th>
                           <th className="text-right pb-1 pr-3 font-medium">€/h</th>
                           <th className="text-right pb-1 pr-3 font-medium">Std-Limit/Mo</th>
-                          <th className="text-right pb-1 font-medium">Jahresgrenze</th>
+                          <th className="text-right pb-1 pr-3 font-medium">Jahresgrenze</th>
+                          <th className="pb-1 w-12"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {typeHistory.map((h) => (
-                          <tr key={h.id} className="border-b border-border/30 last:border-0"
-                            style={!h.valid_to ? { backgroundColor: "rgb(var(--ctp-green) / 0.06)" } : {}}>
-                            <td className="py-1 pr-3 whitespace-nowrap">
-                              {new Date(h.valid_from + "T00:00:00").toLocaleDateString("de-DE")}
-                            </td>
-                            <td className="py-1 pr-3 whitespace-nowrap text-muted-foreground">
-                              {h.valid_to
-                                ? new Date(h.valid_to + "T00:00:00").toLocaleDateString("de-DE")
-                                : <span style={{ color: "rgb(var(--ctp-green))" }} className="font-medium">aktuell</span>}
-                            </td>
-                            <td className="py-1 pr-3 text-right tabular-nums">{h.hourly_rate.toFixed(2)}</td>
-                            <td className="py-1 pr-3 text-right tabular-nums text-muted-foreground">
-                              {h.monthly_hours_limit != null ? `${h.monthly_hours_limit} h` : "—"}
-                            </td>
-                            <td className="py-1 text-right tabular-nums text-muted-foreground">
-                              {h.annual_salary_limit != null ? `${h.annual_salary_limit.toFixed(0)} €` : "—"}
-                            </td>
-                          </tr>
+                          <>
+                            <tr key={h.id} className="border-b border-border/30 last:border-0"
+                              style={!h.valid_to ? { backgroundColor: "rgb(var(--ctp-green) / 0.06)" } : {}}>
+                              <td className="py-1 pr-3 whitespace-nowrap">
+                                {editHistoryId === h.id ? (
+                                  <input
+                                    type="date"
+                                    value={editHistoryDate}
+                                    onChange={e => setEditHistoryDate(e.target.value)}
+                                    className="border border-border rounded px-1 py-0.5 bg-background text-foreground text-xs w-28"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  new Date(h.valid_from + "T00:00:00").toLocaleDateString("de-DE")
+                                )}
+                              </td>
+                              <td className="py-1 pr-3 whitespace-nowrap text-muted-foreground">
+                                {h.valid_to
+                                  ? new Date(h.valid_to + "T00:00:00").toLocaleDateString("de-DE")
+                                  : <span style={{ color: "rgb(var(--ctp-green))" }} className="font-medium">aktuell</span>}
+                              </td>
+                              <td className="py-1 pr-3 text-right tabular-nums">{h.hourly_rate.toFixed(2)}</td>
+                              <td className="py-1 pr-3 text-right tabular-nums text-muted-foreground">
+                                {h.monthly_hours_limit != null ? `${h.monthly_hours_limit} h` : "—"}
+                              </td>
+                              <td className="py-1 pr-3 text-right tabular-nums text-muted-foreground">
+                                {h.annual_salary_limit != null ? `${h.annual_salary_limit.toFixed(0)} €` : "—"}
+                              </td>
+                              <td className="py-1">
+                                <div className="flex gap-0.5 justify-end">
+                                  {editHistoryId === h.id ? (
+                                    <>
+                                      <button
+                                        onClick={() => updateHistoryMut.mutate({ histId: h.id, valid_from: editHistoryDate })}
+                                        disabled={!editHistoryDate || updateHistoryMut.isPending}
+                                        className="p-1 rounded hover:bg-muted text-green-500"
+                                        title="Speichern"
+                                      ><Check size={11} /></button>
+                                      <button
+                                        onClick={() => setEditHistoryId(null)}
+                                        className="p-1 rounded hover:bg-muted text-muted-foreground"
+                                        title="Abbrechen"
+                                      ><X size={11} /></button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => { setEditHistoryId(h.id); setEditHistoryDate(h.valid_from); }}
+                                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                        title="Datum bearbeiten"
+                                      ><Pencil size={11} /></button>
+                                      <button
+                                        onClick={() => {
+                                          if (window.confirm("Diesen History-Eintrag wirklich löschen?"))
+                                            deleteHistoryMut.mutate(h.id);
+                                        }}
+                                        disabled={deleteHistoryMut.isPending}
+                                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-red-500"
+                                        title="Löschen"
+                                      ><Trash2 size={11} /></button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          </>
                         ))}
                       </tbody>
                     </table>

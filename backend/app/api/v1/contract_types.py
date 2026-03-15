@@ -231,7 +231,7 @@ async def update_contract_type(
     if wage_changed:
         effective_from = apply_from or date.today()
 
-        # ContractTypeHistory aktualisieren: alten Eintrag schließen, neuen anlegen
+        # ContractTypeHistory aktualisieren
         prev_cth_result = await db.execute(
             select(ContractTypeHistory).where(
                 ContractTypeHistory.contract_type_id == contract_type_id,
@@ -239,23 +239,36 @@ async def update_contract_type(
             )
         )
         prev_cth = prev_cth_result.scalar_one_or_none()
-        if prev_cth:
-            prev_cth.valid_to = effective_from
 
-        new_cth = ContractTypeHistory(
-            tenant_id=ct.tenant_id,
-            contract_type_id=ct.id,
-            valid_from=effective_from,
-            valid_to=None,
-            hourly_rate=ct.hourly_rate,
-            monthly_hours_limit=ct.monthly_hours_limit,
-            annual_salary_limit=ct.annual_salary_limit,
-            annual_hours_target=ct.annual_hours_target,
-            weekly_hours=ct.weekly_hours,
-            note=note,
-            created_by_user_id=current_user.id,
-        )
-        db.add(new_cth)
+        if prev_cth and effective_from <= prev_cth.valid_from:
+            # Retroaktiv oder gleicher Tag: bestehenden Eintrag in-place aktualisieren
+            # (kein neuer Eintrag – das würde valid_to < valid_from erzeugen)
+            prev_cth.valid_from = effective_from
+            prev_cth.hourly_rate = ct.hourly_rate
+            prev_cth.monthly_hours_limit = ct.monthly_hours_limit
+            prev_cth.annual_salary_limit = ct.annual_salary_limit
+            prev_cth.annual_hours_target = ct.annual_hours_target
+            prev_cth.weekly_hours = ct.weekly_hours
+            prev_cth.note = note
+        else:
+            # Normaler SCD-Fall: alten Eintrag schließen, neuen anlegen
+            if prev_cth:
+                prev_cth.valid_to = effective_from
+
+            new_cth = ContractTypeHistory(
+                tenant_id=ct.tenant_id,
+                contract_type_id=ct.id,
+                valid_from=effective_from,
+                valid_to=None,
+                hourly_rate=ct.hourly_rate,
+                monthly_hours_limit=ct.monthly_hours_limit,
+                annual_salary_limit=ct.annual_salary_limit,
+                annual_hours_target=ct.annual_hours_target,
+                weekly_hours=ct.weekly_hours,
+                note=note,
+                created_by_user_id=current_user.id,
+            )
+            db.add(new_cth)
 
     if wage_changed and apply_from is not False:
 
@@ -398,3 +411,80 @@ async def get_contract_type_history(
         .order_by(ContractTypeHistory.valid_from.desc())
     )
     return hist_result.scalars().all()
+
+
+class ContractTypeHistoryUpdate(BaseModel):
+    valid_from: Optional[date] = None
+    note: Optional[str] = None
+
+
+@router.put("/{contract_type_id}/history/{history_id}", response_model=ContractTypeHistoryOut)
+async def update_contract_type_history(
+    contract_type_id: uuid.UUID,
+    history_id: uuid.UUID,
+    payload: ContractTypeHistoryUpdate,
+    db: DB,
+    current_user: ManagerOrAdmin,
+):
+    """valid_from eines History-Eintrags korrigieren."""
+    result = await db.execute(
+        select(ContractTypeHistory).where(
+            ContractTypeHistory.id == history_id,
+            ContractTypeHistory.contract_type_id == contract_type_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="History-Eintrag nicht gefunden")
+
+    if payload.valid_from is not None:
+        entry.valid_from = payload.valid_from
+    if payload.note is not None:
+        entry.note = payload.note
+
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.delete("/{contract_type_id}/history/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_contract_type_history(
+    contract_type_id: uuid.UUID,
+    history_id: uuid.UUID,
+    db: DB,
+    current_user: ManagerOrAdmin,
+):
+    """History-Eintrag löschen. Der Vorgänger-Eintrag übernimmt valid_to (Kette reparieren)."""
+    result = await db.execute(
+        select(ContractTypeHistory).where(
+            ContractTypeHistory.id == history_id,
+            ContractTypeHistory.contract_type_id == contract_type_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="History-Eintrag nicht gefunden")
+
+    # Mindestens einen Eintrag erhalten
+    count_result = await db.execute(
+        select(ContractTypeHistory).where(
+            ContractTypeHistory.contract_type_id == contract_type_id,
+        )
+    )
+    if len(count_result.scalars().all()) <= 1:
+        raise HTTPException(status_code=422, detail="Mindestens ein History-Eintrag muss erhalten bleiben")
+
+    # Vorgänger-Eintrag suchen (valid_to == entry.valid_from)
+    if entry.valid_from:
+        prev_result = await db.execute(
+            select(ContractTypeHistory).where(
+                ContractTypeHistory.contract_type_id == contract_type_id,
+                ContractTypeHistory.valid_to == entry.valid_from,
+            )
+        )
+        prev = prev_result.scalar_one_or_none()
+        if prev:
+            prev.valid_to = entry.valid_to
+
+    await db.delete(entry)
+    await db.commit()
