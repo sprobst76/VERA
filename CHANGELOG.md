@@ -5,6 +5,33 @@ Format: [Semantic Versioning](https://semver.org/), neueste Version zuerst.
 
 ---
 
+## [0.21.0] – 2026-03-16
+
+### Hinzugefügt
+
+- **Bestätigte Dienste editierbar (Admin/Manager)** – In der Dienstliste erscheint
+  für `confirmed`-Dienste ein orangefarbener Stift-Button. Das Edit-Modal erlaubt
+  Korrekturen an geplanten Zeiten, Ist-Zeiten und Notiz mit Warn-Banner
+  „Änderungen können die Abrechnung beeinflussen".
+
+- **Warnmeldung beim Fixieren der Monatsabrechnung** – Klick auf „Genehmigen"
+  (draft → approved) oder „Als bezahlt markieren" (approved → paid) öffnet jetzt
+  einen Bestätigungs-Block mit Brutto-Summe und Hinweistext, bevor die Aktion
+  ausgeführt wird. Verhindert unbeabsichtigtes Fixieren.
+
+- **GitHub Actions auf Node.js 24 / Actions v5/v6 aktualisiert** – Beseitigt
+  Deprecation-Warnings vor dem erzwungenen Wechsel am 2. Juni 2026
+  (`actions/checkout v5`, `actions/setup-node v5`, `docker/build-push-action v6`).
+
+### Tests
+
+- **2 neue Backend-Tests** in `test_shifts.py`:
+  - `test_admin_can_edit_confirmed_shift_times`: Admin darf Zeiten auf
+    bestätigtem Dienst korrigieren; Status bleibt `confirmed`.
+  - `test_employee_cannot_edit_confirmed_shift`: Mitarbeiter erhält 403.
+
+---
+
 ## [0.20.1] – 2026-03-15
 
 ### Refactoring

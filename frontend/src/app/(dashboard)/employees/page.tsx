@@ -2098,6 +2098,15 @@ function EmployeeDetailView({ emp, isAdmin, onBack, onUpdate }: {
 
   const color = CONTRACT_COLORS[employee.contract_type] ?? "rgb(var(--ctp-overlay0))";
 
+  const { data: contractTypesList = [] } = useQuery<ContractTypeItem[]>({
+    queryKey: ["contract-types"],
+    queryFn: () => contractTypesApi.list().then((r) => r.data),
+    enabled: isAdmin,
+  });
+  const contractTypeName = employee.contract_type_id
+    ? contractTypesList.find((ct) => ct.id === employee.contract_type_id)?.name ?? null
+    : null;
+
   const tabs: [DetailTab, string][] = [
     ["stammdaten", "Stammdaten"],
     ["verlauf", "Vertragsverlauf"],
@@ -2123,10 +2132,17 @@ function EmployeeDetailView({ emp, isAdmin, onBack, onUpdate }: {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">{employee.first_name} {employee.last_name}</h1>
-            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-              style={{ color, backgroundColor: color.replace(")", " / 0.12)").replace("rgb(", "rgb(") }}>
-              {CONTRACT_LABELS[employee.contract_type] ?? employee.contract_type}
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                style={{ color, backgroundColor: color.replace(")", " / 0.12)").replace("rgb(", "rgb(") }}>
+                {CONTRACT_LABELS[employee.contract_type] ?? employee.contract_type}
+              </span>
+              {contractTypeName && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
+                  {contractTypeName}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         {!employee.is_active && (
