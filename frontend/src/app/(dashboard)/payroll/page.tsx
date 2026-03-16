@@ -146,6 +146,7 @@ function DetailModal({
   const qc = useQueryClient();
   const [notes, setNotes] = useState(entry.notes ?? "");
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [confirmPending, setConfirmPending] = useState<"approved" | "paid" | null>(null);
 
   async function handleDownloadPdf() {
     setPdfLoading(true);
@@ -441,51 +442,88 @@ function DetailModal({
           )}
 
           {/* Aktionsbuttons */}
-          <div className="flex gap-2 pt-1">
-            {entry.status === "draft" && (
-              <button
-                onClick={() => updateMutation.mutate({ status: "approved" })}
-                disabled={updateMutation.isPending}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                style={{ backgroundColor: "rgb(var(--ctp-green))" }}
-              >
-                <Check size={14} /> Genehmigen
-              </button>
-            )}
-            {entry.status === "approved" && (
-              <>
-                <button
-                  onClick={() => updateMutation.mutate({ status: "paid" })}
-                  disabled={updateMutation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                  style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
-                >
-                  <Euro size={14} /> Als bezahlt markieren
-                </button>
-                <button
-                  onClick={() => updateMutation.mutate({ status: "draft" })}
-                  disabled={updateMutation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
-                >
-                  <RotateCcw size={14} /> Zurücksetzen
-                </button>
-              </>
-            )}
-            {entry.status === "paid" && (
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <CheckCircle size={16} style={{ color: "rgb(var(--ctp-green))" }} />
-                Abrechnung abgeschlossen
+          <div className="flex flex-col gap-2 pt-1">
+            {confirmPending ? (
+              <div className="rounded-xl p-4 text-sm space-y-3"
+                style={{ backgroundColor: "rgb(var(--ctp-peach) / 0.10)", border: "1px solid rgb(var(--ctp-peach) / 0.30)" }}>
+                <div className="flex items-start gap-2" style={{ color: "rgb(var(--ctp-peach))" }}>
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-semibold">
+                      {confirmPending === "approved" ? "Abrechnung genehmigen?" : "Als bezahlt markieren?"}
+                    </div>
+                    <div className="text-xs opacity-80 mt-0.5">
+                      {confirmPending === "approved"
+                        ? `Brutto ${eur(entry.total_gross)} wird festgeschrieben. Dienste sollten danach nicht mehr geändert werden.`
+                        : "Dieser Schritt schließt den Monat endgültig ab. Eine Rückbuchung ist nur über Zurücksetzen möglich."}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { updateMutation.mutate({ status: confirmPending }); setConfirmPending(null); }}
+                    disabled={updateMutation.isPending}
+                    className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                    style={{ backgroundColor: confirmPending === "approved" ? "rgb(var(--ctp-green))" : "rgb(var(--ctp-blue))" }}
+                  >
+                    {confirmPending === "approved" ? "Ja, genehmigen" : "Ja, als bezahlt markieren"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmPending(null)}
+                    className="flex-1 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
               </div>
-            )}
-            {entry.status !== "draft" && (
-              <button
-                onClick={handleDownloadPdf}
-                disabled={pdfLoading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
-              >
-                {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                PDF
-              </button>
+            ) : (
+              <div className="flex gap-2 flex-wrap">
+                {entry.status === "draft" && (
+                  <button
+                    onClick={() => setConfirmPending("approved")}
+                    disabled={updateMutation.isPending}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                    style={{ backgroundColor: "rgb(var(--ctp-green))" }}
+                  >
+                    <Check size={14} /> Genehmigen
+                  </button>
+                )}
+                {entry.status === "approved" && (
+                  <>
+                    <button
+                      onClick={() => setConfirmPending("paid")}
+                      disabled={updateMutation.isPending}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                      style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+                    >
+                      <Euro size={14} /> Als bezahlt markieren
+                    </button>
+                    <button
+                      onClick={() => updateMutation.mutate({ status: "draft" })}
+                      disabled={updateMutation.isPending}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    >
+                      <RotateCcw size={14} /> Zurücksetzen
+                    </button>
+                  </>
+                )}
+                {entry.status === "paid" && (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <CheckCircle size={16} style={{ color: "rgb(var(--ctp-green))" }} />
+                    Abrechnung abgeschlossen
+                  </div>
+                )}
+                {entry.status !== "draft" && (
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={pdfLoading}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
+                  >
+                    {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                    PDF
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

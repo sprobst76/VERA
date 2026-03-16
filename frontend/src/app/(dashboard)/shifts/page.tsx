@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi, shiftTypesApi } from "@/lib/api";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck, ClockArrowUp } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck, ClockArrowUp } from "lucide-react";
 import { TimeInput } from "@/components/shared/TimeInput";
 import { useSwipe } from "@/hooks/useSwipe";
 import toast from "react-hot-toast";
@@ -123,6 +123,75 @@ function ActualTimeModal({ shift, onClose, onDone }: { shift: any; onClose: () =
           <button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}
             className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
             {updateMutation.isPending ? "Wird gespeichert…" : "Zeiten speichern"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Confirmed Shift Modal (Admin) ────────────────────────────────────────
+
+function EditConfirmedShiftModal({ shift, employees, onClose, onDone }: {
+  shift: any; employees: any[]; onClose: () => void; onDone: () => void;
+}) {
+  const [startTime,   setStartTime]   = useState(shift.start_time?.slice(0, 5) ?? "");
+  const [endTime,     setEndTime]     = useState(shift.end_time?.slice(0, 5) ?? "");
+  const [actualStart, setActualStart] = useState(shift.actual_start?.slice(0, 5) ?? "");
+  const [actualEnd,   setActualEnd]   = useState(shift.actual_end?.slice(0, 5) ?? "");
+  const [notes,       setNotes]       = useState(shift.notes ?? "");
+
+  const mutation = useMutation({
+    mutationFn: () => shiftsApi.update(shift.id, {
+      start_time:   startTime   || undefined,
+      end_time:     endTime     || undefined,
+      actual_start: actualStart || undefined,
+      actual_end:   actualEnd   || undefined,
+      notes:        notes       || undefined,
+    }),
+    onSuccess: () => { toast.success("Dienst aktualisiert"); onDone(); },
+    onError:   () => toast.error("Fehler beim Speichern"),
+  });
+
+  const emp = employees.find((e: any) => e.id === shift.employee_id);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h2 className="text-base font-semibold text-foreground">Bestätigten Dienst bearbeiten</h2>
+          <button onClick={onClose} className="p-2 rounded hover:bg-accent text-muted-foreground"><X size={16} /></button>
+        </div>
+        <div className="px-5 pb-5 space-y-3">
+          <div className="flex items-start gap-2 rounded-lg p-3 text-sm"
+            style={{ backgroundColor: "rgb(var(--ctp-peach) / 0.12)", color: "rgb(var(--ctp-peach))" }}>
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>Dieser Dienst ist bereits <strong>bestätigt</strong>. Änderungen können die Abrechnung beeinflussen.</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {emp ? `${emp.first_name} ${emp.last_name}` : "Kein Mitarbeiter"} · {shift.date}
+          </p>
+          <div>
+            <label className={labelCls}>Geplante Zeiten</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-muted-foreground block mb-1">Von</label><TimeInput value={startTime} onChange={setStartTime} /></div>
+              <div><label className="text-xs text-muted-foreground block mb-1">Bis</label><TimeInput value={endTime} onChange={setEndTime} /></div>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Ist-Zeiten</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-muted-foreground block mb-1">Von</label><TimeInput value={actualStart} onChange={setActualStart} /></div>
+              <div><label className="text-xs text-muted-foreground block mb-1">Bis</label><TimeInput value={actualEnd} onChange={setActualEnd} /></div>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Notiz</label>
+            <input type="text" className={inputCls} value={notes} onChange={e => setNotes(e.target.value)} placeholder="optional" />
+          </div>
+          <button onClick={() => mutation.mutate()} disabled={mutation.isPending}
+            className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            {mutation.isPending ? "Wird gespeichert…" : "Änderungen speichern"}
           </button>
         </div>
       </div>
@@ -762,11 +831,12 @@ export default function ShiftsPage() {
   const [filterEmployee, setFilterEmployee] = useState("");
   const [statusFilter,   setStatusFilter]   = useState<StatusFilter>("open");
   const [showCreate,     setShowCreate]     = useState(false);
-  const [confirmShift,      setConfirmShift]      = useState<any>(null);
-  const [actualShift,       setActualShift]       = useState<any>(null);
-  const [suggestShift,      setSuggestShift]       = useState<any>(null);
-  const [correctionShift,   setCorrectionShift]   = useState<any>(null);
-  const [reviewShift,       setReviewShift]       = useState<any>(null);
+  const [confirmShift,        setConfirmShift]        = useState<any>(null);
+  const [actualShift,         setActualShift]         = useState<any>(null);
+  const [suggestShift,        setSuggestShift]        = useState<any>(null);
+  const [correctionShift,     setCorrectionShift]     = useState<any>(null);
+  const [reviewShift,         setReviewShift]         = useState<any>(null);
+  const [editConfirmedShift,  setEditConfirmedShift]  = useState<any>(null);
 
   const monthStart = format(startOfMonth(month), "yyyy-MM-dd");
   const monthEnd   = format(endOfMonth(month), "yyyy-MM-dd");
@@ -842,7 +912,8 @@ export default function ShiftsPage() {
   const sortedDates = Object.keys(grouped).sort();
 
   const handleCreated  = () => { setShowCreate(false); qc.invalidateQueries({ queryKey: ["shifts"] }); };
-  const handleConfirmed= () => { setConfirmShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
+  const handleConfirmed      = () => { setConfirmShift(null);       qc.invalidateQueries({ queryKey: ["shifts"] }); };
+  const handleEditConfirmed  = () => { setEditConfirmedShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
   const handleActualSaved = () => { setActualShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
   const handleCorrectionDone = () => { setCorrectionShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
   const handleReviewDone = () => { setReviewShift(null); qc.invalidateQueries({ queryKey: ["shifts"] }); };
@@ -1077,6 +1148,13 @@ export default function ShiftsPage() {
                                 <Check size={15} />
                               </button>
                             )}
+                            {isPrivileged && shift.status === "confirmed" && (
+                              <button onClick={() => setEditConfirmedShift(shift)} title="Bestätigten Dienst bearbeiten"
+                                className="p-2.5 rounded hover:bg-accent transition-colors"
+                                style={{ color: "rgb(var(--ctp-peach))" }}>
+                                <Pencil size={14} />
+                              </button>
+                            )}
                             {isOwnShift && shift.status === "planned" && (
                               <button onClick={() => setActualShift(shift)} title="Ist-Zeiten eintragen"
                                 className="p-2.5 rounded hover:bg-accent transition-colors text-muted-foreground">
@@ -1127,6 +1205,7 @@ export default function ShiftsPage() {
         />
       )}
       {confirmShift && <ConfirmModal shift={confirmShift} onClose={() => setConfirmShift(null)} onDone={handleConfirmed} />}
+      {editConfirmedShift && <EditConfirmedShiftModal shift={editConfirmedShift} employees={employees as any[]} onClose={() => setEditConfirmedShift(null)} onDone={handleEditConfirmed} />}
       {actualShift && <ActualTimeModal shift={actualShift} onClose={() => setActualShift(null)} onDone={handleActualSaved} />}
       {correctionShift && <TimeCorrectionModal shift={correctionShift} onClose={() => setCorrectionShift(null)} onDone={handleCorrectionDone} />}
       {reviewShift && <TimeCorrectionReviewModal shift={reviewShift} onClose={() => setReviewShift(null)} onDone={handleReviewDone} />}
