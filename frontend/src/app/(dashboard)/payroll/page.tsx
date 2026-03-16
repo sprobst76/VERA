@@ -102,6 +102,22 @@ interface Employee {
   vacation_days: number;
 }
 
+interface AnnualMonthEntry {
+  id: string;
+  paid_hours: number | null;
+  total_gross: number | null;
+  status: string;
+}
+interface AnnualEmployeeRow {
+  employee_id: string;
+  employee_name: string;
+  contract_type: string;
+  is_active: boolean;
+  months: Record<number, AnnualMonthEntry | null>;
+  total_paid_hours: number;
+  total_gross: number;
+}
+
 /* ── EmployeePdfButton ────────────────────────────────────────────── */
 function EmployeePdfButton({ entry }: { entry: PayrollEntry }) {
   const [loading, setLoading] = useState(false);
@@ -641,6 +657,146 @@ function EmployeeRow({
   );
 }
 
+const MONTH_NAMES = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+/* ── AnnualView ───────────────────────────────────────────────────── */
+function AnnualView({
+  year,
+  data,
+  isLoading,
+  onExportCsv,
+}: {
+  year: number;
+  data: AnnualEmployeeRow[];
+  isLoading: boolean;
+  onExportCsv: () => void;
+}) {
+  if (isLoading) {
+    return <div className="text-center py-12 text-muted-foreground text-sm">Lade Jahresübersicht…</div>;
+  }
+  if (data.length === 0) {
+    return (
+      <div className="bg-card rounded-xl border border-border p-10 text-center">
+        <div className="font-medium text-foreground mb-1">Keine Daten für {year}</div>
+        <p className="text-sm text-muted-foreground">Für dieses Jahr wurden noch keine Abrechnungen erstellt.</p>
+      </div>
+    );
+  }
+
+  // Column totals
+  const colTotals: Record<number, { hours: number; gross: number }> = {};
+  for (let m = 1; m <= 12; m++) {
+    colTotals[m] = { hours: 0, gross: 0 };
+    for (const row of data) {
+      const entry = row.months[m];
+      if (entry) {
+        colTotals[m].hours += entry.paid_hours ?? 0;
+        colTotals[m].gross += entry.total_gross ?? 0;
+      }
+    }
+  }
+  const grandHours = data.reduce((s, r) => s + r.total_paid_hours, 0);
+  const grandGross = data.reduce((s, r) => s + r.total_gross, 0);
+
+  function cellColor(status: string) {
+    if (status === "paid") return "rgb(var(--ctp-blue))";
+    if (status === "approved") return "rgb(var(--ctp-green))";
+    return "rgb(var(--ctp-overlay1))";
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm mr-1 align-middle" style={{ backgroundColor: "rgb(var(--ctp-overlay1))" }} />Entwurf
+          <span className="inline-block w-2.5 h-2.5 rounded-sm mx-1 ml-3 align-middle" style={{ backgroundColor: "rgb(var(--ctp-green))" }} />Genehmigt
+          <span className="inline-block w-2.5 h-2.5 rounded-sm mx-1 ml-3 align-middle" style={{ backgroundColor: "rgb(var(--ctp-blue))" }} />Bezahlt
+        </p>
+        <button
+          onClick={onExportCsv}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-accent transition-colors"
+        >
+          <Download size={14} />
+          Excel-CSV
+        </button>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="text-xs min-w-full">
+          <thead>
+            <tr className="bg-muted/50 border-b border-border">
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground whitespace-nowrap sticky left-0 bg-muted/50 min-w-[160px]">
+                Mitarbeiter
+              </th>
+              {MONTH_NAMES.map((m) => (
+                <th key={m} className="text-right px-2 py-2.5 font-medium text-muted-foreground whitespace-nowrap min-w-[80px]">
+                  {m}
+                </th>
+              ))}
+              <th className="text-right px-3 py-2.5 font-medium text-muted-foreground whitespace-nowrap min-w-[90px]">
+                Gesamt
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {data.map((row) => (
+              <tr key={row.employee_id} className={`hover:bg-muted/30 transition-colors ${!row.is_active ? "opacity-50" : ""}`}>
+                <td className="px-3 py-2 sticky left-0 bg-card hover:bg-muted/30">
+                  <div className="font-medium text-foreground">{row.employee_name}</div>
+                  <div className="text-muted-foreground text-[10px] capitalize">{row.contract_type}</div>
+                </td>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                  const entry = row.months[m];
+                  if (!entry) {
+                    return (
+                      <td key={m} className="px-2 py-2 text-right text-muted-foreground/40">—</td>
+                    );
+                  }
+                  return (
+                    <td key={m} className="px-2 py-2 text-right" style={{ color: cellColor(entry.status) }}>
+                      <div>{(entry.paid_hours ?? 0).toFixed(1)} h</div>
+                      <div className="font-medium">{eur(entry.total_gross)}</div>
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-2 text-right font-semibold text-foreground">
+                  <div>{row.total_paid_hours.toFixed(1)} h</div>
+                  <div>{eur(row.total_gross)}</div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-border bg-muted/50 font-semibold">
+              <td className="px-3 py-2.5 text-foreground sticky left-0 bg-muted/50">Summe</td>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                const tot = colTotals[m];
+                const hasData = tot.hours > 0 || tot.gross > 0;
+                return (
+                  <td key={m} className="px-2 py-2.5 text-right text-foreground">
+                    {hasData ? (
+                      <>
+                        <div>{tot.hours.toFixed(1)} h</div>
+                        <div>{eur(tot.gross)}</div>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground/40">—</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-3 py-2.5 text-right text-foreground">
+                <div>{grandHours.toFixed(1)} h</div>
+                <div>{eur(grandGross)}</div>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /* ── PayrollPage ──────────────────────────────────────────────────── */
 export default function PayrollPage() {
   const { user } = useAuthStore();
@@ -654,6 +810,8 @@ export default function PayrollPage() {
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
   const [calculatingAll, setCalculatingAll] = useState(false);
   const [calculatingId, setCalculatingId] = useState<string | null>(null);
+  const [view, setView] = useState<"monat" | "jahr">("monat");
+  const [year, setYear] = useState(new Date().getFullYear());
 
   const isPrivileged = user?.role === "admin" || user?.role === "manager";
   const isEmployee = user?.role === "employee";
@@ -677,6 +835,26 @@ export default function PayrollPage() {
   });
 
   const empMap = Object.fromEntries(employees.map((e) => [e.id, e]));
+
+  const { data: annualData = [], isLoading: annualLoading } = useQuery<AnnualEmployeeRow[]>({
+    queryKey: ["payroll-annual", year],
+    queryFn: () => payrollApi.annual(year).then(r => r.data),
+    enabled: isPrivileged && view === "jahr",
+  });
+
+  async function handleExportCsv() {
+    try {
+      const res = await payrollApi.exportCsv(year);
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vera-abrechnung-${year}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("CSV-Export fehlgeschlagen");
+    }
+  }
 
   // Summary stats
   const totalGross = entries.reduce((s, e) => s + (e.total_gross ?? 0), 0);
@@ -898,82 +1076,111 @@ export default function PayrollPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-foreground">Abrechnung</h1>
-        <div className="flex items-center gap-2">
-          {/* Month nav */}
-          <div className="flex items-center gap-1 bg-card border border-border rounded-xl px-1 py-1">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-foreground">Abrechnung</h1>
+          {/* View toggle */}
+          <div className="flex items-center gap-1 bg-muted rounded-xl p-1">
             <button
-              onClick={() => changeMonth(-1)}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+              onClick={() => setView("monat")}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === "monat" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
-              <ChevronLeft size={16} />
+              Monat
             </button>
-            <span className="text-sm font-medium text-foreground px-2 min-w-[120px] text-center">
-              {monthLabel}
-            </span>
             <button
-              onClick={() => changeMonth(1)}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+              onClick={() => setView("jahr")}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === "jahr" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
-              <ChevronRight size={16} />
+              Jahr
             </button>
           </div>
-
-          {/* CSV Export */}
-          {entries.length > 0 && (
-            <button
-              onClick={() => {
-                const header = ["Mitarbeiter", "Monat", "Stunden", "Grundlohn", "Zuschläge", "Brutto", "Status"];
-                const rows = entries.map((e) => {
-                  const emp = empMap[e.employee_id];
-                  const name = emp ? `${emp.last_name} ${emp.first_name}` : e.employee_id;
-                  const surcharges = (e.early_surcharge ?? 0) + (e.late_surcharge ?? 0) +
-                    (e.night_surcharge ?? 0) + (e.weekend_surcharge ?? 0) +
-                    (e.sunday_surcharge ?? 0) + (e.holiday_surcharge ?? 0);
-                  return [
-                    name,
-                    e.month.slice(0, 7),
-                    (e.paid_hours ?? 0).toFixed(2).replace(".", ","),
-                    (e.base_wage ?? 0).toFixed(2).replace(".", ","),
-                    surcharges.toFixed(2).replace(".", ","),
-                    (e.total_gross ?? 0).toFixed(2).replace(".", ","),
-                    e.status,
-                  ];
-                });
-                const bom = "\uFEFF";
-                const content = bom + [header, ...rows].map(r =>
-                  r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")
-                ).join("\r\n");
-                const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `abrechnung_${monthLabel.replace(" ", "_")}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:bg-accent transition-colors"
-            >
-              <Download size={14} />
-              <span className="hidden sm:inline">CSV</span>
-            </button>
+        </div>
+        <div className="flex items-center gap-2">
+          {view === "monat" ? (
+            <>
+              {/* Month nav */}
+              <div className="flex items-center gap-1 bg-card border border-border rounded-xl px-1 py-1">
+                <button onClick={() => changeMonth(-1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="text-sm font-medium text-foreground px-2 min-w-[120px] text-center">
+                  {monthLabel}
+                </span>
+                <button onClick={() => changeMonth(1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              {/* Monthly CSV */}
+              {entries.length > 0 && (
+                <button
+                  onClick={() => {
+                    const header = ["Mitarbeiter", "Monat", "Stunden", "Grundlohn", "Zuschläge", "Brutto", "Status"];
+                    const rows = entries.map((e) => {
+                      const emp = empMap[e.employee_id];
+                      const name = emp ? `${emp.last_name} ${emp.first_name}` : e.employee_id;
+                      const surcharges = (e.early_surcharge ?? 0) + (e.late_surcharge ?? 0) +
+                        (e.night_surcharge ?? 0) + (e.weekend_surcharge ?? 0) +
+                        (e.sunday_surcharge ?? 0) + (e.holiday_surcharge ?? 0);
+                      return [
+                        name,
+                        e.month.slice(0, 7),
+                        (e.paid_hours ?? 0).toFixed(2).replace(".", ","),
+                        (e.base_wage ?? 0).toFixed(2).replace(".", ","),
+                        surcharges.toFixed(2).replace(".", ","),
+                        (e.total_gross ?? 0).toFixed(2).replace(".", ","),
+                        e.status,
+                      ];
+                    });
+                    const bom = "\uFEFF";
+                    const content = bom + [header, ...rows].map(r =>
+                      r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")
+                    ).join("\r\n");
+                    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `abrechnung_${monthLabel.replace(" ", "_")}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:bg-accent transition-colors"
+                >
+                  <Download size={14} />
+                  <span className="hidden sm:inline">CSV</span>
+                </button>
+              )}
+              {/* Calculate all */}
+              <button
+                onClick={() => { setCalculatingAll(true); calcAllMutation.mutate(); }}
+                disabled={calculatingAll || calcAllMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50"
+                style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
+              >
+                <Calculator size={14} />
+                <span className="hidden sm:inline">Alle berechnen</span>
+              </button>
+            </>
+          ) : (
+            /* Year nav */
+            <div className="flex items-center gap-1 bg-card border border-border rounded-xl px-1 py-1">
+              <button onClick={() => setYear(y => y - 1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm font-medium text-foreground px-4 min-w-[80px] text-center">{year}</span>
+              <button onClick={() => setYear(y => y + 1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                <ChevronRight size={16} />
+              </button>
+            </div>
           )}
-
-          {/* Calculate all */}
-          <button
-            onClick={() => {
-              setCalculatingAll(true);
-              calcAllMutation.mutate();
-            }}
-            disabled={calculatingAll || calcAllMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50"
-            style={{ backgroundColor: "rgb(var(--ctp-blue))" }}
-          >
-            <Calculator size={14} />
-            <span className="hidden sm:inline">Alle berechnen</span>
-          </button>
         </div>
       </div>
+
+      {/* Annual view */}
+      {view === "jahr" && (
+        <AnnualView year={year} data={annualData} isLoading={annualLoading} onExportCsv={handleExportCsv} />
+      )}
+
+      {/* Monthly view */}
+      {view === "monat" && <>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1137,6 +1344,8 @@ export default function PayrollPage() {
           onClose={() => setSelectedEntry(null)}
         />
       )}
+
+      </>}
     </div>
   );
 }
