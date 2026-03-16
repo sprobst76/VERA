@@ -1,6 +1,6 @@
 # VERA – Feature-Backlog & Roadmap
 
-Stand: 2026-03-14 (aktualisiert)
+Stand: 2026-03-16 (aktualisiert)
 
 ---
 
@@ -18,6 +18,7 @@ Stand: 2026-03-14 (aktualisiert)
 - [x] **Diensttyp in Regeltermin** – shift_type_id wählbar beim Anlegen/Bearbeiten, wird auf Dienste vererbt
 - [x] **Ist-Zeit-Korrektur** – MA erfasst Ist-Zeiten, Admin bestätigt/lehnt ab; Abrechnung nutzt bestätigte Ist-Zeiten
 - [x] **Kalender-Statusanzeige** – completed = Rahmen (transparent), confirmed = doppelter Rahmen
+- [x] **Bestätigte Dienste editierbar (Admin)** – orangener Bearbeiten-Button auf confirmed-Diensten mit Warnbanner
 
 ### Mitarbeiterverwaltung
 - [x] CRUD + Qualifikationen + Kontaktdaten
@@ -28,6 +29,12 @@ Stand: 2026-03-14 (aktualisiert)
 - [x] Resturlaubsverwaltung (vacation_days + vacation_carryover)
 - [x] Mitarbeiter-Detailseite mit iCal-Token-Anzeige
 - [x] **Vertragstypen (Gruppenverträge)** – Vorlagen anlegen, MA zuweisen, Bulk-ContractHistory bei Lohnänderung
+- [x] **Eintrittsdatum (start_date)** – Rückwirkend Mitarbeiter anlegen; wird als valid_from des ersten ContractHistory-Eintrags verwendet
+- [x] **Vertragsverlauf editierbar/löschbar** – PUT/DELETE /employees/{id}/contracts; Chain-Repair beim Löschen
+- [x] **ContractType-Historisierung** – contract_type_history Tabelle; Verlauf in Einstellungen; Quelle-Spalte im Mitarbeiter-Verlauf
+- [x] **Gruppenmitgliedschaft als eigenes Konzept** – employee_contract_type_memberships Tabelle; Verlauf-Tab statt Stammdaten; SCD-Type-2-History
+- [x] **Vertragstyp-Badge im Mitarbeiterkopf** – Gruppenname als Badge in EmployeeDetailView-Header
+- [x] **`_sync_employee_mirror()`** – Zentrale Hilfsfunktion für alle 8 ContractHistory-Spiegelfelder (fix: 0-Werte, fehlende Felder)
 
 ### Urlaubs- & Abwesenheitsverwaltung
 - [x] Abwesenheits-Genehmigungsworkflow (pending → approved/rejected)
@@ -50,6 +57,9 @@ Stand: 2026-03-14 (aktualisiert)
 - [x] PDF Lohnzettel-Download (reportlab)
 - [x] Status-Workflow: draft → approved → paid
 - [x] Minijob-Limit-Status-Report
+- [x] **Genehmigungswarnung** – Inline-Bestätigungsblock vor draft→approved und approved→paid
+- [x] **Jahresübersicht** – Monat/Jahr-Toggle; 12-Monats-Grid (MA × Monat), farbcodiert nach Status
+- [x] **Jahres-CSV-Export** – `GET /payroll/export?year=` (Excel-kompatibel, UTF-8-BOM, Semikolon)
 
 ### Benachrichtigungen
 - [x] Telegram-Bot-Benachrichtigungen
@@ -85,51 +95,48 @@ Stand: 2026-03-14 (aktualisiert)
 - [x] CI/CD: GitHub Actions → GHCR → VPS SSH-Deploy mit Layer-Caching
 - [x] Traefik TLS (Cloudflare), Rate Limiting auf Auth-Endpunkten
 - [x] SuperAdmin mit 2FA (TOTP)
-- [x] Alembic-Migrationen (12 Versionen, HEAD: d3e4f5a6b7c8)
-- [x] Idempotente Migrationen (inspect-Check gegen create_tables()-Race)
+- [x] Alembic-Migrationen (idempotent, inspect-Check gegen create_tables()-Race)
+- [x] **Node.js 24 in CI** – actions/checkout@v5, setup-node@v5 (Node 24), build-push-action@v6
+- [x] **PostgreSQL automatische Backups** – `deploy/backup.sh` (pg_dump + gzip, 30-Tage-Retention, Cron 02:00)
 
 ### Tests
-- [x] 224 Backend-Tests (pytest, asyncio)
-- [x] 61 Frontend-Tests (vitest)
+- [x] **259 Backend-Tests** (pytest, asyncio)
+- [x] **61 Frontend-Tests** (vitest)
 - [x] Tests für: Shifts, Templates, Employees, Auth, Absences, Payroll, Compliance,
       Calendar, Webhooks, Users, ShiftTypes, RecurringShifts, recurringEventUtils,
-      ContractScenarios (25 Tests: Personas Clara/Marc/Sophie/Jan/Nina/Gregor/Lena+Kai/Patricia/Emma/Felix)
+      ContractScenarios (25 Tests: Personas Clara/Marc/Sophie/Jan/Nina/Gregor/Lena+Kai/Patricia/Emma/Felix),
+      Membership-Endpoints (8 Tests), Payroll-Annual/Export (11 Tests)
 
 ---
 
 ## 🔄 Offen / Nächste Schritte
 
 ### Hoch priorisiert
-- [x] **iCal-Einbindungsanleitung** – In-App-Hilfe für 6 Apps direkt in der Einstellungen-Seite (KalenderfreigabeSection)
-- [x] **Einladungslink für Mitarbeiter** – `POST /users/{id}/invite` + 3 neue Auth-Seiten (accept-invite, forgot-password, reset-password)
-- [x] **Vertragsvorlage: valid_from beim Zuweisen** – `assign-contract-type` legt jetzt ContractHistory an + Frontend-Datumsfeld; 25 Vertrags-Szenarien-Tests
-- [x] **SMTP in der UI konfiguriert** – Mail-Server über Einstellungen → System → SMTP konfigurierbar (kein deploy/.env nötig)
-- [ ] **Demo-Tenant re-seeden** – Produktions-Demo-Daten neu aufsetzen mit korrekten
-      Mitarbeiternamen (keine echten Mitarbeiter im Demo-Tenant)
-- [ ] **Notification-Events testen auf Produktion** – Telegram-Token und SendGrid-Key prüfen + Benachrichtigungen end-to-end testen.
+- [ ] **Demo-Tenant re-seeden** – `seed_demo.py` neu schreiben ohne echte Mitarbeiternamen
+      (aktuell: Melanie Britsch, Anita Erhardt, Lena Reinbold-Holz im Demo-Tenant)
+- [ ] **Notification-Events auf Produktion testen** – Telegram-Token und SendGrid-Key prüfen +
+      Benachrichtigungen end-to-end testen (Schicht zugewiesen, Minijob-Warnung)
+
+### Verträge & Abrechnung
+- [ ] **ContractType-Badge für inaktive Typen** – Quelle-Spalte zeigt leer wenn Typ deaktiviert
 
 ### Mittel priorisiert
-- [ ] **Utilization-Report** – `GET /reports/utilization?from=&to=` (Auslastung pro MA)
-      ist in der Spec erwähnt aber noch nicht implementiert.
+- [ ] **Utilization-Report** – `GET /reports/utilization?from=&to=` (Auslastung pro MA in %)
 - [ ] **Eltern-Portal (Phase 2)** – Separater Login (Rolle `parent_viewer`), lesender Zugriff
-      auf Dienste, keine Gehalts-/Compliance-Daten.
+      auf Dienste, keine Gehalts-/Compliance-Daten
 - [ ] **Diensttyp-Erinnerungen testen** – Celery Beat konfiguriert, aber End-to-End-Test
-      auf Produktion steht noch aus.
-- [ ] **Node.js 24 GitHub Actions** – Deprecation-Warnings in CI (Node.js 20 EOL Juni 2026).
-      `actions/checkout`, `actions/setup-python`, `actions/setup-node` auf v5/neueste aktualisieren.
+      auf Produktion steht noch aus
 
 ### Niedrig priorisiert / Phase 2
 - [ ] **KI-Unterstützung** – Claude API für Präferenz-Lernen und Schichtvorschläge
-      (regelbasiertes Matching ist MVP-fertig).
-- [ ] **Tauschpool** – Mitarbeiter können Dienste zum Tausch anbieten; Admin muss genehmigen.
-- [ ] **Backup-Restore testen** – `deploy.sh backup` läuft, aber Restore-Prozess ist nicht
-      dokumentiert/getestet.
-- [ ] **PostgreSQL automatische Backups** – Tägliches Backup mit 30-Tage-Retention konfigurieren
-      (z. B. via Cron auf VPS oder Hetzner Snapshots).
+      (regelbasiertes Matching ist MVP-fertig)
+- [ ] **Tauschpool** – Mitarbeiter können Dienste zum Tausch anbieten; Admin muss genehmigen
+- [ ] **Backup-Restore testen** – backup.sh läuft (Cron 02:00, 30-Tage-Retention),
+      aber Restore-Prozess ist nicht dokumentiert/getestet
 - [ ] **Rate Limiting Application-Level** – Traefik-Rate-Limiting ist aktiv, aber kein
-      Application-Level-Fallback (z. B. slowapi) für nicht-Traefik-Deployments.
-- [ ] **Steuerberater-Review** – Zuschlagsberechnung (§3b EStG) von Steuerberater prüfen lassen.
-- [ ] **Feiertage BW 2026/27 einpflegen** – Ferienprofile für neues Schuljahr anlegen.
+      Application-Level-Fallback (z. B. slowapi) für nicht-Traefik-Deployments
+- [ ] **Steuerberater-Review** – Zuschlagsberechnung (§3b EStG) von Steuerberater prüfen lassen
+- [ ] **Feiertage BW 2026/27 einpflegen** – Ferienprofile für neues Schuljahr anlegen
 
 ---
 
@@ -142,8 +149,8 @@ Stand: 2026-03-14 (aktualisiert)
   Empfehlung: separaten Demo-Tenant anlegen.
 - **Celery/Redis in Entwicklung nicht gestartet** – Lokale Entwicklung nutzt SQLite + uvicorn
   direkt, kein Celery. Zeitgesteuerte Tasks (Erinnerungen, Cleanup) nur auf Produktion aktiv.
-- **Alembic auf Produktion manuell** – `alembic upgrade head` wird zwar im Deploy-Script
-  aufgerufen, aber die CI/CD-Pipeline prüft nicht ob die Migration erfolgreich war.
+- **Alembic-Migrations-Check fehlt in CI** – `alembic upgrade head` wird im Deploy-Script
+  aufgerufen, aber die Pipeline prüft nicht ob die Migration erfolgreich war.
 
 ---
 
