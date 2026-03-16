@@ -135,6 +135,45 @@ async def test_update_shift_employee_forbidden(client, admin_token, employee_tok
     assert resp.status_code == 403
 
 
+@pytest.mark.asyncio
+async def test_admin_can_edit_confirmed_shift_times(client, admin_token, admin_user, tenant):
+    """Admin darf Zeiten eines bereits bestätigten Dienstes korrigieren."""
+    create = await client.post(SHIFTS_URL, json=SHIFT_PAYLOAD, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+    # Dienst bestätigen
+    await client.put(f"{SHIFTS_URL}/{shift_id}", json={"status": "confirmed"}, headers=auth_headers(admin_token))
+
+    resp = await client.put(
+        f"{SHIFTS_URL}/{shift_id}",
+        json={"start_time": "09:00:00", "end_time": "17:00:00", "actual_start": "09:05:00", "actual_end": "17:10:00"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["start_time"] == "09:00:00"
+    assert data["end_time"] == "17:00:00"
+    assert data["actual_start"] == "09:05:00"
+    assert data["actual_end"] == "17:10:00"
+    assert data["status"] == "confirmed"  # Status bleibt bestätigt
+
+
+@pytest.mark.asyncio
+async def test_employee_cannot_edit_confirmed_shift(client, admin_token, employee_token,
+                                                     admin_user, employee_user, tenant):
+    """Mitarbeiter darf bestätigte Dienste nicht bearbeiten (403)."""
+    create = await client.post(SHIFTS_URL, json=SHIFT_PAYLOAD, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+    # Dienst bestätigen (als Admin)
+    await client.put(f"{SHIFTS_URL}/{shift_id}", json={"status": "confirmed"}, headers=auth_headers(admin_token))
+
+    resp = await client.put(
+        f"{SHIFTS_URL}/{shift_id}",
+        json={"notes": "Versuch"},
+        headers=auth_headers(employee_token),
+    )
+    assert resp.status_code == 403
+
+
 # ── DELETE /shifts/{id} ───────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
