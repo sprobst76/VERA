@@ -495,4 +495,12 @@ async def seed():
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="VERA Demo-Seed")
+    parser.add_argument(
+        "--reset", action="store_true",
+        help="Bestehenden Demo-Tenant löschen und neu anlegen (Standard: immer aktiv)"
+    )
+    # parse_known_args so that unknown args don't crash (e.g. pytest discovery)
+    args, _ = parser.parse_known_args()
     asyncio.run(seed())
