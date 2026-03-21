@@ -170,7 +170,11 @@ export default function CalendarPage() {
     const shiftType = shiftTypeMap[s.shift_type_id];
     const empName   = emp ? `${emp.first_name} ${emp.last_name[0]}.` : "Offen";
     const typeLabel = shiftType ? ` [${shiftType.name}]` : "";
-    const baseTitle = tpl ? `${tpl.name}${typeLabel} – ${empName}` : empName;
+    const baseTitle = tpl
+      ? `${tpl.name}${typeLabel} – ${empName}`
+      : s.notes
+      ? `${s.notes} – ${empName}`
+      : empName;
     const prefix = s.status === "completed" ? "✓ " : s.status === "confirmed" ? "• " : "";
     return {
       id: s.id,

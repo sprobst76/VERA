@@ -1094,6 +1094,11 @@ export default function ShiftsPage() {
                                   </span>
                                 )}
                               </span>
+                              {shift.notes && (
+                                <span className="text-xs text-muted-foreground/70 italic truncate max-w-[180px]" title={shift.notes}>
+                                  {shift.notes}
+                                </span>
+                              )}
                               {hasActualTime && (
                                 <span className="text-xs shrink-0 flex items-center gap-1" style={{
                                   color: shift.time_correction_status === "confirmed"
