@@ -181,6 +181,10 @@ export const payrollApi = {
     api.put(`/payroll/${id}`, data),
   downloadPdf: (id: string) =>
     api.get(`/payroll/${id}/pdf`, { responseType: "blob" }),
+  annual: (year: number) =>
+    api.get("/payroll/annual", { params: { year } }),
+  exportCsv: (year: number) =>
+    api.get("/payroll/export", { params: { year }, responseType: "blob" }),
 };
 
 // Holiday Profiles (Ferienprofile)

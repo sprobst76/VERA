@@ -167,6 +167,118 @@ async def calculate_all_payroll(
     return entries
 
 
+@router.get("/annual")
+async def get_annual_payroll(
+    year: int,
+    current_user: ManagerOrAdmin,
+    db: DB,
+):
+    """Jahresübersicht: alle Abrechnungen eines Jahres, gruppiert nach Mitarbeiter."""
+    year_start = date(year, 1, 1)
+    year_end = date(year, 12, 1)
+
+    emp_result = await db.execute(
+        select(Employee)
+        .where(Employee.tenant_id == current_user.tenant_id)
+        .order_by(Employee.last_name, Employee.first_name)
+    )
+    employees = emp_result.scalars().all()
+
+    entries_result = await db.execute(
+        select(PayrollEntry).where(
+            PayrollEntry.tenant_id == current_user.tenant_id,
+            PayrollEntry.month >= year_start,
+            PayrollEntry.month <= year_end,
+        )
+    )
+    entries_by_emp: dict = {}
+    for e in entries_result.scalars().all():
+        entries_by_emp.setdefault(str(e.employee_id), {})[e.month.month] = e
+
+    result = []
+    for emp in employees:
+        emp_entries = entries_by_emp.get(str(emp.id), {})
+        months = {}
+        total_hours = 0.0
+        total_gross = 0.0
+        for m in range(1, 13):
+            entry = emp_entries.get(m)
+            if entry:
+                months[m] = {
+                    "id": str(entry.id),
+                    "paid_hours": float(entry.paid_hours) if entry.paid_hours is not None else None,
+                    "total_gross": float(entry.total_gross) if entry.total_gross is not None else None,
+                    "status": entry.status,
+                }
+                total_hours += float(entry.paid_hours or 0)
+                total_gross += float(entry.total_gross or 0)
+            else:
+                months[m] = None
+        result.append({
+            "employee_id": str(emp.id),
+            "employee_name": f"{emp.first_name} {emp.last_name}",
+            "contract_type": emp.contract_type,
+            "is_active": emp.is_active,
+            "months": months,
+            "total_paid_hours": total_hours,
+            "total_gross": total_gross,
+        })
+    return result
+
+
+@router.get("/export")
+async def export_annual_payroll_csv(
+    year: int,
+    current_user: ManagerOrAdmin,
+    db: DB,
+):
+    """CSV-Export der Jahresabrechnung (Excel-kompatibel, Semikolon-getrennt, UTF-8-BOM)."""
+    import csv
+    import io
+
+    # Jahresübersicht abrufen (gleiche Logik wie /annual)
+    annual_data = await get_annual_payroll(year=year, current_user=current_user, db=db)
+
+    month_names = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+                   "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+
+    # Header
+    writer.writerow(
+        ["Mitarbeiter", "Vertragsart"]
+        + [f"{m} Std." for m in month_names]
+        + [f"{m} Brutto (€)" for m in month_names]
+        + ["Gesamt Std.", "Gesamt Brutto (€)"]
+    )
+
+    def fmt_h(v):
+        return f"{v:.2f}".replace(".", ",") if v is not None else ""
+
+    def fmt_e(v):
+        return f"{v:.2f}".replace(".", ",") if v is not None else ""
+
+    for emp in annual_data:
+        row = [emp["employee_name"], emp["contract_type"]]
+        for m in range(1, 13):
+            entry = emp["months"][m]
+            row.append(fmt_h(entry["paid_hours"]) if entry else "")
+        for m in range(1, 13):
+            entry = emp["months"][m]
+            row.append(fmt_e(entry["total_gross"]) if entry else "")
+        row.append(fmt_h(emp["total_paid_hours"]))
+        row.append(fmt_e(emp["total_gross"]))
+        writer.writerow(row)
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")  # BOM für Excel
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="vera-abrechnung-{year}.csv"'},
+    )
+
+
 @router.get("/{entry_id}", response_model=PayrollEntryOut)
 async def get_payroll_entry(entry_id: uuid.UUID, current_user: CurrentUser, db: DB):
     result = await db.execute(
