@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, status, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select, update, func
 
@@ -235,6 +236,10 @@ async def get_employee(employee_id: uuid.UUID, current_user: CurrentUser, db: DB
     employee = result.scalar_one_or_none()
     if not employee:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
+
+    # parent_viewer: nur öffentliche Daten (JSONResponse bypasses EmployeeOut validation)
+    if current_user.role == "parent_viewer":
+        return JSONResponse(content=EmployeePublicOut.model_validate(employee).model_dump(mode="json"))
 
     # Nicht-Admin darf nur sein eigenes vollständiges Profil sehen
     if current_user.role != "admin" and employee.user_id != current_user.id:

@@ -28,17 +28,17 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/",              label: "Übersicht",         icon: BarChart3,    adminOnly: false },
-  { href: "/calendar",      label: "Kalender",           icon: CalendarDays, adminOnly: false },
-  { href: "/shifts",        label: "Dienste",            icon: Clock,        adminOnly: false },
-  { href: "/employees",     label: "Mitarbeiter",        icon: Users,        adminOnly: true  },
-  { href: "/absences",      label: "Abwesenheiten",      icon: CalendarOff,  adminOnly: false },
-  { href: "/account",       label: "Mein Profil",        icon: UserCircle,   adminOnly: false },
-  { href: "/payroll",       label: "Abrechnung",         icon: DollarSign,   adminOnly: false },
-  { href: "/compliance",    label: "Compliance",         icon: ShieldAlert,  adminOnly: false },
-  { href: "/notifications", label: "Benachrichtigungen", icon: Bell,         adminOnly: false },
-  { href: "/reports",       label: "Berichte",           icon: BarChart3,    adminOnly: true  },
-  { href: "/settings",      label: "Einstellungen",      icon: Settings,     adminOnly: false },
+  { href: "/",              label: "Übersicht",         icon: BarChart3,    adminOnly: false, parentViewerVisible: false },
+  { href: "/calendar",      label: "Kalender",           icon: CalendarDays, adminOnly: false, parentViewerVisible: true  },
+  { href: "/shifts",        label: "Dienste",            icon: Clock,        adminOnly: false, parentViewerVisible: true  },
+  { href: "/employees",     label: "Mitarbeiter",        icon: Users,        adminOnly: true,  parentViewerVisible: false },
+  { href: "/absences",      label: "Abwesenheiten",      icon: CalendarOff,  adminOnly: false, parentViewerVisible: false },
+  { href: "/account",       label: "Mein Profil",        icon: UserCircle,   adminOnly: false, parentViewerVisible: false },
+  { href: "/payroll",       label: "Abrechnung",         icon: DollarSign,   adminOnly: false, parentViewerVisible: false },
+  { href: "/compliance",    label: "Compliance",         icon: ShieldAlert,  adminOnly: false, parentViewerVisible: false },
+  { href: "/notifications", label: "Benachrichtigungen", icon: Bell,         adminOnly: false, parentViewerVisible: false },
+  { href: "/reports",       label: "Berichte",           icon: BarChart3,    adminOnly: true,  parentViewerVisible: false },
+  { href: "/settings",      label: "Einstellungen",      icon: Settings,     adminOnly: false, parentViewerVisible: false },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -47,6 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, isAuthenticated, logout, fetchMe } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isPrivileged = user?.role === "admin" || user?.role === "manager";
+  const isParentViewer = user?.role === "parent_viewer";
 
   const { data: pendingAbsences = [] } = useQuery({
     queryKey: ["absences", "pending"],
@@ -56,6 +57,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     staleTime: 4 * 60_000,
   });
   const pendingCount = (pendingAbsences as any[]).length;
+
+  const PARENT_VIEWER_ALLOWED = ["/calendar", "/shifts"];
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -67,6 +70,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       fetchMe().catch(() => router.push("/login"));
     }
   }, [isAuthenticated, fetchMe, router]);
+
+  // Route guard for parent_viewer: only /calendar and /shifts allowed
+  useEffect(() => {
+    if (isParentViewer && !PARENT_VIEWER_ALLOWED.some(p => pathname === p || pathname.startsWith(p + "/"))) {
+      router.replace("/calendar");
+    }
+  }, [isParentViewer, pathname, router]);
 
   if (!isAuthenticated || !user) {
     return (
@@ -118,7 +128,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.filter(item => !item.adminOnly || user.role !== "employee").map(({ href, label, icon: Icon }) => {
+          {navItems.filter(item => {
+            if (isParentViewer) return item.parentViewerVisible;
+            if (user.role === "employee") return !item.adminOnly;
+            return true;
+          }).map(({ href, label, icon: Icon }) => {
             const badge = href === "/absences" && isPrivileged ? pendingCount : 0;
             return (
               <Link

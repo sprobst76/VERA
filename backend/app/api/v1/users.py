@@ -18,7 +18,7 @@ from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-VALID_ROLES = ("admin", "manager", "employee")
+VALID_ROLES = ("admin", "manager", "employee", "parent_viewer")
 
 
 class UserOut(BaseModel):

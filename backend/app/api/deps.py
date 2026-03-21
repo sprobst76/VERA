@@ -95,8 +95,21 @@ async def get_current_superadmin(
     return sa
 
 
+async def get_parent_viewer_or_higher(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Allows admin, manager, and parent_viewer roles (read-only portal access)."""
+    if current_user.role not in ("admin", "manager", "parent_viewer"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
+    return current_user
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
 AdminUser = Annotated[User, Depends(get_current_active_admin)]
 ManagerOrAdmin = Annotated[User, Depends(get_current_manager_or_admin)]
+ParentViewerOrHigher = Annotated[User, Depends(get_parent_viewer_or_higher)]
 SuperAdminUser = Annotated[SuperAdmin, Depends(get_current_superadmin)]
 DB = Annotated[AsyncSession, Depends(get_db)]

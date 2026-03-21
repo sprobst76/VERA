@@ -824,6 +824,7 @@ function SuggestionsModal({ shift, onClose, onAssigned }: {
 export default function ShiftsPage() {
   const { user } = useAuthStore();
   const isPrivileged = user?.role === "admin" || user?.role === "manager";
+  const isParentViewer = user?.role === "parent_viewer";
   const qc = useQueryClient();
 
   const [tab,            setTab]           = useState<"dienste" | "regeltermine">("dienste");
@@ -859,7 +860,7 @@ export default function ShiftsPage() {
   const { data: ownProfile } = useQuery({
     queryKey: ["employees", "me"],
     queryFn: () => import("@/lib/api").then(m => m.employeesApi.me()).then(r => r.data),
-    enabled: !isPrivileged,
+    enabled: !isPrivileged && !isParentViewer,
   });
 
   const deleteMutation = useMutation({
@@ -1131,7 +1132,7 @@ export default function ShiftsPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            {!isPrivileged && !shift.employee_id && shift.status === "planned" && (
+                            {!isPrivileged && !isParentViewer && !shift.employee_id && shift.status === "planned" && (
                               <button onClick={() => claimMutation.mutate(shift.id)} title="Dienst annehmen"
                                 disabled={claimMutation.isPending}
                                 className="p-2.5 rounded hover:bg-accent transition-colors"

@@ -25,7 +25,7 @@ from app.schemas.shift import (
 
 router = APIRouter(tags=["shifts"])
 
-PRIVILEGED_ROLES = ("admin", "manager")
+PRIVILEGED_ROLES = ("admin", "manager", "parent_viewer")
 
 
 # ── Helper: resolve employee_id for current (non-admin) user ─────────────────
