@@ -229,6 +229,30 @@ export default function CalendarPage() {
           resource: { type: "care_absence", color: "#cba6f7", careAbsence: ca },
         });
       }
+      const absenceEmoji: Record<string, string> = {
+        vacation: "🏖️",
+        sick: "🤒",
+        school_holiday: "📚",
+        other: "📅",
+      };
+      const absenceColor: Record<string, string> = {
+        vacation: "rgb(var(--ctp-blue) / 0.25)",
+        sick: "rgb(var(--ctp-red) / 0.25)",
+        school_holiday: "rgb(var(--ctp-yellow) / 0.25)",
+        other: "rgb(var(--ctp-overlay1) / 0.25)",
+      };
+      for (const ea of vacationData.employee_absences ?? []) {
+        const emoji = absenceEmoji[ea.type] ?? "📅";
+        const color = absenceColor[ea.type] ?? absenceColor.other;
+        hevents.push({
+          id: `ea-${ea.id}`,
+          title: `${emoji} ${ea.employee_name}`,
+          start: parseISO(ea.start_date),
+          end: new Date(parseISO(ea.end_date).getTime() + 86400000),
+          allDay: true,
+          resource: { type: "employee_absence", color, employeeAbsence: ea },
+        });
+      }
     }
     return hevents;
   }, [vacationData]);
@@ -278,6 +302,22 @@ export default function CalendarPage() {
           fontSize: "0.65rem",
           fontWeight: "600",
           opacity: 0.85,
+          borderRadius: "3px",
+          pointerEvents: "none" as const,
+          cursor: "default",
+        },
+      };
+    }
+
+    if (type === "employee_absence") {
+      return {
+        style: {
+          backgroundColor: labelColor ?? "rgba(137,180,250,0.4)",
+          borderColor: "transparent",
+          color: "rgba(0,0,0,0.75)",
+          fontSize: "0.65rem",
+          fontWeight: "600",
+          opacity: 0.9,
           borderRadius: "3px",
           pointerEvents: "none" as const,
           cursor: "default",
@@ -433,6 +473,12 @@ export default function CalendarPage() {
           <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "#cba6f7" }} />
             Abwesenheit betreute Person
+          </span>
+        )}
+        {(vacationData?.employee_absences ?? []).length > 0 && (
+          <span className="flex items-center gap-1.5 bg-card rounded-full px-2.5 py-1 border border-border text-foreground">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "rgb(var(--ctp-blue) / 0.6)" }} />
+            MA-Abwesenheit
           </span>
         )}
         {isPrivileged && (

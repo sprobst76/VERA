@@ -18,7 +18,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.employee import Employee
 from app.models.holiday_profile import HolidayProfile, VacationPeriod, CustomHoliday
 from app.models.shift import Shift, ShiftTemplate
-from app.models.absence import CareRecipientAbsence
+from app.models.absence import CareRecipientAbsence, EmployeeAbsence
 from app.models.shift_type import ShiftType
 from app.models.user import User
 from app.api.deps import CurrentUser, DB
@@ -368,9 +368,45 @@ async def get_vacation_data(
             "shift_handling": ca.shift_handling,
         })
 
+    # Employee absences (approved only)
+    # RBAC: Employee sees only own absences; Admin/Manager see all
+    emp_absence_filter = [
+        EmployeeAbsence.tenant_id == current_user.tenant_id,
+        EmployeeAbsence.status == "approved",
+        EmployeeAbsence.end_date >= from_date,
+        EmployeeAbsence.start_date <= to_date,
+    ]
+    if current_user.role == "employee":
+        emp_result = await db.execute(
+            select(Employee).where(Employee.user_id == current_user.id)
+        )
+        linked_emp = emp_result.scalar_one_or_none()
+        if linked_emp:
+            emp_absence_filter.append(EmployeeAbsence.employee_id == linked_emp.id)
+        else:
+            emp_absence_filter.append(EmployeeAbsence.employee_id == None)  # noqa: E711
+
+    ea_result = await db.execute(
+        select(EmployeeAbsence, Employee).join(
+            Employee, Employee.id == EmployeeAbsence.employee_id
+        ).where(*emp_absence_filter).order_by(EmployeeAbsence.start_date)
+    )
+    employee_absences = []
+    for ea, emp in ea_result.all():
+        employee_absences.append({
+            "id": str(ea.id),
+            "employee_id": str(ea.employee_id),
+            "employee_name": f"{emp.first_name} {emp.last_name}",
+            "type": ea.type,
+            "start_date": ea.start_date.isoformat(),
+            "end_date": ea.end_date.isoformat(),
+            "days_count": float(ea.days_count) if ea.days_count is not None else None,
+        })
+
     return {
         "vacation_periods": vacation_periods,
         "custom_holidays": custom_holidays,
         "public_holidays": public_holidays,
         "care_absences": care_absences,
+        "employee_absences": employee_absences,
     }
