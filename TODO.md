@@ -35,6 +35,16 @@ Stand: 2026-03-16 (aktualisiert)
 - [x] **Gruppenmitgliedschaft als eigenes Konzept** – employee_contract_type_memberships Tabelle; Verlauf-Tab statt Stammdaten; SCD-Type-2-History
 - [x] **Vertragstyp-Badge im Mitarbeiterkopf** – Gruppenname als Badge in EmployeeDetailView-Header
 - [x] **`_sync_employee_mirror()`** – Zentrale Hilfsfunktion für alle 8 ContractHistory-Spiegelfelder (fix: 0-Werte, fehlende Felder)
+- [x] **Eltern-Portal (parent_viewer)** – Neue Rolle; sieht Kalender + Dienste (read-only),
+      nur `EmployeePublicOut`, kein Lohn/Compliance/Einstellungen; Route Guard + Nav-Filter im Frontend
+- [x] **Schicht-Notizfeld sichtbar** – `notes` als Fallback-Titel im Kalender (wenn kein Template);
+      als Italic-Subtitle in Schicht-Karten der Dienste-Liste
+- [x] **Mitarbeiter-Abwesenheiten im Kalender** – Genehmigte Abwesenheiten als farbige All-Day-Events
+      (Urlaub=blau, Krank=rot, Schulurlaub=gelb); RBAC: Employee sieht nur eigene
+- [x] **Datenbank-Restore-Script** – `deploy/restore.sh` mit Sicherheitsabfrage, Stop/Start Services,
+      Alembic-Migrationen nach Restore; Backup-Dateien automatisch aufgelistet
+- [x] **Shiftjuggler-Sync** – `backend/sync_shiftjuggler.py` (nicht in Git): SJ→VERA on-demand,
+      Name-Matching, Duplikat-Check, `--dry-run`-Modus; Feldnamen müssen an echte API angepasst werden
 
 ### Urlaubs- & Abwesenheitsverwaltung
 - [x] Abwesenheits-Genehmigungsworkflow (pending → approved/rejected)
@@ -100,20 +110,21 @@ Stand: 2026-03-16 (aktualisiert)
 - [x] **PostgreSQL automatische Backups** – `deploy/backup.sh` (pg_dump + gzip, 30-Tage-Retention, Cron 02:00)
 
 ### Tests
-- [x] **259 Backend-Tests** (pytest, asyncio)
+- [x] **268 Backend-Tests** (pytest, asyncio)
 - [x] **61 Frontend-Tests** (vitest)
 - [x] Tests für: Shifts, Templates, Employees, Auth, Absences, Payroll, Compliance,
       Calendar, Webhooks, Users, ShiftTypes, RecurringShifts, recurringEventUtils,
       ContractScenarios (25 Tests: Personas Clara/Marc/Sophie/Jan/Nina/Gregor/Lena+Kai/Patricia/Emma/Felix),
-      Membership-Endpoints (8 Tests), Payroll-Annual/Export (11 Tests)
+      Membership-Endpoints (8 Tests), Payroll-Annual/Export (11 Tests), ParentViewer (9 Tests)
 
 ---
 
 ## 🔄 Offen / Nächste Schritte
 
 ### Hoch priorisiert
-- [ ] **Demo-Tenant re-seeden** – `seed_demo.py` neu schreiben ohne echte Mitarbeiternamen
-      (aktuell: Melanie Britsch, Anita Erhardt, Lena Reinbold-Holz im Demo-Tenant)
+- [ ] **Demo-Tenant auf Produktion re-seeden** – `seed_demo.py --reset` via SSH ausführen,
+      um echte Namen (Melanie Britsch, Anita Erhardt, Lena Reinbold-Holz) zu ersetzen.
+      Befehl: `docker compose -p vera exec vera-api python3 seed_demo.py --reset`
 - [ ] **Notification-Events auf Produktion testen** – Telegram-Token und SendGrid-Key prüfen +
       Benachrichtigungen end-to-end testen (Schicht zugewiesen, Minijob-Warnung)
 
@@ -122,17 +133,17 @@ Stand: 2026-03-16 (aktualisiert)
 
 ### Mittel priorisiert
 - [ ] **Utilization-Report** – `GET /reports/utilization?from=&to=` (Auslastung pro MA in %)
-- [ ] **Eltern-Portal (Phase 2)** – Separater Login (Rolle `parent_viewer`), lesender Zugriff
-      auf Dienste, keine Gehalts-/Compliance-Daten
 - [ ] **Diensttyp-Erinnerungen testen** – Celery Beat konfiguriert, aber End-to-End-Test
       auf Produktion steht noch aus
+- [ ] **Shiftjuggler-Sync testen** – `backend/sync_shiftjuggler.py --dry-run` ausführen,
+      Feldnamen in fetch_sj_employees/fetch_sj_shifts an echte SJ-API anpassen
 
 ### Niedrig priorisiert / Phase 2
 - [ ] **KI-Unterstützung** – Claude API für Präferenz-Lernen und Schichtvorschläge
       (regelbasiertes Matching ist MVP-fertig)
 - [ ] **Tauschpool** – Mitarbeiter können Dienste zum Tausch anbieten; Admin muss genehmigen
-- [ ] **Backup-Restore testen** – backup.sh läuft (Cron 02:00, 30-Tage-Retention),
-      aber Restore-Prozess ist nicht dokumentiert/getestet
+- [ ] **Backup-Restore dokumentieren** – `deploy/restore.sh` vorhanden, produktiver Test
+      mit echtem Backup noch ausstehend
 - [ ] **Rate Limiting Application-Level** – Traefik-Rate-Limiting ist aktiv, aber kein
       Application-Level-Fallback (z. B. slowapi) für nicht-Traefik-Deployments
 - [ ] **Steuerberater-Review** – Zuschlagsberechnung (§3b EStG) von Steuerberater prüfen lassen
@@ -142,8 +153,6 @@ Stand: 2026-03-16 (aktualisiert)
 
 ## 📋 Bekannte Einschränkungen / Technische Schulden
 
-- **Einzelne Schichten ohne Template zeigen nur Mitarbeitername** im Kalender-Titel
-  (da kein `template.name` verfügbar). Verbesserung: optionales `notes`-Feld als Fallback-Titel.
 - **Seed-Demo und echte Daten gemischt** – Die Produktions-DB hat durch early adoption echte
   Mitarbeiter (Melanie Britsch, Anita Erhardt, Lena Reinbold-Holz) zusammen mit Demo-Seed-Daten.
   Empfehlung: separaten Demo-Tenant anlegen.
