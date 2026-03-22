@@ -187,7 +187,9 @@ export default function CalendarPage() {
   }, [isPrivileged, moveMutation]);
 
   // Shifts → Calendar Events
-  const events = useMemo(() => shifts.map((s: any) => {
+  // Overnight-Dienste (z.B. 21:30–06:00) werden in zwei Events gesplittet:
+  // Teil 1: Start → Mitternacht, Teil 2: Mitternacht → Ende (nächster Tag)
+  const events = useMemo(() => (shifts as any[]).flatMap((s: any) => {
     const tpl       = templateMap[s.template_id];
     const emp       = employeeMap[s.employee_id];
     const shiftType = shiftTypeMap[s.shift_type_id];
@@ -199,17 +201,24 @@ export default function CalendarPage() {
       ? `${s.notes} – ${empName}`
       : empName;
     const prefix = s.status === "completed" ? "✓ " : s.status === "confirmed" ? "• " : "";
+    const resource = { shift: s, template: tpl, employee: emp, shiftType };
+
     const startDt = new Date(`${s.date}T${s.start_time}`);
-    let endDt = new Date(`${s.date}T${s.end_time}`);
-    // Dienste über Mitternacht: Endzeit liegt sonst vor Startzeit
-    if (endDt <= startDt) endDt = new Date(endDt.getTime() + 86400000);
-    return {
-      id: s.id,
-      title: prefix + baseTitle,
-      start: startDt,
-      end:   endDt,
-      resource: { shift: s, template: tpl, employee: emp, shiftType },
-    };
+    const rawEnd  = new Date(`${s.date}T${s.end_time}`);
+
+    if (rawEnd <= startDt) {
+      // Overnight: an Mitternacht splitten
+      const midnight = new Date(startDt);
+      midnight.setDate(midnight.getDate() + 1);
+      midnight.setHours(0, 0, 0, 0);
+      const nextDayEnd = new Date(rawEnd.getTime() + 86400000);
+      return [
+        { id: `${s.id}-p1`, title: prefix + baseTitle,   start: startDt,  end: midnight,    resource },
+        { id: `${s.id}-p2`, title: `↳ ${baseTitle}`,     start: midnight,  end: nextDayEnd,  resource },
+      ];
+    }
+
+    return [{ id: s.id, title: prefix + baseTitle, start: startDt, end: rawEnd, resource }];
   }), [shifts, templateMap, employeeMap, shiftTypeMap]);
 
   // Holiday display events
