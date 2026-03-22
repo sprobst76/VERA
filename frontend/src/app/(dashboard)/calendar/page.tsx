@@ -388,20 +388,22 @@ export default function CalendarPage() {
         opacity: isCancelled ? 0.35 : 1,
         textDecoration: isCancelled ? "line-through" : "none",
         fontSize: "0.75rem",
-        border: isCancelled
-          ? `1px dashed ${c}`
-          : isCompleted
-          ? `2px solid ${c}`
-          : isConfirmed
-          ? `3px double ${c}`
-          : shift.notes
-          ? `2px dashed ${c}`
-          : `2px solid ${c}`,
+        // Dünner Rahmen für alle; links etwas dicker je nach Status
+        border: `1px solid ${c}`,
+        borderLeft: isCancelled ? `1px dashed ${c}` : isConfirmed ? `4px solid ${c}` : isCompleted ? `4px solid ${c}` : `1px solid ${c}`,
         color: isCompleted ? c : "#1e1e2e",
         cursor: isPrivileged ? (dragging ? "grabbing" : "grab") : "pointer",
       },
     };
   }, [isPrivileged, dragging, employeeColorMap]);
+
+  // Ungerade Stunden leicht heller für bessere optische Trennung
+  const slotPropGetter = useCallback((date: Date) => {
+    if (date.getHours() % 2 === 1) {
+      return { style: { backgroundColor: "rgba(127,127,127,0.045)" } };
+    }
+    return {};
+  }, []);
 
   const dayPropGetter = useCallback((date: Date) => {
     const ds = format(date, "yyyy-MM-dd");
@@ -535,6 +537,8 @@ export default function CalendarPage() {
           onView={setView}
           eventPropGetter={eventPropGetter}
           dayPropGetter={dayPropGetter}
+          slotPropGetter={slotPropGetter}
+          scrollToTime={new Date(1970, 1, 1, 6, 0)}
           // Drag & Drop – nur für Admins/Manager
           draggableAccessor={(event: any) => {
             if (!isPrivileged) return false;
