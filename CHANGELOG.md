@@ -5,6 +5,72 @@ Format: [Semantic Versioning](https://semver.org/), neueste Version zuerst.
 
 ---
 
+## [0.22.0] – 2026-03-22
+
+### Hinzugefügt
+
+- **Eltern-Portal (`parent_viewer`-Rolle)** – Neue Benutzerrolle mit eingeschränktem Lesezugriff:
+  sieht Kalender + Dienstliste, aber keine Lohnabrechnung, keine Einstellungen, keine Mutationen.
+  Route Guard leitet automatisch auf `/calendar` um. Navigation zeigt nur erlaubte Einträge.
+  Mitarbeiter werden nur als `EmployeePublicOut` (kein Gehalt) zurückgegeben.
+  9 neue Backend-Tests (`test_parent_viewer.py`).
+
+- **Schicht-Notizfeld sichtbar** – Im Kalender wird das `notes`-Feld als Fallback-Titel angezeigt
+  (wenn kein Template). In Schicht-Karten der Dienste-Liste als kursive Subtitle-Zeile.
+
+- **Mitarbeiter-Abwesenheiten im Kalender** – Genehmigte MA-Abwesenheiten erscheinen als farbige
+  All-Day-Events: Urlaub (🏖️ blau), Krank (🤒 rot), Schulurlaub (📚 gelb), Sonstiges (📅 grau).
+  RBAC: Mitarbeiter sehen nur eigene Abwesenheiten.
+
+- **Shiftjuggler→VERA Sync** – `backend/sync_shiftjuggler.py` (gitignored):
+  - Basic-Auth gegen `claras-team.shiftjuggler.com`, POST `/api/shift.getList`
+  - Unix-Timestamps → Europe/Berlin, `assignedEmployees[0]` für MA-Daten
+  - Name-Matching, Duplikat-Check (employee_id + date + start_time)
+  - `--dry-run` und `--inspect` Modus
+  - Konfiguration via `backend/.env.shiftjuggler` (gitignored)
+  - Synced: Jan–März + März 22–April 30 (über 80 Dienste)
+
+- **API-Key-Authentifizierung** – `X-API-Key`-Header wird jetzt tatsächlich validiert
+  (SHA-256-Hash gegen `api_keys`-Tabelle). Vorher war das CRUD-only ohne echte Validierung.
+  `last_used_at` wird bei jeder API-Key-Nutzung aktualisiert.
+
+- **Restore-Script** – `deploy/restore.sh`: stoppt Services, löscht/erstellt DB,
+  gunzip | psql Restore, alembic upgrade head, startet neu. Mit Sicherheitsabfrage.
+
+- **Demo-Tenant Re-seed** – `seed_demo.py --reset`: löscht bestehenden Demo-Tenant
+  per CASCADE, seedet komplett neu mit fiktiven Namen.
+
+### Kalender-Verbesserungen
+
+- **Overnight-Dienste gesplittet** – Dienste über Mitternacht (z.B. 21:30–06:00) werden
+  als zwei zusammenhängende Events dargestellt: Teil 1 bis 00:00, Teil 2 ab 00:00 (Prefix `↳`).
+  Beide Events öffnen denselben Dienst-Dialog.
+
+- **Start bei 06:00** – Kalender scrollt automatisch auf 06:00 statt Mitternacht.
+
+- **Stundentrennung** – Ungerade Stunden leicht heller für bessere optische Lesbarkeit.
+
+- **Einheitlicher dünner Rahmen** – Alle Events mit `1px solid` Rahmen; `confirmed` und
+  `completed` zusätzlich mit 4px linkem Akzentbalken.
+
+- **Mitarbeiterspezifische Farben** – Events ohne Template/ShiftType erhalten eine konsistente
+  Catppuccin-Farbe aus einer festen Palette pro Mitarbeiter (statt alle `#1E3A5F` navy).
+
+### Mitarbeiter
+
+- **5 neue Mitarbeiterinnen** in VERA angelegt (via Shiftjuggler-Daten):
+  Violeta Gjocaj, Maja Juric, Rita Häusler, Nadja Kruschinski, Bärbel Many Ndengue.
+  Stundenlohn + Vertragsdaten müssen noch ausgefüllt werden.
+
+### Tests
+
+- **268 Backend-Tests** (vorher 224) – +44 Tests:
+  - `test_parent_viewer.py`: 9 Tests (Zugriffskontrolle parent_viewer-Rolle)
+  - Bestehende Tests angepasst für `HTTPBearer(auto_error=False)` (401 statt 403 bei fehlendem Token)
+- **61 Frontend-Tests** (vorher 39) – +22 Tests (Payroll-Annual/Export, Membership-Endpoints, ParentViewer)
+
+---
+
 ## [0.21.0] – 2026-03-16
 
 ### Hinzugefügt

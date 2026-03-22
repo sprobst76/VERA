@@ -1,6 +1,6 @@
 # VERA – Feature-Backlog & Roadmap
 
-Stand: 2026-03-16 (aktualisiert)
+Stand: 2026-03-22 (aktualisiert)
 
 ---
 
@@ -43,8 +43,16 @@ Stand: 2026-03-16 (aktualisiert)
       (Urlaub=blau, Krank=rot, Schulurlaub=gelb); RBAC: Employee sieht nur eigene
 - [x] **Datenbank-Restore-Script** – `deploy/restore.sh` mit Sicherheitsabfrage, Stop/Start Services,
       Alembic-Migrationen nach Restore; Backup-Dateien automatisch aufgelistet
-- [x] **Shiftjuggler-Sync** – `backend/sync_shiftjuggler.py` (nicht in Git): SJ→VERA on-demand,
-      Name-Matching, Duplikat-Check, `--dry-run`-Modus; Feldnamen müssen an echte API angepasst werden
+- [x] **Shiftjuggler-Sync** – `backend/sync_shiftjuggler.py` (gitignored): SJ→VERA on-demand,
+      Name-Matching, Duplikat-Check, `--dry-run` + `--inspect`-Modus; vollständig getestet und in Produktion
+      genutzt (Jan–April 2026, 80+ Dienste). Konfig via `backend/.env.shiftjuggler`.
+- [x] **API-Key-Authentifizierung** – X-API-Key Header validiert SHA-256-Hash gegen api_keys-Tabelle
+- [x] **Eltern-Portal (parent_viewer)** – Neue Rolle; Kalender+Dienste read-only; Route Guard; 9 Tests
+- [x] **Schicht-Notizfeld sichtbar** – Kalender-Fallback-Titel + Subtitle in Schicht-Karten
+- [x] **Mitarbeiter-Abwesenheiten im Kalender** – Genehmigte Abwesenheiten als farbige All-Day-Events
+- [x] **Datenbank-Restore-Script** – `deploy/restore.sh` fertig und dokumentiert
+- [x] **Overnight-Dienste** – An Mitternacht gesplittet (zwei Events), scrollToTime=06:00,
+      Stundentrennung via slotPropGetter, einheitlicher Rahmen, Mitarbeiter-Farbpalette
 
 ### Urlaubs- & Abwesenheitsverwaltung
 - [x] Abwesenheits-Genehmigungsworkflow (pending → approved/rejected)
@@ -114,19 +122,22 @@ Stand: 2026-03-16 (aktualisiert)
 - [x] **61 Frontend-Tests** (vitest)
 - [x] Tests für: Shifts, Templates, Employees, Auth, Absences, Payroll, Compliance,
       Calendar, Webhooks, Users, ShiftTypes, RecurringShifts, recurringEventUtils,
-      ContractScenarios (25 Tests: Personas Clara/Marc/Sophie/Jan/Nina/Gregor/Lena+Kai/Patricia/Emma/Felix),
-      Membership-Endpoints (8 Tests), Payroll-Annual/Export (11 Tests), ParentViewer (9 Tests)
+      ContractScenarios (25 Tests), Membership-Endpoints (8 Tests),
+      Payroll-Annual/Export (11 Tests), ParentViewer (9 Tests)
 
 ---
 
 ## 🔄 Offen / Nächste Schritte
 
 ### Hoch priorisiert
-- [ ] **Demo-Tenant auf Produktion re-seeden** – `seed_demo.py --reset` via SSH ausführen,
-      um echte Namen (Melanie Britsch, Anita Erhardt, Lena Reinbold-Holz) zu ersetzen.
-      Befehl: `docker compose -p vera exec vera-api python3 seed_demo.py --reset`
+- [ ] **Neue Mitarbeiterinnen vervollständigen** – Stundenlohn + Vertragsdaten für Violeta Gjocaj,
+      Maja Juric, Rita Häusler, Nadja Kruschinski, Bärbel Many Ndengue in VERA eintragen
+- [ ] **Vergangene Dienste abschließen** – 55 im Jan–März neu eingespielten Dienste haben Status
+      `planned`. Evtl. per Batch auf `completed` setzen für korrekte Abrechnung.
 - [ ] **Notification-Events auf Produktion testen** – Telegram-Token und SendGrid-Key prüfen +
       Benachrichtigungen end-to-end testen (Schicht zugewiesen, Minijob-Warnung)
+- [ ] **Demo-Tenant auf Produktion re-seeden** – `seed_demo.py --reset` via SSH ausführen,
+      um echte Namen zu ersetzen: `docker compose -p vera exec vera-api python3 seed_demo.py --reset`
 
 ### Verträge & Abrechnung
 - [ ] **ContractType-Badge für inaktive Typen** – Quelle-Spalte zeigt leer wenn Typ deaktiviert
@@ -135,8 +146,7 @@ Stand: 2026-03-16 (aktualisiert)
 - [ ] **Utilization-Report** – `GET /reports/utilization?from=&to=` (Auslastung pro MA in %)
 - [ ] **Diensttyp-Erinnerungen testen** – Celery Beat konfiguriert, aber End-to-End-Test
       auf Produktion steht noch aus
-- [ ] **Shiftjuggler-Sync testen** – `backend/sync_shiftjuggler.py --dry-run` ausführen,
-      Feldnamen in fetch_sj_employees/fetch_sj_shifts an echte SJ-API anpassen
+- [x] **Shiftjuggler-Sync testen** – Vollständig in Produktion genutzt (Jan–April 2026)
 
 ### Niedrig priorisiert / Phase 2
 - [ ] **KI-Unterstützung** – Claude API für Präferenz-Lernen und Schichtvorschläge
