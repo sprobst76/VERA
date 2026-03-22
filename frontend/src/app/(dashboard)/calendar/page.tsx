@@ -18,6 +18,20 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 
 const DnDCalendar = withDragAndDrop(Calendar as any);
 
+// Farbpalette für MA ohne Template/ShiftType (Catppuccin-Farben)
+const EMPLOYEE_COLORS = [
+  "#89b4fa", // blue
+  "#a6e3a1", // green
+  "#fab387", // peach
+  "#cba6f7", // mauve
+  "#94e2d5", // teal
+  "#f9e2af", // yellow
+  "#89dceb", // sky
+  "#f38ba8", // red
+  "#b4befe", // lavender
+  "#a6adc8", // subtext1
+];
+
 const localizer = dateFnsLocalizer({
   format,
   parse,
@@ -98,6 +112,15 @@ export default function CalendarPage() {
   const shiftTypeMap = useMemo(() =>
     Object.fromEntries((shiftTypes as any[]).map((st: any) => [st.id, st])), [shiftTypes]);
 
+  // Mitarbeiterspezifische Farben als Fallback wenn kein Template/ShiftType
+  const employeeColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (employees as any[]).forEach((e: any, i: number) => {
+      map[e.id] = EMPLOYEE_COLORS[i % EMPLOYEE_COLORS.length];
+    });
+    return map;
+  }, [employees]);
+
   // ── Confirm / Delete mutations ────────────────────────────────────────────────
   const confirmMutation = useMutation({
     mutationFn: (id: string) => shiftsApi.confirm(id, {}),
@@ -176,11 +199,15 @@ export default function CalendarPage() {
       ? `${s.notes} – ${empName}`
       : empName;
     const prefix = s.status === "completed" ? "✓ " : s.status === "confirmed" ? "• " : "";
+    const startDt = new Date(`${s.date}T${s.start_time}`);
+    let endDt = new Date(`${s.date}T${s.end_time}`);
+    // Dienste über Mitternacht: Endzeit liegt sonst vor Startzeit
+    if (endDt <= startDt) endDt = new Date(endDt.getTime() + 86400000);
     return {
       id: s.id,
       title: prefix + baseTitle,
-      start: new Date(`${s.date}T${s.start_time}`),
-      end:   new Date(`${s.date}T${s.end_time}`),
+      start: startDt,
+      end:   endDt,
       resource: { shift: s, template: tpl, employee: emp, shiftType },
     };
   }), [shifts, templateMap, employeeMap, shiftTypeMap]);
@@ -341,31 +368,31 @@ export default function CalendarPage() {
 
     if (!shift) return {};
     const isOpen = !shift.employee_id;
-    const c = isOpen ? "#ef4444" : (shiftType?.color ?? template?.color ?? "#1E3A5F");
+    const empColor = shift.employee_id ? (employeeColorMap[shift.employee_id] ?? "#89b4fa") : "#ef4444";
+    const c = isOpen ? "#ef4444" : (shiftType?.color ?? template?.color ?? empColor);
     const isCancelled = shift.status.startsWith("cancelled");
     const isCompleted = shift.status === "completed";
     const isConfirmed = shift.status === "confirmed";
     return {
       style: {
         backgroundColor: isCompleted ? "transparent" : c,
-        borderColor: c,
-        opacity: isCancelled ? 0.35 : isCompleted ? 0.8 : 1,
+        opacity: isCancelled ? 0.35 : 1,
         textDecoration: isCancelled ? "line-through" : "none",
         fontSize: "0.75rem",
         border: isCancelled
-          ? `1px solid ${c}`
+          ? `1px dashed ${c}`
           : isCompleted
           ? `2px solid ${c}`
           : isConfirmed
-          ? `2px solid ${c}`
+          ? `3px double ${c}`
           : shift.notes
           ? `2px dashed ${c}`
-          : `1px solid ${c}`,
-        color: isCompleted ? c : undefined,
+          : `2px solid ${c}`,
+        color: isCompleted ? c : "#1e1e2e",
         cursor: isPrivileged ? (dragging ? "grabbing" : "grab") : "pointer",
       },
     };
-  }, [isPrivileged, dragging]);
+  }, [isPrivileged, dragging, employeeColorMap]);
 
   const dayPropGetter = useCallback((date: Date) => {
     const ds = format(date, "yyyy-MM-dd");
