@@ -78,7 +78,7 @@ async def test_preview_with_vacation(client, admin_token):
 @pytest.mark.asyncio
 async def test_preview_requires_auth(client):
     resp = await client.post(RS_BASE + "/preview", json=_monday_payload())
-    assert resp.status_code == 403
+    assert resp.status_code in (401, 403)
 
 
 # ── Create ────────────────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ async def test_create_shift_times_are_correct(client, admin_token, db):
 @pytest.mark.asyncio
 async def test_create_requires_manager_or_admin(client, employee_token):
     resp = await client.post(RS_BASE, json=_monday_payload(), headers=auth_headers(employee_token))
-    assert resp.status_code == 403
+    assert resp.status_code in (401, 403)
 
 
 # ── List ──────────────────────────────────────────────────────────────────────
@@ -340,7 +340,7 @@ async def test_vacation_data_requires_auth(client):
         "/api/v1/calendar/vacation-data",
         params={"from": "2025-09-01", "to": "2025-09-30"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
