@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 import uuid
 
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, status, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,6 +20,7 @@ security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
     db: Annotated[AsyncSession, Depends(get_db)],
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
@@ -51,6 +52,16 @@ async def get_current_user(
             )
             user = user_result.scalar_one_or_none()
             if user:
+                # Scope enforcement (D-10, D-11, D-14)
+                scopes = ak.scopes if ak.scopes else ["admin"]  # D-14: null/empty = admin
+                if isinstance(scopes, str):
+                    scopes = [scopes]
+                is_write_method = request.method.upper() in ("POST", "PUT", "PATCH", "DELETE")
+                if is_write_method and "write" not in scopes and "admin" not in scopes:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="API-Key hat keine Schreibberechtigung",
+                    )
                 # last_used_at aktualisieren (fire-and-forget, kein await nötig)
                 ak.last_used_at = datetime.now(timezone.utc)
                 await db.commit()
