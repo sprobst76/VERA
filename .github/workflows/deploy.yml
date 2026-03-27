@@ -158,17 +158,40 @@ jobs:
             # Images ziehen (nur geänderte Layer werden heruntergeladen)
             docker compose -p vera -f deploy/docker-compose.yml pull
 
-            # Rolling restart: erst Backend, dann Frontend (kein simultaner Ausfall)
+            # 1. DB sicherstellen und auf Bereitschaft warten (deterministic statt sleep)
+            docker compose -p vera -f deploy/docker-compose.yml up -d --no-deps vera-db
+            echo "Waiting for database to be ready..."
+            until docker compose -p vera -f deploy/docker-compose.yml exec -T vera-db pg_isready -U vera -d vera; do
+              echo "  DB not ready yet, waiting 2s..."
+              sleep 2
+            done
+            echo "Database is ready."
+
+            # 2. Migrationen VOR dem API-Start (D-15: kein Race-Window)
+            echo "Running migrations..."
+            docker compose -p vera -f deploy/docker-compose.yml run --rm --no-deps vera-api alembic upgrade head
+            echo "Migrations complete."
+
+            # 3. API starten (create_tables() ist No-Op da Migrationen bereits gelaufen)
             docker compose -p vera -f deploy/docker-compose.yml up -d --no-deps vera-api
-            sleep 5
 
-            # Migrationen
-            docker compose -p vera -f deploy/docker-compose.yml exec -T vera-api alembic upgrade head
+            # 4. Health-Check-Loop statt sleep 5 (D-16: deterministisch)
+            echo "Waiting for API to be healthy..."
+            for i in $(seq 1 30); do
+              if docker compose -p vera -f deploy/docker-compose.yml exec -T vera-api curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "API is healthy."
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "WARNING: API health check timed out after 60s"
+              fi
+              sleep 2
+            done
 
-            # Frontend + Celery erst hochfahren wenn Backend bereit ist
+            # 5. Frontend + Celery erst hochfahren wenn Backend bereit ist
             docker compose -p vera -f deploy/docker-compose.yml up -d --no-deps vera-web vera-celery-worker vera-celery-beat
 
             # Alte Images aufräumen
             docker image prune -f
 
-            echo "✓ Deploy abgeschlossen"
+            echo "Deploy complete."
