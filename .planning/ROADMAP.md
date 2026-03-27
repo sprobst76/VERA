@@ -35,7 +35,7 @@
   5. CORS allows `X-API-Key` header — browser-based API key requests pass preflight without error
 **Plans:** 1/3 plans executed
 Plans:
-- [ ] 01-01-PLAN.md — PyJWT + bcrypt migration (SEC-06)
+- [x] 01-01-PLAN.md — PyJWT + bcrypt migration (SEC-06)
 - [ ] 01-02-PLAN.md — token_version JWT revocation + API key scope enforcement (SEC-05, SEC-01)
 - [x] 01-03-PLAN.md — CORS X-API-Key header fix + deploy race fix (SEC-04, INFRA-01)
 **Risk**: HIGH — touches auth, deploy pipeline, live API key behavior (Shiftjuggler sync must be verified with write scope before enforcement enables)

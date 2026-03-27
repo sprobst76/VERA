@@ -16,7 +16,7 @@
 - [ ] **SEC-03**: Write-Schemas verwenden `ConfigDict(strict=True, extra="forbid")` — kein ungeprüfter User-Input passiert Pydantic-Validierung
 - [x] **SEC-04**: Secrets-Audit abgeschlossen: CORS-Konfiguration überprüft, keine sensiblen Daten in Frontend-Bundles, `.env`-Handling dokumentiert
 - [ ] **SEC-05**: JWT-Revocation via `token_version`-Spalte auf `User`-Model — Logout-all-devices und Passwortänderung invalidieren alle bestehenden Sessions
-- [ ] **SEC-06**: `python-jose` ersetzt durch `PyJWT 2.12+` (CVE-2024-33663 in python-jose, Bibliothek aufgegeben)
+- [x] **SEC-06**: `python-jose` ersetzt durch `PyJWT 2.12+` (CVE-2024-33663 in python-jose, Bibliothek aufgegeben)
 
 ### Infrastruktur / Deploy (INFRA)
 
@@ -89,7 +89,7 @@
 | SEC-01 | Phase 1 | Pending |
 | SEC-04 | Phase 1 | Complete |
 | SEC-05 | Phase 1 | Pending |
-| SEC-06 | Phase 1 | Pending |
+| SEC-06 | Phase 1 | Complete |
 | INFRA-01 | Phase 1 | Complete |
 | DEBT-01 | Phase 2 | Pending |
 | DEBT-02 | Phase 2 | Pending |
