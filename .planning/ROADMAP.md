@@ -33,11 +33,11 @@
   3. A read-only API key cannot execute a write operation — `POST /shifts` with a read-scoped key returns 403; `GET /shifts` succeeds
   4. Logging out of all devices works — after `POST /auth/logout-all`, all existing refresh tokens are rejected on next use
   5. CORS allows `X-API-Key` header — browser-based API key requests pass preflight without error
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
 - [ ] 01-01-PLAN.md — PyJWT + bcrypt migration (SEC-06)
 - [ ] 01-02-PLAN.md — token_version JWT revocation + API key scope enforcement (SEC-05, SEC-01)
-- [ ] 01-03-PLAN.md — CORS X-API-Key header fix + deploy race fix (SEC-04, INFRA-01)
+- [x] 01-03-PLAN.md — CORS X-API-Key header fix + deploy race fix (SEC-04, INFRA-01)
 **Risk**: HIGH — touches auth, deploy pipeline, live API key behavior (Shiftjuggler sync must be verified with write scope before enforcement enables)
 
 ---
@@ -136,7 +136,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security Foundation + Deploy Fix | 0/3 | Planned | - |
+| 1. Security Foundation + Deploy Fix | 1/3 | In Progress|  |
 | 2. Payroll Correctness | 0/TBD | Not started | - |
 | 3. Audit Trail | 0/TBD | Not started | - |
 | 4. Employee Self-Service (Core) | 0/TBD | Not started | - |

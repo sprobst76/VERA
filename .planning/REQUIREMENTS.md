@@ -14,13 +14,13 @@
 - [ ] **SEC-01**: API key scopes (read/write/admin) werden bei jedem Request in `deps.py` durchgesetzt — ein read-only Key kann keine Schreiboperationen ausführen
 - [ ] **SEC-02**: Alle API-Endpoints werden systematisch auf konsistente Rollenprüfung geprüft; fehlende `ManagerOrAdmin`/`AdminUser`-Guards werden geschlossen
 - [ ] **SEC-03**: Write-Schemas verwenden `ConfigDict(strict=True, extra="forbid")` — kein ungeprüfter User-Input passiert Pydantic-Validierung
-- [ ] **SEC-04**: Secrets-Audit abgeschlossen: CORS-Konfiguration überprüft, keine sensiblen Daten in Frontend-Bundles, `.env`-Handling dokumentiert
+- [x] **SEC-04**: Secrets-Audit abgeschlossen: CORS-Konfiguration überprüft, keine sensiblen Daten in Frontend-Bundles, `.env`-Handling dokumentiert
 - [ ] **SEC-05**: JWT-Revocation via `token_version`-Spalte auf `User`-Model — Logout-all-devices und Passwortänderung invalidieren alle bestehenden Sessions
 - [ ] **SEC-06**: `python-jose` ersetzt durch `PyJWT 2.12+` (CVE-2024-33663 in python-jose, Bibliothek aufgegeben)
 
 ### Infrastruktur / Deploy (INFRA)
 
-- [ ] **INFRA-01**: Deploy-Reihenfolge gefixt — Alembic läuft vollständig durch bevor der API-Server Requests annimmt (kein 5s-Race mehr)
+- [x] **INFRA-01**: Deploy-Reihenfolge gefixt — Alembic läuft vollständig durch bevor der API-Server Requests annimmt (kein 5s-Race mehr)
 - [ ] **INFRA-02**: Legacy-Celery-Task `send_hourly_reminders` aus Beat-Schedule entfernt (ist ein No-Op, läuft aber stündlich)
 
 ### Technische Schulden — Payroll (DEBT)
@@ -87,10 +87,10 @@
 | Req-ID | Phase | Status |
 |--------|-------|--------|
 | SEC-01 | Phase 1 | Pending |
-| SEC-04 | Phase 1 | Pending |
+| SEC-04 | Phase 1 | Complete |
 | SEC-05 | Phase 1 | Pending |
 | SEC-06 | Phase 1 | Pending |
-| INFRA-01 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
 | DEBT-01 | Phase 2 | Pending |
 | DEBT-02 | Phase 2 | Pending |
 | DEBT-03 | Phase 2 | Pending |
