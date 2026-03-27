@@ -84,15 +84,33 @@
 
 ## Traceability
 
-| Req-ID | Phase | Notes |
-|--------|-------|-------|
-| SEC-06, INFRA-01 | Phase 1 | Prerequisite für alles andere — live CVE + deploy race |
-| SEC-01, SEC-02, SEC-03, SEC-04, SEC-05 | Phase 1-2 | Security Foundation |
-| DEBT-01, DEBT-02, DEBT-03 | Phase 2 | Vor Audit-Trail — damit Audit korrekte Daten loggt |
-| INFRA-02, DEBT-04 | Phase 2 | Cleanup, parallel zu Security |
-| AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-05 | Phase 3 | Depends on Phase 2 (korrekte Payroll-Daten) |
-| AUDIT-04 | Phase 3 | Frontend für Audit-Log |
-| ESS-01, ESS-02, ESS-03, ESS-05 | Phase 4 | Simple self-service; ESS-04 separat |
-| PWA-01, PWA-02, PWA-03, PWA-04, PWA-05, PWA-06 | Phase 5 | Parallelisierbar mit Phase 3-4 |
-| ESS-04 | Phase 6 | Shift swap — höchste Komplexität, eigene Phase |
-| SEC-02 (systematisch) | Phase 7 | RBAC-Audit + Cleanup |
+| Req-ID | Phase | Status |
+|--------|-------|--------|
+| SEC-01 | Phase 1 | Pending |
+| SEC-04 | Phase 1 | Pending |
+| SEC-05 | Phase 1 | Pending |
+| SEC-06 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Pending |
+| DEBT-01 | Phase 2 | Pending |
+| DEBT-02 | Phase 2 | Pending |
+| DEBT-03 | Phase 2 | Pending |
+| DEBT-04 | Phase 2 | Pending |
+| INFRA-02 | Phase 2 | Pending |
+| AUDIT-01 | Phase 3 | Pending |
+| AUDIT-02 | Phase 3 | Pending |
+| AUDIT-03 | Phase 3 | Pending |
+| AUDIT-04 | Phase 3 | Pending |
+| AUDIT-05 | Phase 3 | Pending |
+| ESS-01 | Phase 4 | Pending |
+| ESS-02 | Phase 4 | Pending |
+| ESS-03 | Phase 4 | Pending |
+| ESS-05 | Phase 4 | Pending |
+| PWA-01 | Phase 5 | Pending |
+| PWA-02 | Phase 5 | Pending |
+| PWA-03 | Phase 5 | Pending |
+| PWA-04 | Phase 5 | Pending |
+| PWA-05 | Phase 5 | Pending |
+| PWA-06 | Phase 5 | Pending |
+| ESS-04 | Phase 6 | Pending |
+| SEC-02 | Phase 7 | Pending |
+| SEC-03 | Phase 7 | Pending |
