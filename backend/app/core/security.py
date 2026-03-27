@@ -24,6 +24,7 @@ def create_access_token(
     tenant_id: str | UUID,
     role: str,
     expires_delta: timedelta | None = None,
+    token_version: int = 0,
 ) -> str:
     if expires_delta is None:
         expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -35,6 +36,7 @@ def create_access_token(
         "role": role,
         "exp": expire,
         "type": "access",
+        "ver": token_version,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -42,6 +44,7 @@ def create_access_token(
 def create_refresh_token(
     subject: str | UUID,
     tenant_id: str | UUID,
+    token_version: int = 0,
 ) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload: dict[str, Any] = {
@@ -49,6 +52,7 @@ def create_refresh_token(
         "tenant_id": str(tenant_id),
         "exp": expire,
         "type": "refresh",
+        "ver": token_version,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 

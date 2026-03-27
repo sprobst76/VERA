@@ -136,12 +136,12 @@ async def employee_user(db, tenant) -> User:
 
 @pytest_asyncio.fixture
 def admin_token(admin_user) -> str:
-    return create_access_token(admin_user.id, admin_user.tenant_id, "admin")
+    return create_access_token(admin_user.id, admin_user.tenant_id, "admin", token_version=admin_user.token_version)
 
 
 @pytest_asyncio.fixture
 def employee_token(employee_user) -> str:
-    return create_access_token(employee_user.id, employee_user.tenant_id, "employee")
+    return create_access_token(employee_user.id, employee_user.tenant_id, "employee", token_version=employee_user.token_version)
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────

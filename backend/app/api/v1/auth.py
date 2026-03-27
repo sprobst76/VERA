@@ -81,8 +81,8 @@ async def login(payload: LoginRequest, db: DB):
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Account is deactivated")
 
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    refresh_token = create_refresh_token(user.id, user.tenant_id)
+    access_token = create_access_token(user.id, user.tenant_id, user.role, token_version=user.token_version)
+    refresh_token = create_refresh_token(user.id, user.tenant_id, token_version=user.token_version)
 
     return Token(access_token=access_token, refresh_token=refresh_token)
 
@@ -104,8 +104,13 @@ async def refresh_token(payload: RefreshRequest, db: DB):
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    new_refresh_token = create_refresh_token(user.id, user.tenant_id)
+    # Check token_version for refresh tokens too
+    token_ver = token_data.get("ver", 0)
+    if token_ver != user.token_version:
+        raise HTTPException(status_code=401, detail="Session has been revoked")
+
+    access_token = create_access_token(user.id, user.tenant_id, user.role, token_version=user.token_version)
+    new_refresh_token = create_refresh_token(user.id, user.tenant_id, token_version=user.token_version)
 
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 
@@ -128,6 +133,15 @@ async def change_password(payload: ChangePasswordRequest, current_user: CurrentU
     if not verify_password(payload.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Aktuelles Passwort ist falsch")
     current_user.hashed_password = hash_password(payload.new_password)
+    current_user.token_version += 1  # D-08: revoke all sessions on password change
+    await db.commit()
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(current_user: CurrentUser, db: DB):
+    """Invalidate all sessions by incrementing token_version (D-07).
+    The caller must re-authenticate after this call."""
+    current_user.token_version += 1
     await db.commit()
 
 
@@ -159,8 +173,8 @@ async def accept_invite(payload: AcceptInviteRequest, db: DB):
     user.invite_expires_at = None
     await db.commit()
 
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    refresh_token = create_refresh_token(user.id, user.tenant_id)
+    access_token = create_access_token(user.id, user.tenant_id, user.role, token_version=user.token_version)
+    refresh_token = create_refresh_token(user.id, user.tenant_id, token_version=user.token_version)
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
