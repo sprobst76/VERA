@@ -85,6 +85,11 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
+    # token_version check (D-06) — treat missing ver as 0 for pre-deploy compat
+    token_ver = payload.get("ver", 0)
+    if token_ver != user.token_version:
+        raise credentials_exception
+
     return user
 
 
