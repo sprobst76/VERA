@@ -81,8 +81,8 @@ async def login(payload: LoginRequest, db: DB):
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Account is deactivated")
 
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    refresh_token = create_refresh_token(user.id, user.tenant_id)
+    access_token = create_access_token(user.id, user.tenant_id, user.role, token_version=user.token_version)
+    refresh_token = create_refresh_token(user.id, user.tenant_id, token_version=user.token_version)
 
     return Token(access_token=access_token, refresh_token=refresh_token)
 
@@ -104,8 +104,8 @@ async def refresh_token(payload: RefreshRequest, db: DB):
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    new_refresh_token = create_refresh_token(user.id, user.tenant_id)
+    access_token = create_access_token(user.id, user.tenant_id, user.role, token_version=user.token_version)
+    new_refresh_token = create_refresh_token(user.id, user.tenant_id, token_version=user.token_version)
 
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 
@@ -159,8 +159,8 @@ async def accept_invite(payload: AcceptInviteRequest, db: DB):
     user.invite_expires_at = None
     await db.commit()
 
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    refresh_token = create_refresh_token(user.id, user.tenant_id)
+    access_token = create_access_token(user.id, user.tenant_id, user.role, token_version=user.token_version)
+    refresh_token = create_refresh_token(user.id, user.tenant_id, token_version=user.token_version)
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
