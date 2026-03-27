@@ -11,11 +11,11 @@
 
 ### Security (SEC)
 
-- [ ] **SEC-01**: API key scopes (read/write/admin) werden bei jedem Request in `deps.py` durchgesetzt — ein read-only Key kann keine Schreiboperationen ausführen
+- [x] **SEC-01**: API key scopes (read/write/admin) werden bei jedem Request in `deps.py` durchgesetzt — ein read-only Key kann keine Schreiboperationen ausführen
 - [ ] **SEC-02**: Alle API-Endpoints werden systematisch auf konsistente Rollenprüfung geprüft; fehlende `ManagerOrAdmin`/`AdminUser`-Guards werden geschlossen
 - [ ] **SEC-03**: Write-Schemas verwenden `ConfigDict(strict=True, extra="forbid")` — kein ungeprüfter User-Input passiert Pydantic-Validierung
 - [x] **SEC-04**: Secrets-Audit abgeschlossen: CORS-Konfiguration überprüft, keine sensiblen Daten in Frontend-Bundles, `.env`-Handling dokumentiert
-- [ ] **SEC-05**: JWT-Revocation via `token_version`-Spalte auf `User`-Model — Logout-all-devices und Passwortänderung invalidieren alle bestehenden Sessions
+- [x] **SEC-05**: JWT-Revocation via `token_version`-Spalte auf `User`-Model — Logout-all-devices und Passwortänderung invalidieren alle bestehenden Sessions
 - [x] **SEC-06**: `python-jose` ersetzt durch `PyJWT 2.12+` (CVE-2024-33663 in python-jose, Bibliothek aufgegeben)
 
 ### Infrastruktur / Deploy (INFRA)
@@ -86,9 +86,9 @@
 
 | Req-ID | Phase | Status |
 |--------|-------|--------|
-| SEC-01 | Phase 1 | Pending |
+| SEC-01 | Phase 1 | Complete |
 | SEC-04 | Phase 1 | Complete |
-| SEC-05 | Phase 1 | Pending |
+| SEC-05 | Phase 1 | Complete |
 | SEC-06 | Phase 1 | Complete |
 | INFRA-01 | Phase 1 | Complete |
 | DEBT-01 | Phase 2 | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 01-security-foundation-deploy-fix-01-01-PLAN.md
-last_updated: "2026-03-27T13:53:39.913Z"
+status: verifying
+stopped_at: Completed 01-security-foundation-deploy-fix-01-02-PLAN.md
+last_updated: "2026-03-27T14:03:09.121Z"
 last_activity: 2026-03-27
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 Phase: 01 (security-foundation-deploy-fix) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-27
 
 Progress: [░░░░░░░░░░] 0%
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01-security-foundation-deploy-fix P03 | 2 | 2 tasks | 3 files |
 | Phase 01-security-foundation-deploy-fix P01 | 4 | 2 tasks | 3 files |
+| Phase 01-security-foundation-deploy-fix P02 | 5 | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,9 @@ Recent decisions affecting current work:
 - [Phase 01-security-foundation-deploy-fix]: Health endpoint for deploy readiness check is /health (not /api/v1/health)
 - [Phase 01-security-foundation-deploy-fix]: Deploy: alembic runs in one-shot container (run --rm --no-deps) before API service starts
 - [Phase 01-security-foundation-deploy-fix]: PyJWT replaces python-jose (CVE-2024-33663 eliminated); passlib removed, direct bcrypt in use; token payload structure unchanged
+- [Phase 01-security-foundation-deploy-fix]: token_version default=0 with server_default='0' ensures backward compat with existing sessions (D-04)
+- [Phase 01-security-foundation-deploy-fix]: Missing 'ver' claim in JWT treated as 0 — pre-deploy tokens still work for users with token_version=0 (D-06)
+- [Phase 01-security-foundation-deploy-fix]: null/empty API key scopes treated as admin for Shiftjuggler backward compatibility (D-14)
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T13:53:39.910Z
-Stopped at: Completed 01-security-foundation-deploy-fix-01-01-PLAN.md
+Last session: 2026-03-27T14:03:09.118Z
+Stopped at: Completed 01-security-foundation-deploy-fix-01-02-PLAN.md
 Resume file: None
