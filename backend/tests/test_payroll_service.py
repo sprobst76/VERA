@@ -511,3 +511,139 @@ async def test_payroll_multi_contract_split(db, tenant):
     # Gesamtlohn = 80 + 112 = 192€
     assert entry.base_wage == pytest.approx(192.0, rel=0.01)
     assert entry.actual_hours == pytest.approx(16.0)
+
+
+# ── ContractHistory-only reads (DEBT-01) ─────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_payroll_no_contract_soft_fail(db, tenant):
+    """Employee ohne ContractHistory -> soft-fail: total_gross=0, Warning in notes."""
+    from app.models.employee import Employee
+
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Kein",
+        last_name="Vertrag",
+        contract_type="full_time",
+        hourly_rate=Decimal("14.00"),
+        annual_salary_limit=Decimal("0"),
+        vacation_days=30,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    svc = PayrollService(db)
+    entry, carryover = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # Kein Absturz, total_gross = 0
+    assert entry.total_gross == pytest.approx(0.0)
+    assert entry.actual_hours == pytest.approx(0.0)
+    assert carryover == pytest.approx(0.0)
+    # Warning-Text muss im notes-Feld stehen
+    assert entry.notes is not None
+    assert "Kein gueltiger Vertrag" in entry.notes
+
+
+@pytest.mark.asyncio
+async def test_payroll_uses_contract_history_not_mirror(db, tenant):
+    """Berechnung nutzt ContractHistory.hourly_rate, nicht employee.hourly_rate."""
+    from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
+    from app.models.shift import Shift
+
+    # Employee.hourly_rate = 99€ (Spiegel-Feld, soll NICHT genutzt werden)
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Spiegel",
+        last_name="Test",
+        contract_type="full_time",
+        hourly_rate=Decimal("99.00"),  # bewusst falscher Wert
+        annual_salary_limit=Decimal("0"),
+        vacation_days=30,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    # ContractHistory.hourly_rate = 15.50€ (wahrer Wert)
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="full_time",
+        hourly_rate=Decimal("15.50"),
+    )
+    db.add(ch)
+
+    # Dienst: 8h
+    shift = Shift(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        date=date(2025, 9, 1),
+        start_time=time(8, 0),
+        end_time=time(16, 0),
+        break_minutes=0,
+        status="confirmed",
+    )
+    db.add(shift)
+    await db.commit()
+
+    svc = PayrollService(db)
+    entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # base_wage = 8h * 15.50€ = 124.00€ (nicht 8 * 99 = 792€)
+    assert entry.base_wage == pytest.approx(124.0, rel=0.01)
+
+
+@pytest.mark.asyncio
+async def test_payroll_no_monthly_salary_fallback_to_ch_rate(db, tenant):
+    """Wenn ContractHistory kein monthly_salary hat, wird CH.hourly_rate genutzt (kein Employee-Fallback)."""
+    from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
+    from app.models.shift import Shift
+
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Stunden",
+        last_name="Lohn",
+        contract_type="full_time",
+        hourly_rate=Decimal("5.00"),   # Spiegel-Feld – soll ignoriert werden
+        monthly_salary=Decimal("9999.00"),  # Spiegel-Feld – soll ignoriert werden
+        annual_salary_limit=Decimal("0"),
+        vacation_days=30,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    # CH hat kein monthly_salary → Stundenlohn-Modus
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="full_time",
+        hourly_rate=Decimal("12.00"),
+        monthly_salary=None,
+    )
+    db.add(ch)
+
+    shift = Shift(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        date=date(2025, 9, 1),
+        start_time=time(8, 0),
+        end_time=time(16, 0),
+        break_minutes=0,
+        status="confirmed",
+    )
+    db.add(shift)
+    await db.commit()
+
+    svc = PayrollService(db)
+    entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
+
+    # base_wage = 8h * 12.00€ = 96.00€ (nicht 9999€ vom Employee-Feld)
+    assert entry.base_wage == pytest.approx(96.0, rel=0.01)
