@@ -478,7 +478,6 @@ async def test_rollback_no_orphan_audit_row(db, tenant, admin_user):
 
 # ── Plan 03: audit-log API endpoint (skipped until Plan 03 implements endpoint) ──
 
-@pytest.mark.skip(reason="audit-log endpoint not yet implemented")
 @pytest.mark.asyncio
 async def test_audit_log_api_pagination(client, db, tenant, admin_user, admin_token):
     """GET /api/v1/audit-log returns {items: [...], total: N} with correct pagination."""
@@ -506,7 +505,6 @@ async def test_audit_log_api_pagination(client, db, tenant, admin_user, admin_to
     assert len(data["items"]) <= 3
 
 
-@pytest.mark.skip(reason="audit-log endpoint not yet implemented")
 @pytest.mark.asyncio
 async def test_audit_log_api_filters(client, db, tenant, admin_user, admin_token):
     """GET /api/v1/audit-log?entity_type=shift filters correctly."""
@@ -531,7 +529,6 @@ async def test_audit_log_api_filters(client, db, tenant, admin_user, admin_token
     assert all(item["entity_type"] == "shift" for item in data["items"])
 
 
-@pytest.mark.skip(reason="audit-log endpoint not yet implemented")
 @pytest.mark.asyncio
 async def test_audit_log_api_admin_only(client, employee_token):
     """GET /api/v1/audit-log with employee token returns 403."""
