@@ -50,11 +50,11 @@ Exceptions: Table row cells use `px-4 py-3` (16px / 12px) — matches existing c
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px (text-sm) | 400 (regular) | 1.5 |
-| Label | 12px (text-xs) | 500 (medium) | 1.4 |
+| Label | 12px (text-xs) | 400 (regular) | 1.4 |
 | Heading | 24px (text-2xl) | 700 (bold) | 1.2 |
-| Table header | 12px (text-xs) | 500 (medium) | 1.4 |
+| Table header | 12px (text-xs) | 400 (regular) | 1.4 |
 
-Source: Observed in `compliance/page.tsx` — `text-2xl font-bold` for page heading, `text-xs font-medium text-muted-foreground` for table headers, `text-sm` for body rows.
+Source: Observed in `compliance/page.tsx` — `text-2xl font-bold` for page heading, `text-xs text-muted-foreground` for table headers, `text-sm` for body rows. The 12px vs 14px size contrast provides sufficient visual separation between table headers/labels and body text without requiring a distinct weight.
 
 Note: Only 3 distinct sizes are declared (12px, 14px, 24px). The before/after diff values inside expanded rows use 12px monospace (`font-mono`) to distinguish data from prose.
 
@@ -136,7 +136,7 @@ Columns (left to right):
 | Entität | — | Entity type label (German) + entity ID as `text-xs text-muted-foreground` below |
 | Details | expand icon | Expand button — `ChevronDown` / `ChevronUp` from lucide-react |
 
-Table header row: `border-b border-border` with `text-xs font-medium text-muted-foreground` in each `<th className="text-left px-4 py-3">`.
+Table header row: `border-b border-border` with `text-xs text-muted-foreground` in each `<th className="text-left px-4 py-3">`.
 
 Table body rows:
 - `border-b border-border last:border-0 hover:bg-muted/40 transition-colors`
@@ -247,6 +247,8 @@ Disabled state: `opacity-50 cursor-not-allowed`
 | Results count | {N} Einträge |
 | Empty state heading | Keine Einträge gefunden |
 | Empty state body | Passe die Filter an oder wähle einen anderen Zeitraum |
+| Error state heading | Audit-Log konnte nicht geladen werden |
+| Error state body | Seite neu laden oder Administrator kontaktieren |
 | Loading | Wird geladen… |
 | Action badge: create | angelegt |
 | Action badge: update | geändert |
