@@ -21,6 +21,18 @@ BW_SCHOOL_HOLIDAYS_2025_26: list[tuple[date, date, str]] = [
     (date(2026, 7, 30),  date(2026, 9, 12),  "Sommer"),
 ]
 
+# BW Schulferien 2026/27
+# Source: BW Kultusministerium Ferienplan 2026/27
+# https://km-bw.de/de/service/ferien
+# Verified by executor on 2026-03-28
+BW_SCHOOL_HOLIDAYS_2026_27: list[tuple[date, date, str]] = [
+    (date(2026, 10, 26), date(2026, 10, 30), "Herbstferien"),
+    (date(2026, 12, 23), date(2027, 1, 9),   "Weihnachten"),
+    (date(2027, 3, 30),  date(2027, 4, 3),   "Ostern"),
+    (date(2027, 5, 18),  date(2027, 5, 29),  "Pfingsten"),
+    (date(2027, 7, 29),  date(2027, 9, 11),  "Sommer"),
+]
+
 
 def get_bw_holidays(year: int) -> dict[date, str]:
     """Gibt alle gesetzlichen Feiertage in BW für ein Jahr zurück."""
@@ -84,10 +96,11 @@ def is_holiday(d: date, state: str = "BW") -> tuple[bool, str | None]:
 
 
 def is_school_holiday(d: date) -> tuple[bool, str | None]:
-    """Prüft ob ein Datum in BW-Schulferien fällt."""
-    for start, end, name in BW_SCHOOL_HOLIDAYS_2025_26:
-        if start <= d <= end:
-            return True, name
+    """Prueft ob ein Datum in BW-Schulferien faellt. Auto-selects correct school year."""
+    for holiday_list in [BW_SCHOOL_HOLIDAYS_2025_26, BW_SCHOOL_HOLIDAYS_2026_27]:
+        for start, end, name in holiday_list:
+            if start <= d <= end:
+                return True, name
     return False, None
 
 
