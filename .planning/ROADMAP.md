@@ -12,7 +12,7 @@
 ## Phases
 
 - [x] **Phase 1: Security Foundation + Deploy Fix** — Fix live CVE, deploy race, API key scopes, JWT revocation
-- [ ] **Phase 2: Payroll Correctness** — Eliminate ContractHistory mirror divergence before audit wires up
+- [x] **Phase 2: Payroll Correctness** — Eliminate ContractHistory mirror divergence before audit wires up
 - [ ] **Phase 3: Audit Trail** — Immutable append-only audit log with admin UI
 - [ ] **Phase 4: Employee Self-Service (Core)** — Absence requests, availability self-update, shift acknowledgment
 - [ ] **Phase 5: PWA + Mobile** — Installable app, offline calendar, mobile UX
@@ -70,7 +70,11 @@ Plans:
   3. `UPDATE` and `DELETE` are revoked from `audit_log` for the application DB user — a direct SQL attempt returns a permission error
   4. Admin can open the Audit Log page, filter by entity type and date range, and see paginated results
   5. Payroll audit entries include before/after values for `actual_hours`, `base_wage`, and `total_gross` — no Bruttolohn in plaintext outside these structured fields
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 03-01-PLAN.md — Audit foundation: service, schemas, migration, test scaffolds (AUDIT-01, AUDIT-05)
+- [ ] 03-02-PLAN.md — Wire audit_service.write() into all write endpoints (AUDIT-02, AUDIT-03)
+- [ ] 03-03-PLAN.md — Admin audit log API endpoint + frontend page (AUDIT-04)
 **UI hint**: yes
 **Risk**: MEDIUM — transaction atomicity is a known pitfall (audit INSERT must be in same db.commit() as business change); SQLAlchemy async event listeners must NOT be used
 
@@ -141,8 +145,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security Foundation + Deploy Fix | 3/3 | Complete | 2026-03-27 |
-| 2. Payroll Correctness | 0/3 | Planned | - |
-| 3. Audit Trail | 0/TBD | Not started | - |
+| 2. Payroll Correctness | 3/3 | Complete | 2026-03-28 |
+| 3. Audit Trail | 0/3 | Planning complete | - |
 | 4. Employee Self-Service (Core) | 0/TBD | Not started | - |
 | 5. PWA + Mobile | 0/TBD | Not started | - |
 | 6. Shift Swap | 0/TBD | Not started | - |
@@ -210,4 +214,4 @@ Plans:
 ---
 
 *Roadmap created: 2026-03-27*
-*Next: `/gsd:execute-phase 1`*
+*Next: `/gsd:execute-phase 3`*
