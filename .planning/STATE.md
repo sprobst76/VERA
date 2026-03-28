@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 01-security-foundation-deploy-fix-01-02-PLAN.md
-last_updated: "2026-03-27T14:03:09.121Z"
-last_activity: 2026-03-27
+status: executing
+stopped_at: Completed 02-payroll-correctness-02-01-PLAN.md
+last_updated: "2026-03-28T09:53:44.235Z"
+last_activity: 2026-03-28
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
   percent: 0
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 ## Current Position
 
-Phase: 01 (security-foundation-deploy-fix) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-03-27
+Phase: 02 (payroll-correctness) — EXECUTING
+Plan: 1 of 3 (all 3 plans running in parallel)
+Status: Ready to execute
+Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-security-foundation-deploy-fix P03 | 2 | 2 tasks | 3 files |
 | Phase 01-security-foundation-deploy-fix P01 | 4 | 2 tasks | 3 files |
 | Phase 01-security-foundation-deploy-fix P02 | 5 | 3 tasks | 7 files |
+| Phase 02-payroll-correctness P01 | 63 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 01-security-foundation-deploy-fix]: token_version default=0 with server_default='0' ensures backward compat with existing sessions (D-04)
 - [Phase 01-security-foundation-deploy-fix]: Missing 'ver' claim in JWT treated as 0 — pre-deploy tokens still work for users with token_version=0 (D-06)
 - [Phase 01-security-foundation-deploy-fix]: null/empty API key scopes treated as admin for Shiftjuggler backward compatibility (D-14)
+- [Phase 02-payroll-correctness]: payroll_service soft-fail for missing ContractHistory: return PayrollEntry total_gross=0 with JSON warning in notes field
+- [Phase 02-payroll-correctness]: compliance_service uses _get_contract_at helper to read contract_type from ContractHistory at shift.date
 
 ### Pending Todos
 
@@ -86,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T14:03:09.118Z
-Stopped at: Completed 01-security-foundation-deploy-fix-01-02-PLAN.md
+Last session: 2026-03-28T09:53:44.232Z
+Stopped at: Completed 02-payroll-correctness-02-01-PLAN.md
 Resume file: None

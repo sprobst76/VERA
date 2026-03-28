@@ -11,7 +11,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Security Foundation + Deploy Fix** — Fix live CVE, deploy race, API key scopes, JWT revocation
+- [x] **Phase 1: Security Foundation + Deploy Fix** — Fix live CVE, deploy race, API key scopes, JWT revocation
 - [ ] **Phase 2: Payroll Correctness** — Eliminate ContractHistory mirror divergence before audit wires up
 - [ ] **Phase 3: Audit Trail** — Immutable append-only audit log with admin UI
 - [ ] **Phase 4: Employee Self-Service (Core)** — Absence requests, availability self-update, shift acknowledgment
@@ -53,7 +53,7 @@ Plans:
   4. Legacy `send_hourly_reminders` Celery task is removed from Beat schedule — no phantom no-op task in logs
 **Plans:** 3 plans
 Plans:
-- [ ] 02-01-PLAN.md — Remove mirror field fallbacks from payroll_service + compliance_service (DEBT-01)
+- [x] 02-01-PLAN.md — Remove mirror field fallbacks from payroll_service + compliance_service (DEBT-01)
 - [ ] 02-02-PLAN.md — PDF service mirror removal + assign_contract_type valid_from fix (DEBT-01, DEBT-02)
 - [ ] 02-03-PLAN.md — BW school holidays 2026/27 + demo tenant hardening + dead Celery task removal (DEBT-03, DEBT-04, INFRA-02)
 **Risk**: MEDIUM — payroll service refactor touches core calculation path; covered by existing payroll tests
@@ -140,7 +140,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security Foundation + Deploy Fix | 1/3 | In Progress|  |
+| 1. Security Foundation + Deploy Fix | 3/3 | Complete | 2026-03-27 |
 | 2. Payroll Correctness | 0/3 | Planned | - |
 | 3. Audit Trail | 0/TBD | Not started | - |
 | 4. Employee Self-Service (Core) | 0/TBD | Not started | - |
