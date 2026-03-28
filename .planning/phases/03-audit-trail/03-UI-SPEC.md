@@ -31,17 +31,18 @@ Source: `tailwind.config.ts`, `globals.css`, codebase scan of existing pages.
 
 Declared values (must be multiples of 4):
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| xs | 4px | Icon-to-label gap, badge inner padding |
-| sm | 8px | Compact cell padding, tag gaps |
-| md | 16px | Default element spacing, card inner padding |
-| lg | 24px | Section gaps, filter bar padding |
-| xl | 32px | Layout column gaps |
-| 2xl | 48px | Major section breaks |
-| 3xl | 64px | Page-level top spacing |
+| Token | Value | Tailwind | Usage |
+|-------|-------|----------|-------|
+| xs | 4px | p-1 | Icon-to-label gap, badge inner padding |
+| sm | 8px | p-2 | Compact cell padding, tag gaps |
+| xs-plus | 12px | py-3 | Table cell vertical padding |
+| md | 16px | p-4 | Default element spacing, card inner padding |
+| lg | 24px | p-6 | Section gaps, filter bar padding |
+| xl | 32px | p-8 | Layout column gaps |
+| 2xl | 48px | p-12 | Major section breaks |
+| 3xl | 64px | p-16 | Page-level top spacing |
 
-Exceptions: Table row cells use `px-4 py-3` (16px / 12px) — matches existing compliance and payroll table patterns exactly.
+Table row cells use `px-4 py-3` — 16px horizontal (md) and 12px vertical (xs-plus). Matches existing compliance and payroll table patterns exactly.
 
 ---
 
