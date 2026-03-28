@@ -23,6 +23,7 @@ import {
   X,
   ShieldAlert,
   UserCircle,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ const navItems = [
   { href: "/compliance",    label: "Compliance",         icon: ShieldAlert,  adminOnly: false, parentViewerVisible: false },
   { href: "/notifications", label: "Benachrichtigungen", icon: Bell,         adminOnly: false, parentViewerVisible: false },
   { href: "/reports",       label: "Berichte",           icon: BarChart3,    adminOnly: true,  parentViewerVisible: false },
+  { href: "/audit-log",     label: "Audit-Log",          icon: ClipboardList, adminOnly: true, parentViewerVisible: false },
   { href: "/settings",      label: "Einstellungen",      icon: Settings,     adminOnly: false, parentViewerVisible: false },
 ];
 
