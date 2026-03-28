@@ -15,6 +15,7 @@ from app.schemas.absence import (
 )
 from app.services.notification_service import notify_absence_decision
 from app.api.v1.webhooks import dispatch_event
+from app.services import audit_service
 
 router = APIRouter(tags=["absences"])
 
@@ -78,6 +79,10 @@ async def create_absence(payload: EmployeeAbsenceCreate, current_user: CurrentUs
 
     absence = EmployeeAbsence(tenant_id=current_user.tenant_id, **payload.model_dump())
     db.add(absence)
+    await db.flush()  # get absence.id
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="absence", entity_id=absence.id, action="create",
+                               new_values=payload.model_dump(mode="json"))
     await db.commit()
     await db.refresh(absence)
     return absence
@@ -95,8 +100,11 @@ async def update_absence(absence_id: uuid.UUID, payload: EmployeeAbsenceUpdate, 
     if not absence:
         raise HTTPException(status_code=404, detail="Absence not found")
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    old_values = {f: str(getattr(absence, f)) for f in updates}
+    for field, value in updates.items():
         setattr(absence, field, value)
+    new_values = {f: str(getattr(absence, f)) for f in updates}
 
     if payload.status in ("approved", "rejected"):
         absence.approved_by = current_user.id
@@ -134,6 +142,9 @@ async def update_absence(absence_id: uuid.UUID, payload: EmployeeAbsenceUpdate, 
         for shift in shifts_result.scalars().all():
             shift.status = "planned"
 
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="absence", entity_id=absence.id, action="update",
+                               old_values=old_values, new_values=new_values)
     await db.commit()
     await db.refresh(absence)
 

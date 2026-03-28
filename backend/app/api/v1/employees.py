@@ -14,6 +14,7 @@ from app.models.employee import Employee
 from app.models.contract_history import ContractHistory
 from app.models.employee_contract_type_membership import EmployeeContractTypeMembership
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, EmployeePublicOut
+from app.services import audit_service
 
 
 class EmployeeSelfUpdate(BaseModel):
@@ -277,6 +278,9 @@ async def create_employee(payload: EmployeeCreate, current_user: AdminUser, db: 
         annual_salary_limit=payload.annual_salary_limit,
     )
     db.add(contract)
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="employee", entity_id=employee.id, action="create",
+                               new_values=payload.model_dump(mode="json"))
     await db.commit()
     await db.refresh(employee)
     return employee
@@ -321,8 +325,13 @@ async def update_employee(employee_id: uuid.UUID, payload: EmployeeUpdate, curre
                 detail="Dieser Login-Account ist bereits mit einem anderen Mitarbeiter verknüpft",
             )
 
+    old_values = {f: str(getattr(employee, f)) for f in updates}
     for field, value in updates.items():
         setattr(employee, field, value)
+    new_values = {f: str(getattr(employee, f)) for f in updates}
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="employee", entity_id=employee_id, action="update",
+                               old_values=old_values, new_values=new_values)
 
     await db.commit()
     await db.refresh(employee)
@@ -415,11 +424,21 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
         **entry_data,
     )
     db.add(entry)
+    await db.flush()  # get entry.id
 
     # Mirror-Felder auf Employee nur aktualisieren wenn neuer Eintrag der aktuelle ist
     if inherited_valid_to is None:
         _sync_employee_mirror(employee, entry)
 
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="contract_history", entity_id=entry.id,
+                               action="create",
+                               new_values={
+                                   "employee_id": str(employee_id),
+                                   "contract_type": payload.contract_type,
+                                   "hourly_rate": float(payload.hourly_rate) if payload.hourly_rate else None,
+                                   "valid_from": str(effective_valid_from),
+                               })
     await db.commit()
     await db.refresh(entry)
     return entry
@@ -458,7 +477,14 @@ async def update_contract(
     if not entry:
         raise HTTPException(status_code=404, detail="Vertragseintrag nicht gefunden")
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    contract_update_fields = payload.model_dump(exclude_unset=True)
+    old_values = {
+        "contract_type": entry.contract_type,
+        "hourly_rate": float(entry.hourly_rate) if entry.hourly_rate is not None else None,
+        "valid_from": str(entry.valid_from),
+        "valid_to": str(entry.valid_to) if entry.valid_to else None,
+    }
+    for field, value in contract_update_fields.items():
         setattr(entry, field, value)
 
     # Mirror auf Employee wenn aktueller Eintrag
@@ -469,6 +495,16 @@ async def update_contract(
         emp = emp_result.scalar_one_or_none()
         if emp:
             _sync_employee_mirror(emp, entry)
+
+    new_values = {
+        "contract_type": entry.contract_type,
+        "hourly_rate": float(entry.hourly_rate) if entry.hourly_rate is not None else None,
+        "valid_from": str(entry.valid_from),
+        "valid_to": str(entry.valid_to) if entry.valid_to else None,
+    }
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="contract_history", entity_id=contract_id,
+                               action="update", old_values=old_values, new_values=new_values)
 
     await db.commit()
     await db.refresh(entry)
@@ -531,6 +567,15 @@ async def delete_contract(
     if prev:
         prev.valid_to = entry.valid_to
 
+    old_values = {
+        "employee_id": str(entry.employee_id),
+        "contract_type": entry.contract_type,
+        "hourly_rate": float(entry.hourly_rate) if entry.hourly_rate is not None else None,
+        "valid_from": str(entry.valid_from),
+    }
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="contract_history", entity_id=contract_id,
+                               action="delete", old_values=old_values)
     await db.delete(entry)
     await db.commit()
 
@@ -724,4 +769,8 @@ async def deactivate_employee(employee_id: uuid.UUID, current_user: AdminUser, d
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
 
     employee.is_active = False
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="employee", entity_id=employee_id, action="delete",
+                               old_values={"name": f"{employee.first_name} {employee.last_name}",
+                                           "email": employee.email})
     await db.commit()

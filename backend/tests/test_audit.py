@@ -144,7 +144,6 @@ async def test_revoke_migration_sqlite_skip(engine):
 
 # ── Plan 02: endpoint audit wiring (skipped until Plan 02 implements wiring) ──
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_shift_create_produces_audit_row(client, db, tenant, admin_user, admin_token):
     """POST /api/v1/shifts creates an AuditLog row with entity_type='shift' and action='create'."""
@@ -156,12 +155,15 @@ async def test_shift_create_produces_audit_row(client, db, tenant, admin_user, a
         last_name="Tester",
         email="audittester@test.de",
         hourly_rate=15.0,
+        contract_type="minijob",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     await db.commit()
 
+    tenant_id = tenant.id
+    user_id = admin_user.id
     payload = make_shift_payload(emp.id)
     r = await client.post("/api/v1/shifts", json=payload, headers=auth_headers(admin_token))
     assert r.status_code == 201
@@ -169,17 +171,16 @@ async def test_shift_create_produces_audit_row(client, db, tenant, admin_user, a
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "shift",
             AuditLog.action == "create",
         )
     )
     row = result.scalar_one_or_none()
     assert row is not None
-    assert row.user_id == admin_user.id
+    assert row.user_id == user_id
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_shift_delete_produces_audit_row(client, db, tenant, admin_user, admin_token):
     """DELETE /api/v1/shifts/{id} creates an AuditLog row with action='delete'."""
@@ -190,12 +191,14 @@ async def test_shift_delete_produces_audit_row(client, db, tenant, admin_user, a
         last_name="DeleteTest",
         email="auditdelete@test.de",
         hourly_rate=15.0,
+        contract_type="minijob",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     await db.commit()
 
+    tenant_id = tenant.id
     payload = make_shift_payload(emp.id)
     create_r = await client.post("/api/v1/shifts", json=payload, headers=auth_headers(admin_token))
     assert create_r.status_code == 201
@@ -207,7 +210,7 @@ async def test_shift_delete_produces_audit_row(client, db, tenant, admin_user, a
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "shift",
             AuditLog.action == "delete",
         )
@@ -216,7 +219,6 @@ async def test_shift_delete_produces_audit_row(client, db, tenant, admin_user, a
     assert row is not None
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_employee_create_produces_audit_row(client, db, tenant, admin_user, admin_token):
     """POST /api/v1/employees creates AuditLog with entity_type='employee'."""
@@ -225,15 +227,17 @@ async def test_employee_create_produces_audit_row(client, db, tenant, admin_user
         "last_name": "New",
         "email": "audit_emp_new@test.de",
         "hourly_rate": 14.5,
+        "contract_type": "minijob",
         "role": "employee",
     }
+    tenant_id = tenant.id
     r = await client.post("/api/v1/employees", json=payload, headers=auth_headers(admin_token))
     assert r.status_code == 201
 
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "employee",
             AuditLog.action == "create",
         )
@@ -242,7 +246,6 @@ async def test_employee_create_produces_audit_row(client, db, tenant, admin_user
     assert row is not None
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_employee_update_produces_audit_row(client, db, tenant, admin_user, admin_token):
     """PUT /api/v1/employees/{id} creates AuditLog with action='update' and old_values is not None."""
@@ -253,12 +256,14 @@ async def test_employee_update_produces_audit_row(client, db, tenant, admin_user
         last_name="UpdateTest",
         email="auditupdate@test.de",
         hourly_rate=15.0,
+        contract_type="minijob",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     await db.commit()
 
+    tenant_id = tenant.id
     r = await client.put(
         f"/api/v1/employees/{emp.id}",
         json={"first_name": "AuditUpdated"},
@@ -269,7 +274,7 @@ async def test_employee_update_produces_audit_row(client, db, tenant, admin_user
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "employee",
             AuditLog.action == "update",
         )
@@ -279,7 +284,6 @@ async def test_employee_update_produces_audit_row(client, db, tenant, admin_user
     assert row.old_values is not None
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_payroll_calculate_produces_audit_row(client, db, tenant, admin_user, admin_token):
     """POST /api/v1/payroll/calculate creates AuditLog with entity_type='payroll'."""
@@ -290,15 +294,17 @@ async def test_payroll_calculate_produces_audit_row(client, db, tenant, admin_us
         last_name="Payroll",
         email="auditpayroll@test.de",
         hourly_rate=15.0,
+        contract_type="minijob",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     await db.commit()
 
+    tenant_id = tenant.id
     r = await client.post(
         "/api/v1/payroll/calculate",
-        json={"employee_id": str(emp.id), "year": 2026, "month": 3},
+        json={"employee_id": str(emp.id), "month": "2026-03-01"},
         headers=auth_headers(admin_token),
     )
     assert r.status_code == 200
@@ -306,7 +312,7 @@ async def test_payroll_calculate_produces_audit_row(client, db, tenant, admin_us
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "payroll",
         )
     )
@@ -314,7 +320,6 @@ async def test_payroll_calculate_produces_audit_row(client, db, tenant, admin_us
     assert row is not None
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_payroll_audit_before_after_fields(client, db, tenant, admin_user, admin_token):
     """Payroll update AuditLog has old_values/new_values with keys: actual_hours, base_wage, total_gross."""
@@ -325,28 +330,30 @@ async def test_payroll_audit_before_after_fields(client, db, tenant, admin_user,
         last_name="PayrollFields",
         email="auditpayrollfields@test.de",
         hourly_rate=15.0,
+        contract_type="minijob",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     await db.commit()
 
+    tenant_id = tenant.id
     # Calculate twice to get old/new values
     await client.post(
         "/api/v1/payroll/calculate",
-        json={"employee_id": str(emp.id), "year": 2026, "month": 3},
+        json={"employee_id": str(emp.id), "month": "2026-03-01"},
         headers=auth_headers(admin_token),
     )
     await client.post(
         "/api/v1/payroll/calculate",
-        json={"employee_id": str(emp.id), "year": 2026, "month": 3},
+        json={"employee_id": str(emp.id), "month": "2026-03-01"},
         headers=auth_headers(admin_token),
     )
 
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "payroll",
             AuditLog.action == "update",
         )
@@ -360,7 +367,6 @@ async def test_payroll_audit_before_after_fields(client, db, tenant, admin_user,
         assert key in row.new_values
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_absence_create_produces_audit_row(client, db, tenant, admin_user, admin_token):
     """POST /api/v1/absences creates AuditLog with entity_type='absence'."""
@@ -371,17 +377,19 @@ async def test_absence_create_produces_audit_row(client, db, tenant, admin_user,
         last_name="Absence",
         email="auditabsence@test.de",
         hourly_rate=15.0,
+        contract_type="minijob",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     await db.commit()
 
+    tenant_id = tenant.id
     r = await client.post(
         "/api/v1/absences",
         json={
             "employee_id": str(emp.id),
-            "absence_type": "vacation",
+            "type": "vacation",
             "start_date": "2026-04-01",
             "end_date": "2026-04-05",
         },
@@ -392,7 +400,7 @@ async def test_absence_create_produces_audit_row(client, db, tenant, admin_user,
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "absence",
             AuditLog.action == "create",
         )
@@ -401,7 +409,6 @@ async def test_absence_create_produces_audit_row(client, db, tenant, admin_user,
     assert row is not None
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_contract_history_create_produces_audit_row(client, db, tenant, admin_user, admin_token):
     """POST /api/v1/employees/{id}/contracts creates AuditLog with entity_type='contract_history'."""
@@ -412,18 +419,20 @@ async def test_contract_history_create_produces_audit_row(client, db, tenant, ad
         last_name="Contract",
         email="auditcontract@test.de",
         hourly_rate=15.0,
+        contract_type="minijob",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add(emp)
     await db.commit()
 
+    tenant_id = tenant.id
     r = await client.post(
         f"/api/v1/employees/{emp.id}/contracts",
         json={
             "contract_type": "minijob",
             "hourly_rate": 14.53,
-            "monthly_limit": 556.0,
+            "monthly_hours_limit": 38.0,
             "valid_from": "2026-04-01",
         },
         headers=auth_headers(admin_token),
@@ -433,7 +442,7 @@ async def test_contract_history_create_produces_audit_row(client, db, tenant, ad
     db.expire_all()
     result = await db.execute(
         select(AuditLog).where(
-            AuditLog.tenant_id == tenant.id,
+            AuditLog.tenant_id == tenant_id,
             AuditLog.entity_type == "contract_history",
             AuditLog.action == "create",
         )
@@ -442,7 +451,6 @@ async def test_contract_history_create_produces_audit_row(client, db, tenant, ad
     assert row is not None
 
 
-@pytest.mark.skip(reason="audit wiring not yet implemented")
 @pytest.mark.asyncio
 async def test_rollback_no_orphan_audit_row(db, tenant, admin_user):
     """A mutation that raises mid-transaction leaves zero AuditLog rows."""

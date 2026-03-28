@@ -18,8 +18,11 @@ from app.services.payroll_service import PayrollService
 from app.services.pdf_service import generate_payslip_pdf
 from app.api.v1.webhooks import dispatch_event
 from app.services.notification_service import notify_minijob_limit
+from app.services import audit_service
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
+
+PAYROLL_AUDIT_FIELDS = ("actual_hours", "base_wage", "total_gross")
 
 
 @router.get("", response_model=list[PayrollEntryOut])
@@ -89,8 +92,13 @@ async def calculate_payroll(
             detail=f"Abrechnung ist bereits gesperrt (Status: {existing.status}). Bitte erst zurücksetzen.",
         )
 
-    # Delete existing draft so service creates a fresh one
+    # Capture old values before deleting existing draft (for AUDIT-03 before/after)
+    existing_old_values = None
     if existing:
+        existing_old_values = {
+            f: float(getattr(existing, f)) if getattr(existing, f) is not None else None
+            for f in PAYROLL_AUDIT_FIELDS
+        }
         await db.delete(existing)
         await db.flush()
 
@@ -98,6 +106,20 @@ async def calculate_payroll(
     service = PayrollService(db)
     entry, _ = await service.calculate_monthly_payroll(payload.employee_id, payload.month)
     db.add(entry)
+    await db.flush()  # get entry.id
+
+    new_audit_values = {
+        f: float(getattr(entry, f)) if getattr(entry, f) is not None else None
+        for f in PAYROLL_AUDIT_FIELDS
+    }
+    if existing_old_values is not None:
+        await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                                   entity_type="payroll", entity_id=entry.id, action="update",
+                                   old_values=existing_old_values, new_values=new_audit_values)
+    else:
+        await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                                   entity_type="payroll", entity_id=entry.id, action="create",
+                                   new_values=new_audit_values)
 
     await db.commit()
     await db.refresh(entry)
@@ -153,12 +175,34 @@ async def calculate_all_payroll(
             entries.append(existing)
             continue
 
+        emp_old_values = None
         if existing:
+            emp_old_values = {
+                f: float(getattr(existing, f)) if getattr(existing, f) is not None else None
+                for f in PAYROLL_AUDIT_FIELDS
+            }
             await db.delete(existing)
             await db.flush()
 
         entry, _ = await service.calculate_monthly_payroll(emp.id, month)
         db.add(entry)
+        await db.flush()  # get entry.id
+
+        new_audit_values = {
+            f: float(getattr(entry, f)) if getattr(entry, f) is not None else None
+            for f in PAYROLL_AUDIT_FIELDS
+        }
+        if emp_old_values is not None:
+            await audit_service.write(db, tenant_id=current_user.tenant_id,
+                                       user_id=current_user.id,
+                                       entity_type="payroll", entity_id=entry.id,
+                                       action="update",
+                                       old_values=emp_old_values, new_values=new_audit_values)
+        else:
+            await audit_service.write(db, tenant_id=current_user.tenant_id,
+                                       user_id=current_user.id,
+                                       entity_type="payroll", entity_id=entry.id,
+                                       action="create", new_values=new_audit_values)
         entries.append(entry)
 
     await db.commit()
@@ -330,10 +374,23 @@ async def update_payroll_entry(
             detail=f"Ungültiger Statuswechsel: {entry.status} → {payload.status}",
         )
 
+    old_audit_values = {
+        f: float(getattr(entry, f)) if getattr(entry, f) is not None else None
+        for f in PAYROLL_AUDIT_FIELDS
+    }
+
     if payload.status:
         entry.status = payload.status
     if payload.notes is not None:
         entry.notes = payload.notes
+
+    new_audit_values = {
+        f: float(getattr(entry, f)) if getattr(entry, f) is not None else None
+        for f in PAYROLL_AUDIT_FIELDS
+    }
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="payroll", entity_id=entry_id, action="update",
+                               old_values=old_audit_values, new_values=new_audit_values)
 
     await db.commit()
     await db.refresh(entry)
