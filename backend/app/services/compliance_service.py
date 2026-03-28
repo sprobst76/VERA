@@ -2,11 +2,12 @@
 Compliance-Service: Automatische Validierung für alle Schichten.
 Prüft Ruhezeit, Pausen und Minijob-Grenzen gemäß ArbZG.
 """
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.german_holidays import is_holiday
@@ -42,6 +43,18 @@ class ComplianceService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _get_contract_at(self, employee_id: uuid.UUID, target_date: date):
+        """Gibt den zum target_date gültigen ContractHistory-Eintrag zurück, oder None."""
+        from app.models.contract_history import ContractHistory
+        result = await self.db.execute(
+            select(ContractHistory).where(
+                ContractHistory.employee_id == employee_id,
+                ContractHistory.valid_from <= target_date,
+                or_(ContractHistory.valid_to.is_(None), ContractHistory.valid_to > target_date),
+            ).limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def check_shift(self, shift: "Shift", employee: "Employee") -> ComplianceResult:
         result = ComplianceResult()
 
@@ -51,8 +64,14 @@ class ComplianceService:
         # 2. Pausenpflicht (ArbZG §4)
         self._check_break(shift, result)
 
-        # 3. Minijob-Limit
-        if employee.contract_type == "minijob":
+        # 3. Minijob-Limit: Vertragstyp aus ContractHistory lesen (nie Spiegel-Feld)
+        contract = await self._get_contract_at(employee.id, shift.date)
+        if contract is None:
+            name = f"{getattr(employee, 'first_name', '')} {getattr(employee, 'last_name', '')}".strip()
+            result.warnings.append(
+                f"Kein gueltiger Vertrag fuer {name or employee.id} am {shift.date}"
+            )
+        elif contract.contract_type == "minijob":
             await self._check_minijob_limit(shift, employee, result)
 
         # 4. Feiertag-Info
