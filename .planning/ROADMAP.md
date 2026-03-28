@@ -51,7 +51,11 @@ Plans:
   2. Calling `assign_contract_type` without `valid_from` creates a ContractHistory entry with `valid_from=today` — no more silent payroll gaps
   3. `BW_SCHOOL_HOLIDAYS_2026_27` is populated — recurring shifts correctly skip the new school year holiday periods
   4. Legacy `send_hourly_reminders` Celery task is removed from Beat schedule — no phantom no-op task in logs
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — Remove mirror field fallbacks from payroll_service + compliance_service (DEBT-01)
+- [ ] 02-02-PLAN.md — PDF service mirror removal + assign_contract_type valid_from fix (DEBT-01, DEBT-02)
+- [ ] 02-03-PLAN.md — BW school holidays 2026/27 + demo tenant hardening + dead Celery task removal (DEBT-03, DEBT-04, INFRA-02)
 **Risk**: MEDIUM — payroll service refactor touches core calculation path; covered by existing payroll tests
 
 ---
@@ -137,7 +141,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security Foundation + Deploy Fix | 1/3 | In Progress|  |
-| 2. Payroll Correctness | 0/TBD | Not started | - |
+| 2. Payroll Correctness | 0/3 | Planned | - |
 | 3. Audit Trail | 0/TBD | Not started | - |
 | 4. Employee Self-Service (Core) | 0/TBD | Not started | - |
 | 5. PWA + Mobile | 0/TBD | Not started | - |
