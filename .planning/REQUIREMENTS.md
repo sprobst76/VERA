@@ -21,14 +21,14 @@
 ### Infrastruktur / Deploy (INFRA)
 
 - [x] **INFRA-01**: Deploy-Reihenfolge gefixt — Alembic läuft vollständig durch bevor der API-Server Requests annimmt (kein 5s-Race mehr)
-- [ ] **INFRA-02**: Legacy-Celery-Task `send_hourly_reminders` aus Beat-Schedule entfernt (ist ein No-Op, läuft aber stündlich)
+- [x] **INFRA-02**: Legacy-Celery-Task `send_hourly_reminders` aus Beat-Schedule entfernt (ist ein No-Op, läuft aber stündlich)
 
 ### Technische Schulden — Payroll (DEBT)
 
 - [x] **DEBT-01**: ContractHistory-Mirror-Divergenz behoben — `compliance_service.py`, `payroll_service.py`, `pdf_service.py`, `reports.py` lesen `contract_type`/`hourly_rate` aus aktiver `ContractHistory`, nicht aus Mirror-Feldern auf `Employee`
 - [x] **DEBT-02**: `assign_contract_type` ohne `valid_from` legt automatisch einen `ContractHistory`-Eintrag mit `valid_from=heute` an — keine stillen Lohnfehler mehr
-- [ ] **DEBT-03**: Schulferien 2026/27 in `BW_SCHOOL_HOLIDAYS_2026_27` ergänzt (aktuell läuft die Liste im September 2026 ab)
-- [ ] **DEBT-04**: Demo-Tenant von Produktions-Tenant getrennt — Demo-Daten in eigenem `demo`-Tenant, keine Verwechslungsgefahr mit echten Mitarbeiterdaten
+- [x] **DEBT-03**: Schulferien 2026/27 in `BW_SCHOOL_HOLIDAYS_2026_27` ergänzt (aktuell läuft die Liste im September 2026 ab)
+- [x] **DEBT-04**: Demo-Tenant von Produktions-Tenant getrennt — Demo-Daten in eigenem `demo`-Tenant, keine Verwechslungsgefahr mit echten Mitarbeiterdaten
 
 ### Audit Trail (AUDIT)
 
@@ -93,9 +93,9 @@
 | INFRA-01 | Phase 1 | Complete |
 | DEBT-01 | Phase 2 | Complete |
 | DEBT-02 | Phase 2 | Complete |
-| DEBT-03 | Phase 2 | Pending |
-| DEBT-04 | Phase 2 | Pending |
-| INFRA-02 | Phase 2 | Pending |
+| DEBT-03 | Phase 2 | Complete |
+| DEBT-04 | Phase 2 | Complete |
+| INFRA-02 | Phase 2 | Complete |
 | AUDIT-01 | Phase 3 | Pending |
 | AUDIT-02 | Phase 3 | Pending |
 | AUDIT-03 | Phase 3 | Pending |
