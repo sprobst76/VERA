@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-28T11:46:14.987Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-28T11:57:16.145Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 3 (audit-trail) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-28
 
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-payroll-correctness P02 | 35 | 3 tasks | 6 files |
 | Phase 02-payroll-correctness P03 | 15 minutes | 2 tasks | 4 files |
 | Phase 03-audit-trail P01 | 5 | 2 tasks | 4 files |
+| Phase 03-audit-trail P02 | 25 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,9 @@ Recent decisions affecting current work:
 - [Phase 02-payroll-correctness]: seed_demo.py always uses slug=demo with explicit cascade deletes
 - [Phase 03-audit-trail]: audit_service.write() stages without commit — caller owns transaction for atomicity with data changes
 - [Phase 03-audit-trail]: REVOKE migration uses dialect guard — PostgreSQL-only enforcement, SQLite (dev/test) unaffected
+- [Phase 03-audit-trail]: audit write on delete_shift staged before db.delete() — entity data must still be accessible for old_values capture
+- [Phase 03-audit-trail]: calculate_payroll: create vs update audit distinguished by checking for existing draft before deletion (existing_old_values is not None)
+- [Phase 03-audit-trail]: update_absence audit placed before mid-function db.commit() (before notification block) to maintain atomicity
 
 ### Pending Todos
 
@@ -100,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T11:46:14.985Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-28T11:57:16.143Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None

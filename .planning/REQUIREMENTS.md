@@ -32,11 +32,11 @@
 
 ### Audit Trail (AUDIT)
 
-- [ ] **AUDIT-01**: `AuditLog`-Tabelle erhält composite Index auf `(tenant_id, entity_type, entity_id)` und `(tenant_id, created_at)` für performante Abfragen
-- [ ] **AUDIT-02**: `audit_service.write()` Hilfsfunktion (explizit, kein ORM-Event-Hook) wird in allen write-Endpoints aufgerufen: create/update/delete für Shift, Employee, PayrollEntry, ContractHistory, EmployeeAbsence
-- [ ] **AUDIT-03**: Payroll-Änderungen werden mit Before/After-JSON geloggt — `actual_hours`, `base_wage`, `total_gross` als strukturierte Felder
+- [x] **AUDIT-01**: `AuditLog`-Tabelle erhält composite Index auf `(tenant_id, entity_type, entity_id)` und `(tenant_id, created_at)` für performante Abfragen
+- [x] **AUDIT-02**: `audit_service.write()` Hilfsfunktion (explizit, kein ORM-Event-Hook) wird in allen write-Endpoints aufgerufen: create/update/delete für Shift, Employee, PayrollEntry, ContractHistory, EmployeeAbsence
+- [x] **AUDIT-03**: Payroll-Änderungen werden mit Before/After-JSON geloggt — `actual_hours`, `base_wage`, `total_gross` als strukturierte Felder
 - [ ] **AUDIT-04**: Admin-UI-Seite zeigt Audit-Log filterbar nach Entity-Typ, User, Zeitraum; schreibgeschützt (nur Admin)
-- [ ] **AUDIT-05**: PostgreSQL REVOKE UPDATE, DELETE ON audit_logs FROM application_user — Audit-Log ist append-only auf DB-Ebene
+- [x] **AUDIT-05**: PostgreSQL REVOKE UPDATE, DELETE ON audit_logs FROM application_user — Audit-Log ist append-only auf DB-Ebene
 
 ### Employee Self-Service (ESS)
 
@@ -96,11 +96,11 @@
 | DEBT-03 | Phase 2 | Complete |
 | DEBT-04 | Phase 2 | Complete |
 | INFRA-02 | Phase 2 | Complete |
-| AUDIT-01 | Phase 3 | Pending |
-| AUDIT-02 | Phase 3 | Pending |
-| AUDIT-03 | Phase 3 | Pending |
+| AUDIT-01 | Phase 3 | Complete |
+| AUDIT-02 | Phase 3 | Complete |
+| AUDIT-03 | Phase 3 | Complete |
 | AUDIT-04 | Phase 3 | Pending |
-| AUDIT-05 | Phase 3 | Pending |
+| AUDIT-05 | Phase 3 | Complete |
 | ESS-01 | Phase 4 | Pending |
 | ESS-02 | Phase 4 | Pending |
 | ESS-03 | Phase 4 | Pending |

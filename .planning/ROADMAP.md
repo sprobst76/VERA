@@ -73,7 +73,7 @@ Plans:
 **Plans:** 1/3 plans executed
 Plans:
 - [x] 03-01-PLAN.md — Audit foundation: service, schemas, migration, test scaffolds (AUDIT-01, AUDIT-05)
-- [ ] 03-02-PLAN.md — Wire audit_service.write() into all write endpoints (AUDIT-02, AUDIT-03)
+- [x] 03-02-PLAN.md — Wire audit_service.write() into all write endpoints (AUDIT-02, AUDIT-03)
 - [ ] 03-03-PLAN.md — Admin audit log API endpoint + frontend page (AUDIT-04)
 **UI hint**: yes
 **Risk**: MEDIUM — transaction atomicity is a known pitfall (audit INSERT must be in same db.commit() as business change); SQLAlchemy async event listeners must NOT be used
