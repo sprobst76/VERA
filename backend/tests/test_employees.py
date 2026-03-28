@@ -336,3 +336,154 @@ async def test_vacation_balances_year_filter(client, admin_token, admin_user, db
     )
     balances2 = {b["employee_id"]: b for b in resp2.json()}
     assert balances2[str(emp.id)]["taken"] == 0.0
+
+
+# ── ContractHistoryCreate: valid_from optional (D-05) ────────────────────────
+
+@pytest.mark.asyncio
+async def test_add_contract_without_valid_from_uses_today(client, admin_token, admin_user, tenant, db):
+    """
+    POST /{id}/contracts ohne valid_from soll heute als valid_from verwenden.
+    (D-05: ContractHistoryCreate.valid_from ist Optional mit None-Default)
+    """
+    from sqlalchemy import select
+    from app.models.contract_history import ContractHistory
+    from app.models.employee import Employee
+    from datetime import date
+
+    # Mitarbeiter direkt in DB anlegen (ohne automatischen CH-Eintrag für heute)
+    # → initialer CH-Eintrag auf Vergangenheit setzen, um Konflikt zu vermeiden
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Vertrag",
+        last_name="Optional",
+        contract_type="minijob",
+        hourly_rate=13.0,
+        annual_salary_limit=6672.0,
+        vacation_days=0,
+    )
+    db.add(emp)
+    await db.flush()
+    # CH-Eintrag auf Vergangenheit
+    from app.models.contract_history import ContractHistory as CH
+    past_ch = CH(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        created_by_user_id=admin_user.id,
+        valid_from=date(2026, 1, 1),
+        valid_to=None,
+        contract_type="minijob",
+        hourly_rate=13.0,
+    )
+    db.add(past_ch)
+    await db.commit()
+    emp_id = str(emp.id)
+
+    # Neuen Vertrag ohne valid_from anlegen
+    contract_payload = {
+        "contract_type": "part_time",
+        "hourly_rate": 15.0,
+        "monthly_hours_limit": 80.0,
+    }
+    resp = await client.post(
+        f"{EMPLOYEES_URL}/{emp_id}/contracts",
+        json=contract_payload,
+        headers=auth_headers(admin_token),
+    )
+    # Muss 201 zurückgeben (valid_from fehlt → default=today)
+    assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    # valid_from soll heute sein
+    assert data["valid_from"] == str(date.today())
+
+
+@pytest.mark.asyncio
+async def test_assign_contract_type_no_valid_from_creates_ch(client, admin_token, admin_user, tenant, db):
+    """
+    POST /{id}/assign-contract-type ohne valid_from erzeugt einen ContractHistory-Eintrag
+    mit valid_from=today.
+    """
+    from sqlalchemy import select
+    from app.models.contract_history import ContractHistory
+    from app.models.contract_type import ContractType
+    from datetime import date
+
+    # ContractType anlegen
+    ct = ContractType(
+        tenant_id=tenant.id,
+        name="Minijob Standard",
+        contract_category="minijob",
+        hourly_rate=13.0,
+        monthly_hours_limit=43.0,
+        annual_salary_limit=6672.0,
+    )
+    db.add(ct)
+    await db.commit()
+    await db.refresh(ct)
+
+    # Mitarbeiter anlegen
+    create_resp = await client.post(EMPLOYEES_URL, json=EMP_PAYLOAD, headers=auth_headers(admin_token))
+    assert create_resp.status_code == 201
+    emp_id = create_resp.json()["id"]
+
+    # assign-contract-type ohne valid_from
+    resp = await client.post(
+        f"{EMPLOYEES_URL}/{emp_id}/assign-contract-type",
+        json={"contract_type_id": str(ct.id)},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    db.expire_all()
+
+    # ContractHistory prüfen
+    result = await db.execute(
+        select(ContractHistory).where(ContractHistory.employee_id == uuid.UUID(emp_id))
+    )
+    entries = result.scalars().all()
+    # Mindestens ein Eintrag mit valid_from=today
+    today_entries = [e for e in entries if e.valid_from == date.today()]
+    assert len(today_entries) >= 1, f"Expected a CH entry with valid_from=today, got: {[(e.valid_from, e.contract_type) for e in entries]}"
+
+
+@pytest.mark.asyncio
+async def test_create_employee_with_start_date_uses_start_date(client, admin_token, admin_user, tenant, db):
+    """
+    POST /employees mit start_date erzeugt ContractHistory mit valid_from=start_date.
+    """
+    from sqlalchemy import select
+    from app.models.contract_history import ContractHistory
+
+    payload = {**EMP_PAYLOAD, "start_date": "2026-05-01"}
+    resp = await client.post(EMPLOYEES_URL, json=payload, headers=auth_headers(admin_token))
+    assert resp.status_code == 201
+    emp_id = resp.json()["id"]
+    db.expire_all()
+
+    result = await db.execute(
+        select(ContractHistory).where(ContractHistory.employee_id == uuid.UUID(emp_id))
+    )
+    entries = result.scalars().all()
+    assert len(entries) == 1
+    assert str(entries[0].valid_from) == "2026-05-01"
+
+
+@pytest.mark.asyncio
+async def test_create_employee_without_start_date_uses_today(client, admin_token, admin_user, tenant, db):
+    """
+    POST /employees ohne start_date erzeugt ContractHistory mit valid_from=today.
+    """
+    from sqlalchemy import select
+    from app.models.contract_history import ContractHistory
+    from datetime import date
+
+    resp = await client.post(EMPLOYEES_URL, json=EMP_PAYLOAD, headers=auth_headers(admin_token))
+    assert resp.status_code == 201
+    emp_id = resp.json()["id"]
+    db.expire_all()
+
+    result = await db.execute(
+        select(ContractHistory).where(ContractHistory.employee_id == uuid.UUID(emp_id))
+    )
+    entries = result.scalars().all()
+    assert len(entries) == 1
+    assert entries[0].valid_from == date.today()

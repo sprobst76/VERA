@@ -23,7 +23,7 @@ class EmployeeSelfUpdate(BaseModel):
 
 
 class ContractHistoryCreate(BaseModel):
-    valid_from: date
+    valid_from: date | None = None   # Optional: default=today (D-05)
     contract_type: str
     hourly_rate: float
     weekly_hours: float | None = None
@@ -376,38 +376,43 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
     if not employee:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
 
+    # valid_from defaultt auf heute wenn nicht angegeben (D-05)
+    effective_valid_from = payload.valid_from if payload.valid_from is not None else date.today()
+
     # Den Eintrag finden, der den neuen Zeitpunkt "enthält"
     containing_result = await db.execute(
         select(ContractHistory).where(
             ContractHistory.employee_id == employee_id,
-            ContractHistory.valid_from <= payload.valid_from,
+            ContractHistory.valid_from <= effective_valid_from,
             or_(
-                ContractHistory.valid_to > payload.valid_from,
+                ContractHistory.valid_to > effective_valid_from,
                 ContractHistory.valid_to.is_(None),
             ),
         ).order_by(ContractHistory.valid_from.desc()).limit(1)
     )
     containing = containing_result.scalar_one_or_none()
 
-    if containing and containing.valid_from == payload.valid_from:
+    if containing and containing.valid_from == effective_valid_from:
         raise HTTPException(
             status_code=422,
-            detail=f"Es existiert bereits ein Eintrag mit valid_from={payload.valid_from}.",
+            detail=f"Es existiert bereits ein Eintrag mit valid_from={effective_valid_from}.",
         )
 
     # Bestehenden Eintrag schließen (valid_to übernehmen für neuen Eintrag)
     inherited_valid_to = None
     if containing:
         inherited_valid_to = containing.valid_to
-        containing.valid_to = payload.valid_from
+        containing.valid_to = effective_valid_from
 
-    # Neuen Eintrag einfügen
+    # Neuen Eintrag einfügen (valid_from aus effective_valid_from, nicht aus payload)
+    entry_data = payload.model_dump(exclude={"valid_from"})
     entry = ContractHistory(
         tenant_id=current_user.tenant_id,
         employee_id=employee_id,
         created_by_user_id=current_user.id,
+        valid_from=effective_valid_from,
         valid_to=inherited_valid_to,
-        **payload.model_dump(),
+        **entry_data,
     )
     db.add(entry)
 
