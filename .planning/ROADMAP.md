@@ -54,7 +54,7 @@ Plans:
 **Plans:** 3 plans
 Plans:
 - [x] 02-01-PLAN.md — Remove mirror field fallbacks from payroll_service + compliance_service (DEBT-01)
-- [ ] 02-02-PLAN.md — PDF service mirror removal + assign_contract_type valid_from fix (DEBT-01, DEBT-02)
+- [x] 02-02-PLAN.md — PDF service mirror removal + assign_contract_type valid_from fix (DEBT-01, DEBT-02)
 - [ ] 02-03-PLAN.md — BW school holidays 2026/27 + demo tenant hardening + dead Celery task removal (DEBT-03, DEBT-04, INFRA-02)
 **Risk**: MEDIUM — payroll service refactor touches core calculation path; covered by existing payroll tests
 

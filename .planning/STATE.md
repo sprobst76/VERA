@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-payroll-correctness-02-01-PLAN.md
-last_updated: "2026-03-28T09:53:44.235Z"
+stopped_at: Completed 02-payroll-correctness/02-02-PLAN.md
+last_updated: "2026-03-28T10:07:20.955Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 02 (payroll-correctness) — EXECUTING
-Plan: 1 of 3 (all 3 plans running in parallel)
+Plan: 2 of 3 (all 3 plans running in parallel)
 Status: Ready to execute
 Last activity: 2026-03-28
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-security-foundation-deploy-fix P01 | 4 | 2 tasks | 3 files |
 | Phase 01-security-foundation-deploy-fix P02 | 5 | 3 tasks | 7 files |
 | Phase 02-payroll-correctness P01 | 63 | 2 tasks | 4 files |
+| Phase 02-payroll-correctness P02 | 35 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 01-security-foundation-deploy-fix]: null/empty API key scopes treated as admin for Shiftjuggler backward compatibility (D-14)
 - [Phase 02-payroll-correctness]: payroll_service soft-fail for missing ContractHistory: return PayrollEntry total_gross=0 with JSON warning in notes field
 - [Phase 02-payroll-correctness]: compliance_service uses _get_contract_at helper to read contract_type from ContractHistory at shift.date
+- [Phase 02-payroll-correctness]: generate_payslip_pdf requires explicit ContractHistory parameter (raises ValueError if None) — no mirror fallback per D-01
+- [Phase 02-payroll-correctness]: reports.py minijob filtering via ContractHistory JOIN replaces Employee.contract_type DB filter
+- [Phase 02-payroll-correctness]: ContractHistoryCreate.valid_from Optional with date.today() default — endpoint resolves effective_valid_from before DB write
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T09:53:44.232Z
-Stopped at: Completed 02-payroll-correctness-02-01-PLAN.md
+Last session: 2026-03-28T10:07:20.952Z
+Stopped at: Completed 02-payroll-correctness/02-02-PLAN.md
 Resume file: None
