@@ -21,6 +21,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy import or_
 
 from app.api.deps import DB, CurrentUser
+from app.models.contract_history import ContractHistory
 from app.models.employee import Employee
 from app.models.shift import Shift
 from app.models.payroll import PayrollEntry
@@ -96,14 +97,29 @@ async def hours_summary(
         shift_map[eid]["net_hours"] = round(shift_map[eid]["net_hours"] + net, 2)
 
     emp_map = {e.id: e for e in employees}
+
+    # Aktive Verträge für alle Mitarbeiter im Zeitraum aus ContractHistory lesen (D-01)
+    ch_result = await db.execute(
+        select(ContractHistory).where(
+            ContractHistory.employee_id.in_(emp_ids),
+            ContractHistory.valid_from <= to_date,
+            or_(ContractHistory.valid_to.is_(None), ContractHistory.valid_to > from_date),
+        )
+    )
+    ch_map: dict[uuid.UUID, ContractHistory] = {}
+    for ch in ch_result.scalars().all():
+        if ch.employee_id not in ch_map:
+            ch_map[ch.employee_id] = ch
+
     return [
         {
-            "employee_id":   str(eid),
-            "first_name":    emp_map[eid].first_name,
-            "last_name":     emp_map[eid].last_name,
-            "contract_type": emp_map[eid].contract_type,
-            "from":          str(from_date),
-            "to":            str(to_date),
+            "employee_id":    str(eid),
+            "first_name":     emp_map[eid].first_name,
+            "last_name":      emp_map[eid].last_name,
+            "contract_type":  ch_map[eid].contract_type if eid in ch_map else None,
+            "missing_contract": eid not in ch_map,
+            "from":           str(from_date),
+            "to":             str(to_date),
             **shift_map.get(eid, {"shift_count": 0, "gross_hours": 0.0, "net_hours": 0.0}),
         }
         for eid in emp_ids
@@ -125,25 +141,39 @@ async def minijob_limit_status(
     year_start = date(target_year, 1, 1)
     year_end = date(target_year, 12, 31)
 
+    # Filtere Mitarbeiter mit aktivem Minijob-Vertrag (aus ContractHistory, nicht Employee-Mirror)
     if current_user.role == "admin":
-        emp_result = await db.execute(
-            select(Employee).where(
+        rows_result = await db.execute(
+            select(Employee, ContractHistory).join(
+                ContractHistory, ContractHistory.employee_id == Employee.id
+            ).where(
                 Employee.tenant_id == current_user.tenant_id,
                 Employee.is_active == True,
-                Employee.contract_type == "minijob",
+                ContractHistory.contract_type == "minijob",
+                ContractHistory.valid_from <= year_end,
+                or_(ContractHistory.valid_to.is_(None), ContractHistory.valid_to > year_start),
             ).order_by(Employee.last_name)
         )
-        employees = emp_result.scalars().all()
+        rows = rows_result.all()
+        employees = [row[0] for row in rows]
+        contract_map: dict[uuid.UUID, ContractHistory] = {row[0].id: row[1] for row in rows}
     else:
-        emp_result = await db.execute(
-            select(Employee).where(
+        rows_result = await db.execute(
+            select(Employee, ContractHistory).join(
+                ContractHistory, ContractHistory.employee_id == Employee.id
+            ).where(
                 Employee.user_id == current_user.id,
                 Employee.tenant_id == current_user.tenant_id,
-                Employee.contract_type == "minijob",
+                ContractHistory.contract_type == "minijob",
+                ContractHistory.valid_from <= year_end,
+                or_(ContractHistory.valid_to.is_(None), ContractHistory.valid_to > year_start),
             )
         )
-        emp = emp_result.scalar_one_or_none()
-        employees = [emp] if emp else []
+        rows = rows_result.all()
+        employees = [row[0] for row in rows]
+        contract_map = {row[0].id: row[1] for row in rows}
+        # Deduplizieren: nur erstes (aktuellstes) CH pro Mitarbeiter
+        employees = list({emp.id: emp for emp in employees}.values())
 
     if not employees:
         return []
@@ -170,8 +200,24 @@ async def minijob_limit_status(
     }
 
     results = []
+    seen_ids: set[uuid.UUID] = set()
     for emp in employees:
-        limit = float(emp.annual_salary_limit or 6672)
+        if emp.id in seen_ids:
+            continue
+        seen_ids.add(emp.id)
+
+        ch = contract_map.get(emp.id)
+        if not ch:
+            # Strukturierte Warnung bei fehlendem Vertrag (D-01/D-02)
+            results.append({
+                "employee_id": str(emp.id),
+                "first_name":  emp.first_name,
+                "last_name":   emp.last_name,
+                "warning":     f"Kein gueltiger Vertrag fuer {emp.first_name} {emp.last_name}",
+            })
+            continue
+
+        limit = float(ch.annual_salary_limit or 6672)
         ytd = ytd_map.get(emp.id, 0.0)
         remaining = max(0.0, limit - ytd)
         pct = round(ytd / limit * 100, 1) if limit > 0 else 0.0
