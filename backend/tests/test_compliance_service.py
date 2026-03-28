@@ -227,3 +227,110 @@ async def test_holiday_warning(db):
     result = await svc.check_shift(shift, employee)
     assert result.has_warnings
     assert any("Feiertag" in w for w in result.warnings)
+
+
+# ── ContractHistory reads (DEBT-01) ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_compliance_reads_contract_history(db, tenant):
+    """Minijob-Check liest contract_type aus ContractHistory, nicht employee.contract_type."""
+    from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
+    from app.models.shift import Shift
+
+    # Employee Spiegel-Feld: part_time (falsch)
+    # ContractHistory: minijob (richtig) → Minijob-Check muss ausgelöst werden
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Contract",
+        last_name="HistoryTest",
+        contract_type="part_time",   # Spiegel-Feld bewusst falsch gesetzt
+        hourly_rate=14.0,
+        annual_salary_limit=0,
+        vacation_days=0,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="minijob",   # wahrer Vertragstyp
+        hourly_rate=14.0,
+    )
+    db.add(ch)
+
+    # Einen Shift mit hohem Brutto erzeugen (damit minijob-Grenze checkt)
+    from app.models.payroll import PayrollEntry
+    from decimal import Decimal
+    # Einen PayrollEntry mit hohem total_gross anlegen (> 556€)
+    pe = PayrollEntry(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        month=date(2025, 9, 1),
+        actual_hours=40.0,
+        paid_hours=40.0,
+        base_wage=Decimal("600.00"),
+        total_gross=Decimal("600.00"),
+        ytd_gross=Decimal("600.00"),
+        annual_limit_remaining=Decimal("6072.00"),
+        status="approved",
+    )
+    db.add(pe)
+    await db.commit()
+
+    shift = make_shift(date(2025, 9, 15), "08:00", "16:00", employee_id=emp.id)
+    # Employee-Objekt mit falschem contract_type auf Spiegel-Feld
+    employee = SimpleNamespace(
+        id=emp.id,
+        first_name=emp.first_name,
+        last_name=emp.last_name,
+        contract_type="part_time",  # Spiegel-Feld falsch — darf nicht genutzt werden
+    )
+
+    svc = ComplianceService(db)
+    result = await svc.check_shift(shift, employee)
+
+    # Minijob-Warning muss aufgetaucht sein (beweist CH-Lese, nicht Spiegel-Feld)
+    assert any("Minijob" in w for w in result.warnings), (
+        f"Kein Minijob-Warning trotz CH.contract_type='minijob' — "
+        f"Warnings: {result.warnings}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_compliance_no_contract_warning(db, tenant):
+    """Employee ohne ContractHistory → Warning 'Kein gueltiger Vertrag', kein Absturz."""
+    from app.models.employee import Employee
+
+    emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Kein",
+        last_name="Vertrag",
+        contract_type="minijob",
+        hourly_rate=14.0,
+        annual_salary_limit=0,
+        vacation_days=0,
+    )
+    db.add(emp)
+    await db.commit()
+    await db.refresh(emp)
+
+    shift = make_shift(date(2025, 9, 15), "08:00", "16:00", employee_id=emp.id)
+    employee = SimpleNamespace(
+        id=emp.id,
+        first_name=emp.first_name,
+        last_name=emp.last_name,
+        contract_type="minijob",
+    )
+
+    svc = ComplianceService(db)
+    result = await svc.check_shift(shift, employee)
+
+    # Kein Absturz, aber Warning vorhanden
+    assert any("Kein gueltiger Vertrag" in w for w in result.warnings), (
+        f"Erwartet 'Kein gueltiger Vertrag' in warnings, bekam: {result.warnings}"
+    )
