@@ -8,9 +8,9 @@ from sqlalchemy import select, and_
 logger = logging.getLogger(__name__)
 
 from app.api.deps import DB, AdminUser, CurrentUser, ManagerOrAdmin
-from app.models.audit import AuditLog
 from app.models.employee import Employee
 from app.models.shift import Shift, ShiftTemplate
+from app.services import audit_service
 from app.services.compliance_service import ComplianceService
 from app.services.notification_service import (
     notify_shift_assigned, notify_shift_changed,
@@ -36,20 +36,6 @@ async def _own_employee_id(current_user, db) -> uuid.UUID | None:
         select(Employee.id).where(Employee.user_id == current_user.id)
     )
     return result.scalar_one_or_none()
-
-
-async def _write_audit(db, *, tenant_id, user_id, entity_id, action: str,
-                        old_values: dict | None = None, new_values: dict | None = None):
-    log = AuditLog(
-        tenant_id=tenant_id,
-        user_id=user_id,
-        entity_type="shift",
-        entity_id=entity_id,
-        action=action,
-        old_values=old_values,
-        new_values=new_values,
-    )
-    db.add(log)
 
 
 # ── Shift Templates ──────────────────────────────────────────────────────────
@@ -163,6 +149,10 @@ async def create_shift(payload: ShiftCreate, current_user: ManagerOrAdmin, db: D
     shift = Shift(tenant_id=current_user.tenant_id, **payload.model_dump())
     _set_weekend_flags(shift)
     db.add(shift)
+    await db.flush()  # get shift.id before commit
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="shift", entity_id=shift.id, action="create",
+                               new_values=payload.model_dump(mode="json"))
     await db.commit()
     await db.refresh(shift)
     await _run_compliance(shift, db)
@@ -279,9 +269,9 @@ async def update_shift(shift_id: uuid.UUID, payload: ShiftUpdate, current_user: 
     _set_weekend_flags(shift)
 
     new_values = {f: str(getattr(shift, f)) for f in payload.model_dump(exclude_unset=True)}
-    await _write_audit(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
-                        entity_id=shift_id, action="update",
-                        old_values=old_values, new_values=new_values)
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="shift", entity_id=shift_id, action="update",
+                               old_values=old_values, new_values=new_values)
 
     await db.commit()
     await db.refresh(shift)
@@ -334,15 +324,15 @@ async def confirm_shift(shift_id: uuid.UUID, payload: ShiftConfirm, current_user
     if payload.actual_end is not None:
         shift.actual_end = payload.actual_end
 
-    await _write_audit(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
-                        entity_id=shift_id, action="confirm",
-                        old_values={"status": old_status},
-                        new_values={
-                            "status": "confirmed",
-                            "confirmed_by": str(current_user.id),
-                            "confirmed_at": shift.confirmed_at.isoformat(),
-                            "confirmation_note": payload.confirmation_note,
-                        })
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="shift", entity_id=shift_id, action="confirm",
+                               old_values={"status": old_status},
+                               new_values={
+                                   "status": "confirmed",
+                                   "confirmed_by": str(current_user.id),
+                                   "confirmed_at": shift.confirmed_at.isoformat(),
+                                   "confirmation_note": payload.confirmation_note,
+                               })
 
     await db.commit()
     await db.refresh(shift)
@@ -374,10 +364,10 @@ async def claim_shift(shift_id: uuid.UUID, current_user: CurrentUser, db: DB):
 
     shift.employee_id = own_id
 
-    await _write_audit(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
-                        entity_id=shift_id, action="claim",
-                        old_values={"employee_id": None},
-                        new_values={"employee_id": str(own_id)})
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="shift", entity_id=shift_id, action="claim",
+                               old_values={"employee_id": None},
+                               new_values={"employee_id": str(own_id)})
 
     await db.commit()
     await db.refresh(shift)
@@ -435,15 +425,16 @@ async def submit_time_correction(
     shift.time_correction_confirmed_by = None
     shift.time_correction_confirmed_at = None
 
-    await _write_audit(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
-                        entity_id=shift_id, action="time_correction_submit",
-                        old_values={"actual_start": old_actual_start},
-                        new_values={
-                            "actual_start": str(payload.actual_start),
-                            "actual_end": str(payload.actual_end),
-                            "actual_break_minutes": str(payload.actual_break_minutes),
-                            "note": payload.note,
-                        })
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="shift", entity_id=shift_id,
+                               action="time_correction_submit",
+                               old_values={"actual_start": old_actual_start},
+                               new_values={
+                                   "actual_start": str(payload.actual_start),
+                                   "actual_end": str(payload.actual_end),
+                                   "actual_break_minutes": str(payload.actual_break_minutes),
+                                   "note": payload.note,
+                               })
 
     await db.commit()
     await db.refresh(shift)
@@ -483,13 +474,14 @@ async def review_time_correction(
         if payload.note:
             shift.time_correction_note = payload.note
 
-    await _write_audit(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
-                        entity_id=shift_id, action="time_correction_review",
-                        new_values={
-                            "approved": str(payload.approved),
-                            "status": shift.time_correction_status,
-                            "note": payload.note,
-                        })
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="shift", entity_id=shift_id,
+                               action="time_correction_review",
+                               new_values={
+                                   "approved": str(payload.approved),
+                                   "status": shift.time_correction_status,
+                                   "note": payload.note,
+                               })
 
     await db.commit()
     await db.refresh(shift)
@@ -504,6 +496,16 @@ async def delete_shift(shift_id: uuid.UUID, current_user: ManagerOrAdmin, db: DB
     shift = result.scalar_one_or_none()
     if not shift:
         raise HTTPException(status_code=404, detail="Shift not found")
+    old_values = {
+        "employee_id": str(shift.employee_id),
+        "date": str(shift.date),
+        "start_time": str(shift.start_time),
+        "end_time": str(shift.end_time),
+        "status": shift.status,
+    }
+    await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
+                               entity_type="shift", entity_id=shift_id, action="delete",
+                               old_values=old_values)
     await db.delete(shift)
     await db.commit()
 
