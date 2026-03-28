@@ -162,11 +162,19 @@ async def seed():
         from sqlalchemy import select, delete
 
         # ── Bestehenden Demo-Tenant bereinigen ────────────────────────────────
-        existing = await db.execute(select(Tenant).where(Tenant.slug == "vera-demo"))
+        existing = await db.execute(
+            select(Tenant).where(Tenant.slug.in_(["demo", "vera-demo"]))
+        )
         old_tenant = existing.scalar_one_or_none()
         if old_tenant:
-            await db.execute(delete(AuditLog).where(AuditLog.tenant_id == old_tenant.id))
-            await db.execute(delete(Tenant).where(Tenant.id == old_tenant.id))
+            tid = old_tenant.id
+            await db.execute(delete(Shift).where(Shift.tenant_id == tid))
+            await db.execute(delete(ShiftTemplate).where(ShiftTemplate.tenant_id == tid))
+            await db.execute(delete(ContractHistory).where(ContractHistory.tenant_id == tid))
+            await db.execute(delete(Employee).where(Employee.tenant_id == tid))
+            await db.execute(delete(AuditLog).where(AuditLog.tenant_id == tid))
+            await db.execute(delete(User).where(User.tenant_id == tid))
+            await db.execute(delete(Tenant).where(Tenant.id == tid))
             await db.commit()
             print("  ♻️  Alter Demo-Tenant gelöscht\n")
 
@@ -181,7 +189,7 @@ async def seed():
 
         # ── Tenant ────────────────────────────────────────────────────────────
         tenant = Tenant(
-            name="VERA Demo", slug="vera-demo", plan="pro", state="BW",
+            name="VERA Demo", slug="demo", plan="pro", state="BW",
             settings={"demo_mode": True},
         )
         db.add(tenant)

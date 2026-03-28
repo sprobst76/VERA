@@ -40,12 +40,6 @@ def send_daily_reminders():
     asyncio.run(_send_reminders_for_date(date.today() + timedelta(days=1), hours_before=24))
 
 
-# Legacy: stündlich (wird von daily + 5-min-task abgedeckt, bleibt für Kompatibilität)
-@celery_app.task(name="app.tasks.reminder_tasks.send_hourly_reminders")
-def send_hourly_reminders():
-    pass  # ersetzt durch send_type_reminders
-
-
 # ── Kern-Logik: Diensttyp-basierte Erinnerungen ───────────────────────────────
 
 async def _run_type_reminders():
