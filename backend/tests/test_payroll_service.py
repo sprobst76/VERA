@@ -132,6 +132,7 @@ async def test_surcharges_holiday_bw(db):
 async def test_payroll_no_shifts(db, tenant):
     """Keine Schichten im Monat → actual_hours=0, base_wage=0."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
 
     emp = Employee(
         tenant_id=tenant.id,
@@ -146,6 +147,17 @@ async def test_payroll_no_shifts(db, tenant):
     await db.commit()
     await db.refresh(emp)
 
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="full_time",
+        hourly_rate=Decimal("14.00"),
+    )
+    db.add(ch)
+    await db.commit()
+
     svc = PayrollService(db)
     entry, carryover = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
     assert entry.actual_hours == 0.0
@@ -157,6 +169,7 @@ async def test_payroll_no_shifts(db, tenant):
 async def test_payroll_simple_shift(db, tenant):
     """Eine Schicht 8h → base_wage = 8 * stundenlohn."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
     from app.models.shift import Shift
 
     emp = Employee(
@@ -171,6 +184,16 @@ async def test_payroll_simple_shift(db, tenant):
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
+
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="full_time",
+        hourly_rate=Decimal("10.00"),
+    )
+    db.add(ch)
 
     shift = Shift(
         tenant_id=tenant.id,
@@ -194,6 +217,7 @@ async def test_payroll_simple_shift(db, tenant):
 async def test_payroll_planned_shift_not_counted(db, tenant):
     """Schicht mit status='planned' zählt NICHT für Abrechnung."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
     from app.models.shift import Shift
 
     emp = Employee(
@@ -208,6 +232,16 @@ async def test_payroll_planned_shift_not_counted(db, tenant):
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
+
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="full_time",
+        hourly_rate=Decimal("10.00"),
+    )
+    db.add(ch)
 
     shift = Shift(
         tenant_id=tenant.id,
@@ -230,6 +264,7 @@ async def test_payroll_planned_shift_not_counted(db, tenant):
 async def test_payroll_minijob_cap(db, tenant):
     """Stunden über Monatslimit → carryover_hours > 0, paid_hours == limit."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
     from app.models.shift import Shift
 
     emp = Employee(
@@ -245,6 +280,18 @@ async def test_payroll_minijob_cap(db, tenant):
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
+
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="minijob",
+        hourly_rate=Decimal("14.00"),
+        monthly_hours_limit=Decimal("20.00"),
+        annual_salary_limit=Decimal("6672.00"),
+    )
+    db.add(ch)
 
     # 3 Schichten à 8h = 24h gesamt, Limit 20h → 4h Übertrag
     for day in [1, 8, 15]:
@@ -273,6 +320,7 @@ async def test_payroll_minijob_cap(db, tenant):
 async def test_payroll_monthly_salary_base_wage_fixed(db, tenant):
     """Teilzeit mit Monatslohn: base_wage = monthly_salary, unabhängig von Stunden."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
     from app.models.shift import Shift
 
     emp = Employee(
@@ -289,6 +337,18 @@ async def test_payroll_monthly_salary_base_wage_fixed(db, tenant):
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
+
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="part_time",
+        hourly_rate=Decimal("0.00"),
+        monthly_salary=Decimal("1800.00"),
+        weekly_hours=Decimal("20.0"),
+    )
+    db.add(ch)
 
     # 60h Arbeit im September
     for day in [1, 8, 15, 22, 29]:
@@ -317,6 +377,7 @@ async def test_payroll_monthly_salary_base_wage_fixed(db, tenant):
 async def test_payroll_monthly_salary_surcharges_applied(db, tenant):
     """Bei Monatslohn werden Zuschläge über effektiven Stundensatz berechnet."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
     from app.models.shift import Shift
 
     # 1800€/Mo bei 20h/Woche → eff. Rate = 1800 / (20 * 52/12) ≈ 20.77 €/h
@@ -334,6 +395,18 @@ async def test_payroll_monthly_salary_surcharges_applied(db, tenant):
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
+
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="part_time",
+        hourly_rate=Decimal("0.00"),
+        monthly_salary=Decimal("1800.00"),
+        weekly_hours=Decimal("20.0"),
+    )
+    db.add(ch)
 
     # Sonntagsdienst → Sonntagszuschlag 50%
     shift = Shift(
@@ -368,6 +441,7 @@ async def test_payroll_monthly_salary_surcharges_applied(db, tenant):
 async def test_payroll_jahressoll_monthly_target(db, tenant):
     """Jahressoll-Mitarbeiter: monthly_hours_target = annual_hours_target / 12."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
     from app.models.shift import Shift
 
     emp = Employee(
@@ -384,6 +458,18 @@ async def test_payroll_jahressoll_monthly_target(db, tenant):
     await db.commit()
     await db.refresh(emp)
 
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="part_time",
+        hourly_rate=Decimal("14.00"),
+        annual_hours_target=Decimal("1200.0"),
+    )
+    db.add(ch)
+    await db.commit()
+
     # Keine Schichten → Abrechnung trotzdem möglich
     svc = PayrollService(db)
     entry, _ = await svc.calculate_monthly_payroll(emp.id, date(2025, 9, 1))
@@ -396,6 +482,7 @@ async def test_payroll_jahressoll_monthly_target(db, tenant):
 async def test_payroll_jahressoll_remaining_decreases(db, tenant):
     """annual_hours_remaining sinkt nach gearbeiteten Stunden."""
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
     from app.models.shift import Shift
     from app.models.payroll import PayrollEntry
     from decimal import Decimal as D
@@ -413,6 +500,17 @@ async def test_payroll_jahressoll_remaining_decreases(db, tenant):
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
+
+    ch = ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=emp.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="part_time",
+        hourly_rate=Decimal("14.00"),
+        annual_hours_target=Decimal("1200.0"),
+    )
+    db.add(ch)
 
     # 40h Arbeit im September
     for day in [1, 8, 15, 22]:

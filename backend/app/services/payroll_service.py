@@ -145,43 +145,59 @@ class PayrollService:
         # Primärvertrag = der letzte im Monat (für display-rate, annual_hours_target, limits)
         primary_contract = contract_periods[-1][0] if contract_periods else None
 
+        # Soft-fail: kein Vertragseintrag → strukturierte Warnung, null Lohn zurückgeben
+        if not contract_periods:
+            import json
+            warning_msg = (
+                f"Kein gueltiger Vertrag fuer {employee.first_name} {employee.last_name} "
+                f"(ID: {employee.id}) im Zeitraum {month_start} - {month_end}"
+            )
+            entry = PayrollEntry(
+                tenant_id=employee.tenant_id,
+                employee_id=employee_id,
+                month=month,
+                planned_hours=None,
+                actual_hours=0.0,
+                carryover_hours=0.0,
+                paid_hours=0.0,
+                base_wage=0.0,
+                total_gross=0.0,
+                ytd_gross=0.0,
+                annual_limit_remaining=0.0,
+                notes=json.dumps({"missing_contract_warnings": [warning_msg]}),
+            )
+            return entry, 0.0
+
         # Monatslohn (Teilzeit/Vollzeit): direkt als Grundlohn statt Stunden × Rate
         primary_monthly_salary = (
             float(primary_contract.monthly_salary)
             if (primary_contract and primary_contract.monthly_salary)
-            else (float(employee.monthly_salary) if employee.monthly_salary else None)
+            else None
         )
 
-        # Fallback auf Employee-Felder wenn kein Vertragseintrag vorhanden
-        primary_rate = (
-            float(primary_contract.hourly_rate) if primary_contract
-            else float(employee.hourly_rate)
-        )
+        # Vertragsdaten ausschließlich aus ContractHistory lesen (keine Employee-Felder)
+        primary_rate = float(primary_contract.hourly_rate) if primary_contract else 0.0
         monthly_limit = (
             float(primary_contract.monthly_hours_limit)
             if (primary_contract and primary_contract.monthly_hours_limit)
-            else (float(employee.monthly_hours_limit) if employee.monthly_hours_limit else None)
+            else None
         )
         annual_limit = (
             float(primary_contract.annual_salary_limit)
             if (primary_contract and primary_contract.annual_salary_limit)
-            else float(employee.annual_salary_limit or 6672)
+            else 6672.0  # Minijob-Standardgrenze 2025
         )
         annual_hours_target_raw = (
             float(primary_contract.annual_hours_target)
             if (primary_contract and primary_contract.annual_hours_target)
-            else (float(employee.annual_hours_target) if employee.annual_hours_target else None)
+            else None
         )
 
         # Effektiver Stundensatz für Zuschlagsberechnung bei Monatslohn
         def _effective_surcharge_rate(monthly_sal: float, c_period=None) -> float:
             """Berechnet effektiven Stundensatz für §3b-Zuschläge bei Monatslohn."""
-            wh = float(c_period.weekly_hours) if (c_period and c_period.weekly_hours) else (
-                float(employee.weekly_hours) if employee.weekly_hours else None
-            )
-            aht = float(c_period.annual_hours_target) if (c_period and c_period.annual_hours_target) else (
-                float(employee.annual_hours_target) if employee.annual_hours_target else None
-            )
+            wh = float(c_period.weekly_hours) if (c_period and c_period.weekly_hours) else None
+            aht = float(c_period.annual_hours_target) if (c_period and c_period.annual_hours_target) else None
             if wh:
                 return monthly_sal / (wh * 52 / 12)
             elif aht:
@@ -268,23 +284,19 @@ class PayrollService:
                     break
 
         # Monatslohn: Grundlohn fix (anteilig bei mehreren Perioden)
+        # contract_periods ist hier immer nicht-leer (soft-fail oben fängt leere ab)
         if primary_monthly_salary:
             # Bei Monatslohn-Perioden: Grundlohn ist das monatliche Fixgehalt
             # Bei mehreren Perioden: anteilig nach Kalendertagen
             monthly_days = (month_end - month_start).days + 1
             base_wage_sum = 0.0
-            if not contract_periods:
-                # Kein ContractHistory-Eintrag → volles Monatsgehalt vom Employee-Feld
-                base_wage_sum = primary_monthly_salary
-                total_gross += primary_monthly_salary
-            else:
-                for idx, (c, ps, pe) in enumerate(contract_periods):
-                    if c.monthly_salary:
-                        days_in_period = (min(pe - timedelta(days=1), month_end) - ps).days + 1
-                        period_base = float(c.monthly_salary) * (days_in_period / monthly_days)
-                        base_wage_sum += period_base
-                        total_gross += period_base
-                        period_stats[idx]["amount"] = round(period_base, 2)
+            for idx, (c, ps, pe) in enumerate(contract_periods):
+                if c.monthly_salary:
+                    days_in_period = (min(pe - timedelta(days=1), month_end) - ps).days + 1
+                    period_base = float(c.monthly_salary) * (days_in_period / monthly_days)
+                    base_wage_sum += period_base
+                    total_gross += period_base
+                    period_stats[idx]["amount"] = round(period_base, 2)
 
         paid_hours = total_hours + carryover_hours
         new_carryover = 0.0
