@@ -6,9 +6,10 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 
 from app.api.deps import DB, ManagerOrAdmin, CurrentUser
+from app.models.contract_history import ContractHistory
 from app.models.employee import Employee
 from app.models.payroll import PayrollEntry
 from app.models.tenant import Tenant
@@ -379,7 +380,22 @@ async def download_payroll_pdf(entry_id: uuid.UUID, current_user: CurrentUser, d
     tenant = tenant_result.scalar_one_or_none()
     tenant_name = tenant.name if tenant else "VERA"
 
-    pdf_bytes = generate_payslip_pdf(entry, employee, tenant_name)
+    # ContractHistory für den Abrechnungsmonat laden (SCD Type 2)
+    ch_result = await db.execute(
+        select(ContractHistory).where(
+            ContractHistory.employee_id == employee.id,
+            ContractHistory.valid_from <= entry.month,
+            or_(ContractHistory.valid_to.is_(None), ContractHistory.valid_to > entry.month),
+        ).order_by(ContractHistory.valid_from.desc()).limit(1)
+    )
+    active_contract = ch_result.scalar_one_or_none()
+    if active_contract is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Kein gueltiger Vertrag fuer Mitarbeiter im Monat {entry.month}",
+        )
+
+    pdf_bytes = generate_payslip_pdf(entry, employee, tenant_name, contract=active_contract)
 
     month_str = entry.month.strftime("%Y-%m")
     filename = f"vera-abrechnung-{employee.last_name.lower()}-{month_str}.pdf"

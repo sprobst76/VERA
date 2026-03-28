@@ -17,6 +17,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 if TYPE_CHECKING:
     from app.models.payroll import PayrollEntry
     from app.models.employee import Employee
+    from app.models.contract_history import ContractHistory
 
 
 # ── Farben (Catppuccin-inspiriert, druckfreundlich) ──────────────────────────
@@ -81,8 +82,15 @@ def generate_payslip_pdf(
     entry: "PayrollEntry",
     employee: "Employee",
     tenant_name: str,
+    contract: "ContractHistory | None" = None,
 ) -> bytes:
     """Erstellt einen Lohnzettel als PDF und gibt die Bytes zurück."""
+
+    if contract is None:
+        raise ValueError(
+            f"generate_payslip_pdf requires a ContractHistory row for employee {employee.id}. "
+            "Caller must query ContractHistory and pass it explicitly."
+        )
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -117,7 +125,7 @@ def generate_payslip_pdf(
 
     month_label = f"{MONTH_NAMES[entry.month.month]} {entry.month.year}"
     emp_name = f"{employee.first_name} {employee.last_name}"
-    contract_label = CONTRACT_LABELS.get(employee.contract_type, employee.contract_type)
+    contract_label = CONTRACT_LABELS.get(contract.contract_type, contract.contract_type or "–")
 
     story = []
     page_w = A4[0] - 4 * cm  # nutzbare Breite
@@ -151,7 +159,7 @@ def generate_payslip_pdf(
         [Paragraph("<b>Vertragsart</b>", styles["Normal"]),
          Paragraph(contract_label, styles["Normal"]),
          Paragraph("<b>Stundenlohn</b>", styles["Normal"]),
-         Paragraph(_fmt_euro(float(employee.hourly_rate)), styles["Normal"])],
+         Paragraph(_fmt_euro(float(contract.hourly_rate)), styles["Normal"])],
         [Paragraph("<b>Status</b>", styles["Normal"]),
          Paragraph(STATUS_LABELS.get(entry.status, entry.status), styles["Normal"]),
          Paragraph("", styles["Normal"]),
@@ -261,12 +269,12 @@ def generate_payslip_pdf(
     story.append(wage_tbl)
 
     # ── Minijob-Block ─────────────────────────────────────────────────────────
-    if employee.contract_type == "minijob":
+    if contract.contract_type == "minijob":
         story.append(Spacer(1, 0.4 * cm))
         story.append(Paragraph("Minijob-Jahresgrenze", heading))
 
         ytd = float(entry.ytd_gross or 0)
-        limit = float(employee.annual_salary_limit or 6672)
+        limit = float(contract.annual_salary_limit or 6672)
         remaining = float(entry.annual_limit_remaining or 0)
         pct = min(ytd / limit * 100, 100) if limit > 0 else 0
 
