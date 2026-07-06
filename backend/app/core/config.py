@@ -1,4 +1,11 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+DEFAULT_SECRET_KEY = "dev_secret_key_change_in_production_min_32_chars!!"
+
+
+class ConfigurationError(RuntimeError):
+    """Raised when a production deployment has an insecure or missing configuration."""
 
 
 class Settings(BaseSettings):
@@ -20,7 +27,7 @@ class Settings(BaseSettings):
     USE_CELERY: bool = False  # Im MVP deaktiviert
 
     # Security
-    SECRET_KEY: str = "dev_secret_key_change_in_production_min_32_chars!!"
+    SECRET_KEY: str = DEFAULT_SECRET_KEY
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -48,6 +55,27 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _enforce_production_safety(self) -> "Settings":
+        """Fail fast if APP_ENV=production runs with an insecure or missing config.
+
+        Prevents the failure mode where a missing .env silently falls back to
+        the well-known default SECRET_KEY (forgeable JWTs) and DEBUG=True
+        (open /docs, verbose errors, SQL echo) in production.
+        """
+        if self.APP_ENV != "production":
+            return self
+
+        if self.SECRET_KEY == DEFAULT_SECRET_KEY or len(self.SECRET_KEY) < 32:
+            raise ConfigurationError(
+                "SECRET_KEY is missing or using the insecure default in a production "
+                "environment (APP_ENV=production). Set a real SECRET_KEY (min. 32 chars, "
+                "e.g. `openssl rand -hex 32`) in the environment or .env file."
+            )
+
+        self.DEBUG = False
+        return self
 
 
 settings = Settings()
