@@ -1,9 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import uuid
 from datetime import date, datetime
 
 
 class EmployeeAbsenceCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     employee_id: uuid.UUID
     type: str  # vacation | sick | school_holiday | other
     start_date: date
@@ -13,6 +14,7 @@ class EmployeeAbsenceCreate(BaseModel):
 
 
 class EmployeeAbsenceUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     status: str | None = None  # pending | approved | rejected
     notes: str | None = None
     days_count: float | None = None
@@ -36,6 +38,7 @@ class EmployeeAbsenceOut(BaseModel):
 
 
 class CareAbsenceCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     type: str  # vacation | rehab | hospital | sick | other
     start_date: date
     end_date: date

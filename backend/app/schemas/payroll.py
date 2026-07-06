@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import uuid
 from datetime import date, datetime
 from typing import Optional
@@ -43,10 +43,12 @@ class PayrollEntryOut(BaseModel):
 
 
 class PayrollCalculateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     employee_id: uuid.UUID
     month: date  # first day of month (e.g. 2025-03-01)
 
 
 class PayrollUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     status: Optional[str] = None   # approved | paid
     notes: Optional[str] = None

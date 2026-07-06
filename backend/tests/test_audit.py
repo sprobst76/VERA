@@ -228,11 +228,10 @@ async def test_employee_create_produces_audit_row(client, db, tenant, admin_user
         "email": "audit_emp_new@test.de",
         "hourly_rate": 14.5,
         "contract_type": "minijob",
-        "role": "employee",
     }
     tenant_id = tenant.id
     r = await client.post("/api/v1/employees", json=payload, headers=auth_headers(admin_token))
-    assert r.status_code == 201
+    assert r.status_code == 201, r.text
 
     db.expire_all()
     result = await db.execute(

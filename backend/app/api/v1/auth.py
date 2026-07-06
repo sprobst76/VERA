@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -23,6 +23,7 @@ def _pw_min_length(v: str) -> str:
 
 
 class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     current_password: str
     new_password: str
 
@@ -33,6 +34,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 class AcceptInviteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     token: str
     new_password: str
 
@@ -43,10 +45,12 @@ class AcceptInviteRequest(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     token: str
     new_password: str
 

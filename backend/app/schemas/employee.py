@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Any
 import uuid
 from datetime import date, datetime, time
@@ -60,6 +60,7 @@ class EmployeeOut(BaseModel):
 # ── CRUD-Schemas (nur Admin) ──────────────────────────────────────────────────
 
 class EmployeeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     first_name: str
     last_name: str
     email: EmailStr | None = None
@@ -82,9 +83,11 @@ class EmployeeCreate(BaseModel):
     matrix_user_id: str | None = None
     quiet_hours_start: time = time(21, 0)
     quiet_hours_end: time = time(7, 0)
+    availability_prefs: dict | None = None
 
 
 class EmployeeUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     first_name: str | None = None
     last_name: str | None = None
     email: EmailStr | None = None

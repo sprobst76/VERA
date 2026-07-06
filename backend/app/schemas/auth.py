@@ -1,13 +1,15 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 import uuid
 
 
 class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: EmailStr
     password: str
 
 
 class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: EmailStr
     password: str
     tenant_name: str
@@ -36,4 +38,5 @@ class TokenData(BaseModel):
 
 
 class RefreshRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     refresh_token: str

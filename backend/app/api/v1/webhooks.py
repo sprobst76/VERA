@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, ConfigDict
 from sqlalchemy import select
 
 from app.api.deps import DB, AdminUser, CurrentUser
@@ -33,6 +33,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 class WebhookCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     url: str
     events: list[str]
@@ -40,6 +41,7 @@ class WebhookCreate(BaseModel):
 
 
 class WebhookUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = None
     url: str | None = None
     events: list[str] | None = None

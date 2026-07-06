@@ -1,12 +1,13 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ── VacationPeriod ───────────────────────────────────────────────────────────
 
 class VacationPeriodCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     start_date: date
     end_date: date
@@ -14,6 +15,7 @@ class VacationPeriodCreate(BaseModel):
 
 
 class VacationPeriodUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -33,6 +35,7 @@ class VacationPeriodOut(BaseModel):
 # ── CustomHoliday ────────────────────────────────────────────────────────────
 
 class CustomHolidayCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     date: date
     name: str
     color: str = "#fab387"
@@ -50,6 +53,7 @@ class CustomHolidayOut(BaseModel):
 # ── HolidayProfile ───────────────────────────────────────────────────────────
 
 class HolidayProfileCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     state: str = "BW"
     is_active: bool = False
@@ -57,6 +61,7 @@ class HolidayProfileCreate(BaseModel):
 
 
 class HolidayProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = None
     state: str | None = None
     is_active: bool | None = None

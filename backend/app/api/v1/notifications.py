@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, time
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
 from app.api.deps import DB, CurrentUser
@@ -34,6 +34,7 @@ class NotificationLogOut(BaseModel):
 
 
 class NotificationPreferencesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     telegram_chat_id: str | None = None
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
@@ -41,12 +42,14 @@ class NotificationPreferencesUpdate(BaseModel):
 
 
 class PushSubscriptionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     endpoint: str
     p256dh: str
     auth: str
 
 
 class PushUnsubscribeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     endpoint: str
 
 

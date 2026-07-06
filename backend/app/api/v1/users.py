@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from sqlalchemy import select
 
 from app.api.deps import DB, AdminUser
@@ -33,6 +33,7 @@ class UserOut(BaseModel):
 
 
 class UserCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: EmailStr
     password: str
     role: str = "employee"
@@ -46,6 +47,7 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     role: str | None = None
     is_active: bool | None = None
     password: str | None = None

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import uuid
 from datetime import date as Date, datetime as DateTime, time as Time
 from typing import Optional
@@ -7,6 +7,7 @@ from typing import Optional
 # ── ShiftType schemas ────────────────────────────────────────────────────────
 
 class ShiftTypeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     color: str = "#1E3A5F"
     description: Optional[str] = None
@@ -15,6 +16,7 @@ class ShiftTypeCreate(BaseModel):
 
 
 class ShiftTypeUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: Optional[str] = None
     color: Optional[str] = None
     description: Optional[str] = None
@@ -38,6 +40,7 @@ class ShiftTypeOut(BaseModel):
 
 
 class ShiftTemplateCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     weekdays: list[int]  # 0=Mo ... 6=So
     start_time: Time
@@ -72,6 +75,7 @@ class ShiftTemplateOut(BaseModel):
 
 
 class ShiftCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     employee_id: Optional[uuid.UUID] = None
     template_id: Optional[uuid.UUID] = None
     shift_type_id: Optional[uuid.UUID] = None
@@ -84,6 +88,7 @@ class ShiftCreate(BaseModel):
 
 
 class ShiftUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     employee_id: Optional[uuid.UUID] = None
     shift_type_id: Optional[uuid.UUID] = None
     date: Optional[Date] = None
@@ -106,6 +111,7 @@ class ShiftActualTime(BaseModel):
 
 
 class ShiftConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """Admin/Manager confirms a shift (planned → confirmed)."""
     actual_start: Optional[Time] = None
     actual_end: Optional[Time] = None
@@ -113,6 +119,7 @@ class ShiftConfirm(BaseModel):
 
 
 class TimeCorrectionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """Employee submits actual worked times for admin review."""
     actual_start: Time
     actual_end: Time
@@ -121,6 +128,7 @@ class TimeCorrectionCreate(BaseModel):
 
 
 class TimeCorrectionReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """Admin approves or rejects a pending time correction."""
     approved: bool
     note: Optional[str] = None
@@ -163,6 +171,7 @@ class ShiftOut(BaseModel):
 
 
 class BulkShiftCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     template_id: uuid.UUID
     from_date: Date
     to_date: Date

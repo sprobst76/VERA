@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, status, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, update, func
 
 from app.api.deps import DB, AdminUser, CurrentUser, ManagerOrAdmin
@@ -18,12 +18,14 @@ from app.services import audit_service
 
 
 class EmployeeSelfUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     phone: str | None = None
     email: str | None = None
     availability_prefs: dict | None = None
 
 
 class ContractHistoryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     valid_from: date | None = None   # Optional: default=today (D-05)
     contract_type: str
     hourly_rate: float
@@ -445,6 +447,7 @@ async def add_contract(employee_id: uuid.UUID, payload: ContractHistoryCreate, c
 
 
 class ContractHistoryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     """Felder eines bestehenden ContractHistory-Eintrags bearbeiten."""
     contract_type: str | None = None
     hourly_rate: float | None = None

@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from sqlalchemy import select, func
 
 from app.api.deps import DB, SuperAdminUser
@@ -34,6 +34,7 @@ router = APIRouter(prefix="/superadmin", tags=["superadmin"])
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class SuperAdminLoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: EmailStr
     password: str
 
@@ -47,6 +48,7 @@ class SuperAdminLoginResponse(BaseModel):
 
 
 class TwoFAVerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     challenge_token: str
     totp_code: str
 
@@ -63,10 +65,12 @@ class TwoFASetupResponse(BaseModel):
 
 
 class TwoFAConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     totp_code: str       # 6-stelliger Code aus der App
 
 
 class TwoFADisableRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     password: str
     totp_code: str
 
@@ -80,6 +84,7 @@ class SuperAdminOut(BaseModel):
 
 
 class SuperAdminCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: EmailStr
     password: str
 
@@ -104,6 +109,7 @@ class TenantOut(BaseModel):
 
 
 class TenantCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     slug: str
     state: str = "BW"
@@ -129,6 +135,7 @@ class TenantCreate(BaseModel):
 
 
 class TenantUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str | None = None
     plan: str | None = None
     state: str | None = None

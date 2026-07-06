@@ -1,13 +1,14 @@
 import uuid
 from datetime import date, datetime, time
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 WEEKDAY_NAMES = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 
 
 class RecurringShiftCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     weekday: int                           # 0=Mo … 6=So
     start_time: time
     end_time: time
@@ -23,6 +24,7 @@ class RecurringShiftCreate(BaseModel):
 
 
 class RecurringShiftUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     weekday: int | None = None
     start_time: time | None = None
     end_time: time | None = None

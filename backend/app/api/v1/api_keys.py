@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
 from app.api.deps import DB, AdminUser
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 
 class ApiKeyCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     scopes: list[str] = ["read"]  # read | write | admin
     expires_at: datetime | None = None

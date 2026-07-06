@@ -5,7 +5,7 @@ Gespeichert in Tenant.settings["smtp"] / Tenant.settings["surcharges"]
 (vorhandene JSON-Spalte, keine Migration nötig).
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
 from app.api.deps import DB, AdminUser
@@ -17,6 +17,7 @@ router = APIRouter(prefix="/admin", tags=["admin-settings"])
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class SmtpConfigUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     host: str
     port: int = 587
     user: str
@@ -129,6 +130,7 @@ DEFAULT_SURCHARGE_RATES = {
 
 
 class SurchargeRates(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     early:   float  # Frühzuschlag (vor 06:00)
     late:    float  # Spätzuschlag (nach 20:00)
     night:   float  # Nachtzuschlag (23:00–06:00)
@@ -157,6 +159,7 @@ async def update_surcharge_rates(payload: SurchargeRates, current_user: AdminUse
 # ── General / Frontend URL ─────────────────────────────────────────────────────
 
 class GeneralSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     frontend_url: str = ""
 
 

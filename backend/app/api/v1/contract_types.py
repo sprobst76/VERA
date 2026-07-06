@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
 from app.api.deps import DB, ManagerOrAdmin, AdminUser
@@ -30,6 +30,7 @@ router = APIRouter(prefix="/contract-types", tags=["contract-types"])
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class ContractTypeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     description: Optional[str] = None
     contract_category: str  # minijob | part_time | full_time
@@ -41,6 +42,7 @@ class ContractTypeCreate(BaseModel):
 
 
 class ContractTypeUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: Optional[str] = None
     description: Optional[str] = None
     contract_category: Optional[str] = None
@@ -406,6 +408,7 @@ async def get_contract_type_history(
 
 
 class ContractTypeHistoryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     valid_from: Optional[date] = None
     note: Optional[str] = None
 
