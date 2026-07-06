@@ -388,3 +388,13 @@ export const contractTypesApi = {
       ...(validFrom ? { valid_from: validFrom } : {}),
     }),
 };
+
+export const auditLogApi = {
+  list: (params: {
+    entity_type?: string;
+    from_date?: string;
+    to_date?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get("/audit-log", { params }),
+};
