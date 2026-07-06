@@ -207,14 +207,19 @@ export default function CalendarPage() {
     const rawEnd  = new Date(`${s.date}T${s.end_time}`);
 
     if (rawEnd <= startDt) {
-      // Overnight: an Mitternacht splitten
+      // Overnight: an Mitternacht splitten.
+      // Teil 1 muss auf 23:59:59 DESSELBEN Tages enden (nicht 00:00 am nächsten Tag) –
+      // react-big-calendar rendert Events, deren start/end auf unterschiedliche
+      // Kalendertage fallen, als Ganztags-Balken statt als Zeitblock im Stundenraster.
+      const endOfStartDay = new Date(startDt);
+      endOfStartDay.setHours(23, 59, 59, 999);
       const midnight = new Date(startDt);
       midnight.setDate(midnight.getDate() + 1);
       midnight.setHours(0, 0, 0, 0);
       const nextDayEnd = new Date(rawEnd.getTime() + 86400000);
       return [
-        { id: `${s.id}-p1`, title: prefix + baseTitle,   start: startDt,  end: midnight,    resource },
-        { id: `${s.id}-p2`, title: `↳ ${baseTitle}`,     start: midnight,  end: nextDayEnd,  resource },
+        { id: `${s.id}-p1`, title: prefix + baseTitle,   start: startDt,  end: endOfStartDay, resource },
+        { id: `${s.id}-p2`, title: `↳ ${baseTitle}`,     start: midnight,  end: nextDayEnd,   resource },
       ];
     }
 
