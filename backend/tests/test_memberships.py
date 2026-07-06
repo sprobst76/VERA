@@ -11,7 +11,7 @@ Prüft:
 """
 import uuid
 import pytest
-from datetime import date
+from datetime import date, timedelta
 from sqlalchemy import select
 from tests.conftest import auth_headers
 
@@ -89,7 +89,10 @@ async def test_assign_with_valid_from_creates_membership_and_contract_history(
     emp_id = await create_employee(client, admin_token)
     ct_id = await create_contract_type(client, admin_token)
 
-    await assign_type(client, admin_token, emp_id, ct_id, valid_from="2026-04-01")
+    # valid_from muss NACH dem Initialeintrag (heute) liegen, sonst greift der
+    # In-place-Update-Pfad statt SCD-Schließung (assign_contract_type)
+    future_from = (date.today() + timedelta(days=30)).isoformat()
+    await assign_type(client, admin_token, emp_id, ct_id, valid_from=future_from)
 
     # Membership prüfen
     r = await client.get(f"{EMPLOYEES_URL}/{emp_id}/memberships", headers=auth_headers(admin_token))
@@ -97,7 +100,7 @@ async def test_assign_with_valid_from_creates_membership_and_contract_history(
     assert len(memberships) == 1
     m = memberships[0]
     assert m["contract_type_id"] == ct_id
-    assert m["valid_from"] == "2026-04-01"
+    assert m["valid_from"] == future_from
     assert m["valid_to"] is None
 
     # ContractHistory prüfen: 2 Einträge (auto + zugewiesener)
@@ -106,7 +109,7 @@ async def test_assign_with_valid_from_creates_membership_and_contract_history(
     assert len(contracts) == 2
     current = next(c for c in contracts if c["valid_to"] is None)
     assert current["contract_type_id"] == ct_id
-    assert current["valid_from"] == "2026-04-01"
+    assert current["valid_from"] == future_from
 
 
 @pytest.mark.asyncio

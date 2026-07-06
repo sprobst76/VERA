@@ -340,6 +340,7 @@ async def test_update_contract_alter_eintrag_spiegelt_nicht(client, admin_token,
         last_name="NoMirror",
         contract_type="minijob",
         hourly_rate=13.00,
+        start_date="2026-01-01",  # Initialeintrag muss VOR valid_from des zweiten liegen
     )
     eid = emp["id"]
 

@@ -155,6 +155,7 @@ async def test_szenario2_felix_vertragstyp_zuweisung_erstellt_history(client, ad
         last_name="Huber",
         contract_type="minijob",
         hourly_rate=13.00,  # alter Satz, bevor Vertragsvorlage
+        start_date="2026-01-01",  # Initialeintrag muss VOR valid_from der Zuweisung liegen
     )
     emp_id = felix["id"]
 

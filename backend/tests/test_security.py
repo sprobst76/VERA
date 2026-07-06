@@ -27,6 +27,9 @@ def test_passlib_bcrypt_compat():
     and direct bcrypt calls (the new approach), confirming that existing
     production hashes created with passlib remain valid after migration.
     """
+    passlib = pytest.importorskip(
+        "passlib", reason="passlib ist keine Dependency mehr — Kompat-Test nur wo es (noch) installiert ist"
+    )
     from passlib.context import CryptContext
     import bcrypt
 
