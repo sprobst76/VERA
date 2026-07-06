@@ -381,6 +381,7 @@ export default function AbsencesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["care-absences"] });
       qc.invalidateQueries({ queryKey: ["shifts"] });
+      qc.invalidateQueries({ queryKey: ["vacation-data"] });
       toast.success("Abwesenheit gelöscht");
     },
     onError: () => toast.error("Fehler beim Löschen"),
@@ -730,6 +731,7 @@ export default function AbsencesPage() {
                 setShowCareCreate(false);
                 qc.invalidateQueries({ queryKey: ["care-absences"] });
                 qc.invalidateQueries({ queryKey: ["shifts"] });
+                qc.invalidateQueries({ queryKey: ["vacation-data"] });
               }}
             />
           )}

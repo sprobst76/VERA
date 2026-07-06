@@ -2,13 +2,27 @@
 
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { shiftsApi, shiftTypesApi } from "@/lib/api";
+import { shiftsApi, shiftTypesApi, careAbsencesApi } from "@/lib/api";
 import { addDays } from "date-fns";
-import { X, CalendarRange } from "lucide-react";
+import { X, CalendarRange, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import { TimeInput } from "@/components/shared/TimeInput";
 
 const WEEKDAY_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+// Abwesenheit der betreuten Person, die den Zeitraum [from, to] überschneidet (ISO-Datumsstrings, lexikalisch vergleichbar).
+function findCareAbsenceConflict(from: string, to: string, careAbsences: any[]): any | null {
+  if (!from || !to) return null;
+  return careAbsences.find((ca: any) => from <= ca.end_date && to >= ca.start_date) ?? null;
+}
+
+const CARE_TYPE_LABELS: Record<string, string> = {
+  vacation: "Urlaub",
+  rehab: "Reha",
+  hospital: "Krankenhausaufenthalt",
+  sick: "Krank",
+  other: "Abwesenheit",
+};
 
 function countBulkShifts(weekdays: number[], from: string, to: string): number {
   if (!from || !to || weekdays.length === 0) return 0;
@@ -51,6 +65,11 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
   const { data: shiftTypes = [] } = useQuery<any[]>({
     queryKey: ["shift-types"],
     queryFn: () => shiftTypesApi.list().then(r => r.data),
+  });
+
+  const { data: careAbsences = [] } = useQuery<any[]>({
+    queryKey: ["care-absences"],
+    queryFn: () => careAbsencesApi.list().then(r => r.data),
   });
 
   const selectedSingleTpl = templates.find((t: any) => t.id === sTplId);
@@ -109,6 +128,15 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
     },
     onError: () => toast.error("Fehler beim Anlegen"),
   });
+
+  // ── Abwesenheit betreute Person: Konflikt-Warnung (nicht blockierend) ──────
+  const singleCareConflict = findCareAbsenceConflict(sDate, sDate, careAbsences);
+  const bulkCareConflict = findCareAbsenceConflict(bFrom, bTo, careAbsences);
+
+  function careConflictLabel(ca: any): string {
+    const typeLabel = CARE_TYPE_LABELS[ca.type] ?? ca.type;
+    return `${typeLabel}${ca.description ? ` (${ca.description})` : ""}: ${ca.start_date} – ${ca.end_date}`;
+  }
 
   // ── Styles ────────────────────────────────────────────────────────────────
   const inputCls = "w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -179,6 +207,14 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
               <label className={labelCls}>Datum *</label>
               <input type="date" className={inputCls} value={sDate} onChange={e => setSDate(e.target.value)} />
             </div>
+
+            {singleCareConflict && (
+              <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm"
+                style={{ backgroundColor: "rgb(var(--ctp-peach) / 0.12)", color: "rgb(var(--ctp-peach))" }}>
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>Betreute Person ist an diesem Tag abwesend: {careConflictLabel(singleCareConflict)}</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -257,6 +293,14 @@ export function CreateShiftModal({ templates, employees, defaultDate, onClose, o
                   onChange={e => setBTo(e.target.value)} />
               </div>
             </div>
+
+            {bulkCareConflict && (
+              <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm"
+                style={{ backgroundColor: "rgb(var(--ctp-peach) / 0.12)", color: "rgb(var(--ctp-peach))" }}>
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>Zeitraum überschneidet eine Abwesenheit der betreuten Person: {careConflictLabel(bulkCareConflict)}</span>
+              </div>
+            )}
 
             {/* Optional time override */}
             <div>
