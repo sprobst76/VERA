@@ -100,6 +100,12 @@ None yet.
 
 ### Blockers/Concerns
 
+- **Vacation-Entitlement-Luecke (entdeckt 2026-07-06, nach Shiftjuggler-Import)**: Mehrere
+  clarasteam-Mitarbeiter (Rita Häusler, Nadja Kruschinski, Maja Juric, Bärbel Many Ndengue,
+  Violeta Gjocaj) haben `vacation_days=0` in VERA konfiguriert. Mit echter historischer
+  Urlaubsdaten aus Shiftjuggler sichtbar (Rita/Nadja: -1 Tag "remaining"). Vorbestehende
+  Konfigurationsluecke, keine Folge des Imports — vor der geplanten Urlaubs-Engine-Phase
+  (siehe Analyse 2026-07-06) die echten Vertrags-Urlaubsansprueche in VERA nachtragen.
 - **Prod-Betrieb (entdeckt 2026-07-06)**: VERA-Prod war vom ~12. April bis 6. Juli DOWN
   (Container entfernt, Ursache unklar — restart-Policies waren gesetzt, also kein Reboot;
   vermutlich manuelles `docker compose down` oder Prune). Niemand hat es bemerkt →
