@@ -29,12 +29,12 @@ const ENTITY_LABELS: Record<string, string> = {
 
 const ACTION_CONFIG: Record<string, { label: string; color: string }> = {
   create: { label: "angelegt", color: "var(--ctp-green)" },
-  update: { label: "geandert", color: "var(--ctp-blue)" },
-  delete: { label: "geloscht", color: "var(--ctp-red)" },
-  confirm: { label: "geandert", color: "var(--ctp-blue)" },
-  claim: { label: "geandert", color: "var(--ctp-blue)" },
-  time_correction_submit: { label: "geandert", color: "var(--ctp-blue)" },
-  time_correction_review: { label: "geandert", color: "var(--ctp-blue)" },
+  update: { label: "geändert", color: "var(--ctp-blue)" },
+  delete: { label: "gelöscht", color: "var(--ctp-red)" },
+  confirm: { label: "geändert", color: "var(--ctp-blue)" },
+  claim: { label: "geändert", color: "var(--ctp-blue)" },
+  time_correction_submit: { label: "geändert", color: "var(--ctp-blue)" },
+  time_correction_review: { label: "geändert", color: "var(--ctp-blue)" },
 };
 
 const PAYROLL_AUDIT_FIELDS = ["actual_hours", "base_wage", "total_gross"] as const;
@@ -186,7 +186,7 @@ export default function AuditLogPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Audit-Log</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Unveranderliche Aufzeichnung aller Schreiboperationen
+          Unveränderliche Aufzeichnung aller Schreiboperationen
         </p>
       </div>
 
@@ -194,13 +194,13 @@ export default function AuditLogPage() {
       <div className="bg-card rounded-xl border border-border p-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Entitat</label>
+            <label className="block text-xs text-muted-foreground mb-1">Entität</label>
             <select
               value={entityType}
               onChange={(e) => handleEntityTypeChange(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm"
             >
-              <option value="">Alle Entitaten</option>
+              <option value="">Alle Entitäten</option>
               {Object.entries(ENTITY_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -231,7 +231,7 @@ export default function AuditLogPage() {
               onClick={resetFilters}
               className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5"
             >
-              Zurucksetzen
+              Zurücksetzen
             </button>
           )}
         </div>
@@ -239,7 +239,7 @@ export default function AuditLogPage() {
 
       {/* Results count */}
       {!isLoading && !isError && (
-        <p className="text-xs text-muted-foreground">{total} Eintrage</p>
+        <p className="text-xs text-muted-foreground">{total} Einträge</p>
       )}
 
       {/* AuditTable */}
@@ -266,7 +266,7 @@ export default function AuditLogPage() {
               <ClipboardList size={24} style={{ color: "rgb(var(--ctp-blue))" }} />
             </div>
             <div className="text-center">
-              <div className="font-medium text-foreground">Keine Eintrage gefunden</div>
+              <div className="font-medium text-foreground">Keine Einträge gefunden</div>
               <div className="text-xs text-muted-foreground mt-0.5">
                 Passe die Filter an oder wahle einen anderen Zeitraum
               </div>
@@ -287,7 +287,7 @@ export default function AuditLogPage() {
                     Aktion
                   </th>
                   <th className="text-left px-4 py-3 text-xs text-muted-foreground">
-                    Entitat
+                    Entität
                   </th>
                   <th className="text-left px-4 py-3 text-xs text-muted-foreground">
                     Details
@@ -343,7 +343,7 @@ export default function AuditLogPage() {
                           </span>
                         </td>
 
-                        {/* Entitat */}
+                        {/* Entität */}
                         <td className="px-4 py-3">
                           <div className="text-sm text-foreground">
                             {ENTITY_LABELS[item.entity_type] ?? item.entity_type}
@@ -449,7 +449,7 @@ export default function AuditLogPage() {
                 page === 1 ? "opacity-50 cursor-not-allowed" : ""
               }`}
             >
-              <ChevronLeft size={16} /> Zuruck
+              <ChevronLeft size={16} /> Zurück
             </button>
             <button
               onClick={() => setPage((p) => p + 1)}
