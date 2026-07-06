@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select, and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT, MINIJOB_MONTHLY_LIMIT_CURRENT
 from app.utils.german_holidays import is_holiday
 
 if TYPE_CHECKING:
@@ -31,8 +32,8 @@ class ComplianceResult:
         return len(self.warnings) > 0
 
 
-MINIJOB_MONTHLY_LIMIT = 556.00   # 2025
-MINIJOB_ANNUAL_LIMIT  = 6672.00  # 2025
+MINIJOB_MONTHLY_LIMIT = MINIJOB_MONTHLY_LIMIT_CURRENT
+MINIJOB_ANNUAL_LIMIT  = MINIJOB_ANNUAL_LIMIT_CURRENT
 MIN_REST_HOURS        = 11
 BREAK_6H_MINUTES      = 30
 BREAK_9H_MINUTES      = 45

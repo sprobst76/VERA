@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
 from app.utils.german_holidays import is_holiday
 
 if TYPE_CHECKING:
@@ -185,7 +186,7 @@ class PayrollService:
         annual_limit = (
             float(primary_contract.annual_salary_limit)
             if (primary_contract and primary_contract.annual_salary_limit)
-            else 6672.0  # Minijob-Standardgrenze 2025
+            else MINIJOB_ANNUAL_LIMIT_CURRENT
         )
         annual_hours_target_raw = (
             float(primary_contract.annual_hours_target)

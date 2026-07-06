@@ -14,6 +14,7 @@ from decimal import Decimal
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
 from app.models.employee import Employee
 from app.models.shift import Shift
 from app.models.absence import EmployeeAbsence
@@ -140,7 +141,7 @@ class MatchingService:
 
             # ── Stundenkontingent (+20) ───────────────────────────────────
             if emp.contract_type == "minijob":
-                annual_limit = float(emp.annual_salary_limit or 6672)
+                annual_limit = float(emp.annual_salary_limit or MINIJOB_ANNUAL_LIMIT_CURRENT)
                 ytd = ytd_map.get(emp.id, 0.0)
                 # Geschätzter Verdienst für diesen Dienst
                 shift_hours = _calc_shift_hours(shift)

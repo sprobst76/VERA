@@ -3,6 +3,8 @@ from typing import Any
 import uuid
 from datetime import date, datetime, time
 
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
+
 
 # ── Öffentliches Profil (für alle Mitarbeiter sichtbar) ──────────────────────
 
@@ -68,7 +70,7 @@ class EmployeeCreate(BaseModel):
     weekly_hours: float | None = None
     full_time_percentage: float | None = None
     monthly_hours_limit: float | None = None
-    annual_salary_limit: float | None = 6672.0
+    annual_salary_limit: float | None = MINIJOB_ANNUAL_LIMIT_CURRENT
     annual_hours_target: float | None = None
     monthly_salary: float | None = None
     vacation_days: int = 30

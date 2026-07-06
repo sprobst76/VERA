@@ -14,6 +14,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
 
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
+
 if TYPE_CHECKING:
     from app.models.payroll import PayrollEntry
     from app.models.employee import Employee
@@ -274,7 +276,7 @@ def generate_payslip_pdf(
         story.append(Paragraph("Minijob-Jahresgrenze", heading))
 
         ytd = float(entry.ytd_gross or 0)
-        limit = float(contract.annual_salary_limit or 6672)
+        limit = float(contract.annual_salary_limit or MINIJOB_ANNUAL_LIMIT_CURRENT)
         remaining = float(entry.annual_limit_remaining or 0)
         pct = min(ytd / limit * 100, 100) if limit > 0 else 0
 

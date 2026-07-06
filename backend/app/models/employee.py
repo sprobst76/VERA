@@ -5,6 +5,7 @@ from sqlalchemy import String, DateTime, Boolean, Date, ForeignKey, Numeric, Int
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import uuid as _uuid_mod
 
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
 from app.core.database import Base
 
 
@@ -26,7 +27,7 @@ class Employee(Base):
     weekly_hours: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     full_time_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     monthly_hours_limit: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    annual_salary_limit: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True, default=6672.0)
+    annual_salary_limit: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True, default=MINIJOB_ANNUAL_LIMIT_CURRENT)
     annual_hours_target: Mapped[float | None] = mapped_column(Numeric(7, 1), nullable=True)
     monthly_salary: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     vacation_days: Mapped[int] = mapped_column(Integer, default=30)

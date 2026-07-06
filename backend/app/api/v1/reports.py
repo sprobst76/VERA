@@ -21,6 +21,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy import or_
 
 from app.api.deps import DB, CurrentUser
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
 from app.models.contract_history import ContractHistory
 from app.models.employee import Employee
 from app.models.shift import Shift
@@ -217,7 +218,7 @@ async def minijob_limit_status(
             })
             continue
 
-        limit = float(ch.annual_salary_limit or 6672)
+        limit = float(ch.annual_salary_limit or MINIJOB_ANNUAL_LIMIT_CURRENT)
         ytd = ytd_map.get(emp.id, 0.0)
         remaining = max(0.0, limit - ytd)
         pct = round(ytd / limit * 100, 1) if limit > 0 else 0.0
