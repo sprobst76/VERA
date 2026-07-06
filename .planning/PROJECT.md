@@ -112,7 +112,7 @@ Korrekte, rechtssichere Lohnabrechnung für das PAB-Arbeitgebermodell — wenn d
 | PWA statt Native App | Nutzerzahl und Budget rechtfertigen keinen App-Store-Aufwand | — Pending |
 | Audit-Log als eigene Tabelle, nicht Event-Stream | Einfacher zu implementieren, kein Kafka/Event-Bus-Overhead für 7 User | — Pending |
 | Employee Self-Service mit Admin-Approval-Flow | Direkte Änderungen zu riskant bei Live-Payroll-Daten | — Pending |
-| API-Key-Scope-Enforcement als Priorität | Aktuell hat ein "read-only" Key faktisch Admin-Rechte — inakzeptables Sicherheitsrisiko | — Pending |
+| API-Key-Scope-Enforcement als Priorität | Aktuell hat ein "read-only" Key faktisch Admin-Rechte — inakzeptables Sicherheitsrisiko | Umgesetzt 2026-07-06: null/leere Scopes defaulten jetzt auf `["read"]` statt `["admin"]` (löst D-14 ab, Migration `l6m7n8o9p0q1` backfillt Legacy-Keys auf `write`); AdminUser-Endpoints (api-keys, admin-settings, superadmin) erfordern jetzt explizit `admin`-Scope bei API-Key-Auth, ein `write`-Key kann sie nicht mehr über die Admin-Rolle des aufgelösten Users erreichen |
 
 ---
 

@@ -263,11 +263,19 @@ async def test_api_key_admin_scope_allows_all(client, admin_user, make_api_key):
 
 
 @pytest.mark.asyncio
-async def test_api_key_null_scopes_treated_as_admin(client, admin_user, make_api_key):
-    """Null/empty scopes treated as admin for backward compat (D-14)."""
+async def test_api_key_null_scopes_treated_as_read_only(client, admin_user, make_api_key):
+    """Null/empty scopes now default to least-privilege read-only (D-14 superseded).
+
+    Legacy keys are backfilled to explicit "write" scope via migration
+    l6m7n8o9p0q1; a *new* null-scope key must no longer get implicit admin.
+    """
     raw_key = await make_api_key(scopes=None)
     r = await client.post("/api/v1/shifts", headers={"X-API-Key": raw_key}, json={})
-    assert r.status_code != 403
+    assert r.status_code == 403
+    assert "Schreibberechtigung" in r.json()["detail"]
+
+    r_get = await client.get("/api/v1/shifts", headers={"X-API-Key": raw_key})
+    assert r_get.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -275,4 +283,26 @@ async def test_api_key_read_scope_allows_get(client, admin_user, make_api_key):
     """Read-only API key can GET (D-10)."""
     raw_key = await make_api_key(scopes=["read"])
     r = await client.get("/api/v1/shifts", headers={"X-API-Key": raw_key})
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_api_key_write_scope_cannot_manage_api_keys(client, admin_user, make_api_key):
+    """A write-scoped key must not reach tenant-admin endpoints (SEC: scope != role)."""
+    raw_key = await make_api_key(scopes=["write"])
+    r = await client.post(
+        "/api/v1/api-keys", headers={"X-API-Key": raw_key}, json={"name": "escalated"}
+    )
+    assert r.status_code == 403
+    assert "admin-Scope" in r.json()["detail"]
+
+    r_list = await client.get("/api/v1/api-keys", headers={"X-API-Key": raw_key})
+    assert r_list.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_api_key_admin_scope_can_manage_api_keys(client, admin_user, make_api_key):
+    """An admin-scoped key retains full tenant-admin access."""
+    raw_key = await make_api_key(scopes=["admin"])
+    r = await client.get("/api/v1/api-keys", headers={"X-API-Key": raw_key})
     assert r.status_code == 200

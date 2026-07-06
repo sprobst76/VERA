@@ -53,8 +53,10 @@ async def get_current_user(
             )
             user = user_result.scalar_one_or_none()
             if user:
-                # Scope enforcement (D-10, D-11, D-14)
-                scopes = ak.scopes if ak.scopes else ["admin"]  # D-14: null/empty = admin
+                # Scope enforcement (D-10, D-11). Missing scopes default to
+                # least-privilege read-only, NOT admin (D-14 superseded —
+                # see migration l6m7n8o9p0q1 for the backfill of legacy keys).
+                scopes = ak.scopes if ak.scopes else ["read"]
                 if isinstance(scopes, str):
                     scopes = [scopes]
                 is_write_method = request.method.upper() in ("POST", "PUT", "PATCH", "DELETE")
@@ -63,6 +65,12 @@ async def get_current_user(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="API-Key hat keine Schreibberechtigung",
                     )
+                # Marks this request as API-key-authenticated so admin-gated
+                # endpoints can additionally require an explicit "admin" scope
+                # (a write-scoped key must not inherit the resolved user's
+                # admin role for tenant-administration endpoints).
+                request.state.auth_via_api_key = True
+                request.state.api_key_scopes = scopes
                 # last_used_at aktualisieren (fire-and-forget, kein await nötig)
                 ak.last_used_at = datetime.now(timezone.utc)
                 await db.commit()
@@ -106,6 +114,7 @@ async def get_current_user(
 
 
 async def get_current_active_admin(
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     if current_user.role not in ("admin",):
@@ -113,6 +122,17 @@ async def get_current_active_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions",
         )
+    # An API key resolves to a real admin user of the tenant (see
+    # get_current_user), which would otherwise let a mere "write"-scoped
+    # integration key (e.g. Shiftjuggler sync) reach tenant-administration
+    # endpoints (api-keys, admin-settings, ...). Require an explicit
+    # "admin" scope for those when auth came via API key.
+    if getattr(request.state, "auth_via_api_key", False):
+        if "admin" not in getattr(request.state, "api_key_scopes", []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API-Key benötigt admin-Scope für diesen Endpoint",
+            )
     return current_user
 
 
