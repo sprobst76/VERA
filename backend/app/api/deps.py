@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.models.user import User
+from app.models.employee import Employee
 from app.models.superadmin import SuperAdmin
 from app.models.audit import ApiKey
 from app.schemas.auth import TokenData
@@ -170,6 +171,19 @@ async def get_current_superadmin(
     if sa is None or not sa.is_active:
         raise exc
     return sa
+
+
+async def get_own_employee_id(current_user: User, db: AsyncSession) -> uuid.UUID | None:
+    """Employee.id linked to this User via user_id, or None if unlinked.
+
+    Was duplicated as an inline query in payroll.py (3x), compliance.py,
+    reports.py, and shifts.py (as a private _own_employee_id) — the same
+    ownership-scoping lookup copy-pasted per router. Centralized here so
+    a future change (e.g. caching, soft-delete handling) only needs one
+    place to touch.
+    """
+    result = await db.execute(select(Employee.id).where(Employee.user_id == current_user.id))
+    return result.scalar_one_or_none()
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

@@ -8,6 +8,7 @@ from sqlalchemy import select, and_
 logger = logging.getLogger(__name__)
 
 from app.api.deps import DB, AdminUser, CurrentUser, ManagerOrAdmin
+from app.api.deps import get_own_employee_id as _own_employee_id
 from app.models.employee import Employee
 from app.models.shift import Shift, ShiftTemplate
 from app.services import audit_service
@@ -26,16 +27,6 @@ from app.schemas.shift import (
 router = APIRouter(tags=["shifts"])
 
 PRIVILEGED_ROLES = ("admin", "manager", "parent_viewer")
-
-
-# ── Helper: resolve employee_id for current (non-admin) user ─────────────────
-
-async def _own_employee_id(current_user, db) -> uuid.UUID | None:
-    """Return the Employee.id linked to this User, or None if not found."""
-    result = await db.execute(
-        select(Employee.id).where(Employee.user_id == current_user.id)
-    )
-    return result.scalar_one_or_none()
 
 
 # ── Shift Templates ──────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter
 from sqlalchemy import select, or_
 
-from app.api.deps import DB, ManagerOrAdmin, CurrentUser
+from app.api.deps import DB, ManagerOrAdmin, CurrentUser, get_own_employee_id
 from app.models.employee import Employee
 from app.models.shift import Shift
 from app.schemas.compliance import ComplianceViolationOut
@@ -44,10 +44,7 @@ async def list_violations(
 
     if current_user.role == "employee":
         # Only own violations
-        emp_result = await db.execute(
-            select(Employee.id).where(Employee.user_id == current_user.id)
-        )
-        own_id = emp_result.scalar_one_or_none()
+        own_id = await get_own_employee_id(current_user, db)
         if own_id is None:
             return []
         conditions.append(Shift.employee_id == own_id)

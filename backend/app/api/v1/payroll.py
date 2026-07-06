@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy import select, and_, or_
 
-from app.api.deps import DB, ManagerOrAdmin, CurrentUser
+from app.api.deps import DB, ManagerOrAdmin, CurrentUser, get_own_employee_id
 from app.models.contract_history import ContractHistory
 from app.models.employee import Employee
 from app.models.payroll import PayrollEntry
@@ -37,10 +37,7 @@ async def list_payroll_entries(
 
     if current_user.role == "employee":
         # Only own payroll entries
-        emp_result = await db.execute(
-            select(Employee.id).where(Employee.user_id == current_user.id)
-        )
-        own_id = emp_result.scalar_one_or_none()
+        own_id = await get_own_employee_id(current_user, db)
         if own_id is None:
             return []
         query = query.where(PayrollEntry.employee_id == own_id)
@@ -336,10 +333,7 @@ async def get_payroll_entry(entry_id: uuid.UUID, current_user: CurrentUser, db: 
     if not entry:
         raise HTTPException(status_code=404, detail="Abrechnungseintrag nicht gefunden")
     if current_user.role == "employee":
-        emp_result = await db.execute(
-            select(Employee.id).where(Employee.user_id == current_user.id)
-        )
-        own_id = emp_result.scalar_one_or_none()
+        own_id = await get_own_employee_id(current_user, db)
         if entry.employee_id != own_id:
             raise HTTPException(status_code=403, detail="Zugriff verweigert")
     return entry
@@ -421,10 +415,7 @@ async def download_payroll_pdf(entry_id: uuid.UUID, current_user: CurrentUser, d
         raise HTTPException(status_code=404, detail="Abrechnungseintrag nicht gefunden")
 
     if current_user.role == "employee":
-        own_result = await db.execute(
-            select(Employee.id).where(Employee.user_id == current_user.id)
-        )
-        own_id = own_result.scalar_one_or_none()
+        own_id = await get_own_employee_id(current_user, db)
         if entry.employee_id != own_id:
             raise HTTPException(status_code=403, detail="Zugriff verweigert")
 
