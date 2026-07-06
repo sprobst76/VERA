@@ -101,6 +101,10 @@ services:
       - "traefik.http.middlewares.vera-security.headers.stsIncludeSubdomains=true"
       - "traefik.http.middlewares.vera-security.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.vera-security.headers.frameDeny=true"
+      - "traefik.http.middlewares.vera-security.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.vera-security.headers.permissionsPolicy=camera=(), microphone=(), geolocation=(), payment=()"
+      # Reine JSON-API + iCal – kein Browser-Rendering, daher strikte CSP
+      - "traefik.http.middlewares.vera-security.headers.contentSecurityPolicy=default-src 'none'; frame-ancestors 'none'"
     networks:
       - default
       - ai-lab
@@ -177,6 +181,13 @@ services:
       - "traefik.http.middlewares.vera-web-security.headers.stsIncludeSubdomains=true"
       - "traefik.http.middlewares.vera-web-security.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.vera-web-security.headers.frameDeny=true"
+      - "traefik.http.middlewares.vera-web-security.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.vera-web-security.headers.permissionsPolicy=camera=(), microphone=(), geolocation=(), payment=()"
+      # CSP: same-origin API (kein Cross-Origin-Fetch nötig), next/font/google hostet
+      # Schriften selbst (kein externer Font-CDN). 'unsafe-inline' fuer script/style,
+      # da Next.js App Router Hydration-Daten inline injiziert (kein Nonce-Setup) –
+      # kein dangerouslySetInnerHTML/eval im Code (siehe Analyse), Risiko dadurch begrenzt.
+      - "traefik.http.middlewares.vera-web-security.headers.contentSecurityPolicy=default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     networks:
       - default
       - ai-lab
