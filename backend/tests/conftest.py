@@ -101,6 +101,46 @@ async def tenant(db) -> Tenant:
 
 
 @pytest_asyncio.fixture
+async def tenant_b(db) -> Tenant:
+    """Second, independent tenant — for cross-tenant isolation/IDOR tests."""
+    t = Tenant(
+        id=uuid.uuid4(),
+        name="Tenant B GmbH",
+        slug=f"tenant-b-{uuid.uuid4().hex[:8]}",
+        state="BW",
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return t
+
+
+@pytest_asyncio.fixture
+async def admin_user_b(db, tenant_b) -> User:
+    u = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant_b.id,
+        email="admin-b@test.de",
+        hashed_password=hash_password("testpass123"),
+        role="admin",
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(u)
+    await db.commit()
+    await db.refresh(u)
+    return u
+
+
+@pytest_asyncio.fixture
+def admin_token_b(admin_user_b) -> str:
+    return create_access_token(admin_user_b.id, admin_user_b.tenant_id, "admin", token_version=admin_user_b.token_version)
+
+
+@pytest_asyncio.fixture
 async def admin_user(db, tenant) -> User:
     u = User(
         id=uuid.uuid4(),
