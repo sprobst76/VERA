@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT, money
 from app.utils.german_holidays import is_holiday
 
 if TYPE_CHECKING:
@@ -297,7 +297,7 @@ class PayrollService:
                     period_base = float(c.monthly_salary) * (days_in_period / monthly_days)
                     base_wage_sum += period_base
                     total_gross += period_base
-                    period_stats[idx]["amount"] = round(period_base, 2)
+                    period_stats[idx]["amount"] = money(period_base)
 
         paid_hours = total_hours + carryover_hours
         new_carryover = 0.0
@@ -315,9 +315,9 @@ class PayrollService:
                     {
                         "from": s["from"],
                         "to": s["to"],
-                        "rate": round(s["rate"], 2),
+                        "rate": money(s["rate"]),
                         "hours": round(s["hours"], 2),
-                        "amount": round(s["amount"], 2),
+                        "amount": money(s["amount"]),
                     }
                     for s in period_stats.values()
                     if s["hours"] > 0
@@ -375,16 +375,16 @@ class PayrollService:
             weekend_hours=round(surcharge_hours.get("weekend", 0), 2),
             sunday_hours=round(surcharge_hours.get("sunday", 0), 2),
             holiday_hours=round(surcharge_hours.get("holiday", 0), 2),
-            base_wage=round(base_wage_sum, 2),
-            early_surcharge=round(surcharge_amounts.get("early", 0), 2),
-            late_surcharge=round(surcharge_amounts.get("late", 0), 2),
-            night_surcharge=round(surcharge_amounts.get("night", 0), 2),
-            weekend_surcharge=round(surcharge_amounts.get("weekend", 0), 2),
-            sunday_surcharge=round(surcharge_amounts.get("sunday", 0), 2),
-            holiday_surcharge=round(surcharge_amounts.get("holiday", 0), 2),
-            total_gross=round(total_gross, 2),
-            ytd_gross=round(ytd_gross, 2),
-            annual_limit_remaining=round(annual_limit_remaining, 2),
+            base_wage=money(base_wage_sum),
+            early_surcharge=money(surcharge_amounts.get("early", 0)),
+            late_surcharge=money(surcharge_amounts.get("late", 0)),
+            night_surcharge=money(surcharge_amounts.get("night", 0)),
+            weekend_surcharge=money(surcharge_amounts.get("weekend", 0)),
+            sunday_surcharge=money(surcharge_amounts.get("sunday", 0)),
+            holiday_surcharge=money(surcharge_amounts.get("holiday", 0)),
+            total_gross=money(total_gross),
+            ytd_gross=money(ytd_gross),
+            annual_limit_remaining=money(annual_limit_remaining),
             ytd_hours=round(ytd_hours, 2),
             annual_hours_target=annual_hours_target_raw,
             annual_hours_remaining=annual_hours_remaining,

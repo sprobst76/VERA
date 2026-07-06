@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select, and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT, MINIJOB_MONTHLY_LIMIT_CURRENT
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT, MINIJOB_MONTHLY_LIMIT_CURRENT, money
 from app.utils.german_holidays import is_holiday
 
 if TYPE_CHECKING:
@@ -149,7 +149,7 @@ class ComplianceService:
         )
         monthly_entry = monthly_result.scalar_one_or_none()
         if monthly_entry and monthly_entry.total_gross:
-            if monthly_entry.total_gross > MINIJOB_MONTHLY_LIMIT:
+            if money(monthly_entry.total_gross) > money(MINIJOB_MONTHLY_LIMIT):
                 result.warnings.append(
                     f"Minijob-Monatsgrenze überschritten: {monthly_entry.total_gross:.2f}€ "
                     f"(Limit: {MINIJOB_MONTHLY_LIMIT:.2f}€)"
@@ -163,12 +163,12 @@ class ComplianceService:
                 PayrollEntry.month < month_start,
             )
         )
-        ytd = ytd_result.scalar() or 0
-        if ytd > MINIJOB_ANNUAL_LIMIT * 0.95:
+        ytd = money(ytd_result.scalar() or 0)
+        if ytd > money(MINIJOB_ANNUAL_LIMIT * 0.95):
             result.warnings.append(
                 f"Minijob-Jahresgrenze fast erreicht: {ytd:.2f}€ von {MINIJOB_ANNUAL_LIMIT:.2f}€"
             )
-        if ytd > MINIJOB_ANNUAL_LIMIT:
+        if ytd > money(MINIJOB_ANNUAL_LIMIT):
             result.violations.append(
                 f"Minijob-Jahresgrenze überschritten: {ytd:.2f}€ (Limit: {MINIJOB_ANNUAL_LIMIT:.2f}€)"
             )

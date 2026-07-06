@@ -21,7 +21,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy import or_
 
 from app.api.deps import DB, CurrentUser
-from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT
+from app.core.constants import MINIJOB_ANNUAL_LIMIT_CURRENT, money
 from app.models.contract_history import ContractHistory
 from app.models.employee import Employee
 from app.models.shift import Shift
@@ -228,8 +228,8 @@ async def minijob_limit_status(
             "last_name":      emp.last_name,
             "year":           target_year,
             "annual_limit":   limit,
-            "ytd_gross":      round(ytd, 2),
-            "remaining":      round(remaining, 2),
+            "ytd_gross":      money(ytd),
+            "remaining":      money(remaining),
             "percent_used":   pct,
             "status":         "critical" if pct >= 90 else ("warning" if pct >= 75 else "ok"),
         })
