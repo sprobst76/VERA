@@ -100,6 +100,20 @@ None yet.
 
 ### Blockers/Concerns
 
+- **Prod-Betrieb (entdeckt 2026-07-06)**: VERA-Prod war vom ~12. April bis 6. Juli DOWN
+  (Container entfernt, Ursache unklar — restart-Policies waren gesetzt, also kein Reboot;
+  vermutlich manuelles `docker compose down` oder Prune). Niemand hat es bemerkt →
+  **Uptime-Monitoring/Alerting fehlt** (z. B. Healthcheck-Cron oder Uptime-Kuma).
+- **Backups (entdeckt 2026-07-06)**: `backup.sh` schreibt bei totem DB-Container leere
+  20-Byte-Dateien (Pipe legt Datei vor pg_dump-Fehler an) und der Retention-Prune hat
+  das letzte gute Backup gelöscht. Skript härten (temp-Datei + mv nur bei Erfolg,
+  Alarm bei Fehler) + Off-Site-Kopie (DSGVO Art. 32, siehe Analyse). Aktuelle Kopie:
+  `~/vera-prod-backups/vera_2026-07-06_09-52.sql.gz` auf Stefans Rechner.
+- **AUDIT REVOKE (Prod-Verifikation 2026-07-06)**: Migration lief korrekt (ACL ohne
+  UPDATE/DELETE-Bits), aber der App-DB-User `vera` ist Postgres-**Superuser**
+  (POSTGRES_USER des Images) und umgeht ACLs → Kriterium 3 aus Phase 3 greift in Prod
+  faktisch nicht. Follow-up (Phase 7 / Infra): dedizierte non-superuser App-Rolle
+  anlegen und DATABASE_URL umstellen.
 - **Phase 1**: Shiftjuggler API key must have `write` scope set in DB before SEC-01 scope enforcement deploys — verify before Phase 1 ships
 - **Phase 5**: Verify webpack (not Turbopack) active in next.config.mjs before Serwist integration starts
 - **Phase 6**: Notification matrix for shift swap state transitions must be defined at plan time, not during coding

@@ -158,8 +158,10 @@ jobs:
             # Images ziehen (nur geänderte Layer werden heruntergeladen)
             docker compose -p vera -f deploy/docker-compose.yml pull
 
-            # 1. DB sicherstellen und auf Bereitschaft warten (deterministic statt sleep)
-            docker compose -p vera -f deploy/docker-compose.yml up -d --no-deps vera-db
+            # 1. DB + Redis sicherstellen und auf Bereitschaft warten (deterministic statt sleep)
+            # vera-redis explizit mitstarten: alle up-Aufrufe nutzen --no-deps, sonst
+            # startet Redis nach einem down/Prune nie wieder (Celery crash-loopt dann)
+            docker compose -p vera -f deploy/docker-compose.yml up -d --no-deps vera-db vera-redis
             echo "Waiting for database to be ready..."
             until docker compose -p vera -f deploy/docker-compose.yml exec -T vera-db pg_isready -U vera -d vera; do
               echo "  DB not ready yet, waiting 2s..."
