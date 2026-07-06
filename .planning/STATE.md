@@ -101,11 +101,19 @@ None yet.
 ### Blockers/Concerns
 
 - **Vacation-Entitlement-Luecke (entdeckt 2026-07-06, nach Shiftjuggler-Import)**: Mehrere
-  clarasteam-Mitarbeiter (Rita Häusler, Nadja Kruschinski, Maja Juric, Bärbel Many Ndengue,
-  Violeta Gjocaj) haben `vacation_days=0` in VERA konfiguriert. Mit echter historischer
+  clarasteam-Mitarbeiter (Rita Häusler, Nadja Kruschinski, Maja Juric, Bärbel Many Ndengue)
+  haben weiterhin `vacation_days=0` in VERA konfiguriert. Mit echter historischer
   Urlaubsdaten aus Shiftjuggler sichtbar (Rita/Nadja: -1 Tag "remaining"). Vorbestehende
   Konfigurationsluecke, keine Folge des Imports — vor der geplanten Urlaubs-Engine-Phase
   (siehe Analyse 2026-07-06) die echten Vertrags-Urlaubsansprueche in VERA nachtragen.
+  **Violeta Gjocaj bereits korrigiert (2026-07-06):** war fälschlich als Minijob angelegt
+  (Stefan bestätigte: tatsächlich Teilzeit). ContractHistory korrigiert (contract_type=
+  part_time, Minijob-Grenzen annual_salary_limit/monthly_hours_limit entfernt, hourly_rate
+  22,10€ beibehalten), vacation_days per Fallmodell B (30÷90×25 tatsächliche AT seit
+  Eintritt 2026-03-01) auf 8 Tage gesetzt — Achtung: nur ~4 Monate Datenbasis, bei mehr
+  Historie neu berechnen. `Employee.contract_type_id` zeigt technisch noch auf die
+  "Minijob Standard"-Vorlage (kein Editier-Feld dafür in der API) — kosmetisch, ohne
+  Auswirkung auf Payroll/Compliance (die lesen contract_type/hourly_rate/Limits direkt).
 - **Prod-Betrieb (entdeckt 2026-07-06)**: VERA-Prod war vom ~12. April bis 6. Juli DOWN
   (Container entfernt, Ursache unklar — restart-Policies waren gesetzt, also kein Reboot;
   vermutlich manuelles `docker compose down` oder Prune). Niemand hat es bemerkt →
