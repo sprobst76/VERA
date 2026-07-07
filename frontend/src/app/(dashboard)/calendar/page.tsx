@@ -396,14 +396,14 @@ export default function CalendarPage() {
     const isConfirmed = shift.status === "confirmed";
     return {
       style: {
-        backgroundColor: isCompleted ? "transparent" : c,
+        backgroundColor: c,
         opacity: isCancelled ? 0.35 : 1,
         textDecoration: isCancelled ? "line-through" : "none",
         fontSize: "0.75rem",
         // Dünner Rahmen für alle; links etwas dicker je nach Status
         border: `1px solid ${c}`,
         borderLeft: isCancelled ? `1px dashed ${c}` : isConfirmed ? `4px solid ${c}` : isCompleted ? `4px solid ${c}` : `1px solid ${c}`,
-        color: isCompleted ? c : "#1e1e2e",
+        color: "#1e1e2e",
         cursor: isPrivileged ? (dragging ? "grabbing" : "grab") : "pointer",
       },
     };
