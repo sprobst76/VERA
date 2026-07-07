@@ -5,7 +5,7 @@ import { useSwipe } from "@/hooks/useSwipe";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
-import { format, parse, startOfWeek, endOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO } from "date-fns";
+import { format, parse, startOfWeek, endOfWeek, getDay, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, subDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { shiftsApi, templatesApi, employeesApi, calendarDataApi, recurringShiftsApi, shiftTypesApi } from "@/lib/api";
 import { buildAllRecurringEvents } from "@/lib/recurringEventUtils";
@@ -72,9 +72,16 @@ export default function CalendarPage() {
     "yyyy-MM-dd"
   );
 
+  // Einen Tag vor rangeStart mitladen: ein Nachtdienst wird serverseitig unter dem
+  // Datum seines STARTS gespeichert (z.B. 01.07. 21:30–06:00), seine Fortsetzung
+  // rendert aber am Folgetag (02.07. 00:00–06:00). Ohne den Vortag mitzuladen fehlt
+  // diese Fortsetzung komplett, sobald der sichtbare Bereich exakt am Folgetag
+  // beginnt — v.a. in der Tagesansicht, wo from==to==currentDate ist.
+  const shiftsFetchFrom = format(subDays(parseISO(rangeStart), 1), "yyyy-MM-dd");
+
   const { data: shifts = [] } = useQuery({
-    queryKey: ["shifts", rangeStart, rangeEnd],
-    queryFn: () => shiftsApi.list({ from_date: rangeStart, to_date: rangeEnd }).then(r => r.data),
+    queryKey: ["shifts", shiftsFetchFrom, rangeEnd],
+    queryFn: () => shiftsApi.list({ from_date: shiftsFetchFrom, to_date: rangeEnd }).then(r => r.data),
   });
 
   const { data: templates = [] } = useQuery({
