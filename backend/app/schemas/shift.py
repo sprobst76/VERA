@@ -157,6 +157,7 @@ class ShiftOut(BaseModel):
     confirmed_by: Optional[uuid.UUID]
     confirmed_at: Optional[DateTime]
     confirmation_note: Optional[str]
+    acknowledged_at: Optional[DateTime]
     is_holiday: bool
     is_weekend: bool
     is_sunday: bool

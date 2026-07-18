@@ -121,6 +121,7 @@ export const shiftsApi = {
     confirmation_note?: string;
   }) => api.post(`/shifts/${id}/confirm`, data),
   claim: (id: string) => api.post(`/shifts/${id}/claim`, {}),
+  acknowledge: (id: string) => api.post(`/shifts/${id}/acknowledge`, {}),
   suggestions: (id: string) => api.get(`/shifts/${id}/suggestions`),
   submitTimeCorrection: (id: string, data: {
     actual_start: string;

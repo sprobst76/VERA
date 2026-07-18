@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi, shiftTypesApi } from "@/lib/api";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck, ClockArrowUp } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck, ClockArrowUp, ThumbsUp } from "lucide-react";
 import { TimeInput } from "@/components/shared/TimeInput";
 import { useSwipe } from "@/hooks/useSwipe";
 import toast from "react-hot-toast";
@@ -875,6 +875,12 @@ export default function ShiftsPage() {
     onError:   () => toast.error("Dienst konnte nicht angenommen werden"),
   });
 
+  const acknowledgeMutation = useMutation({
+    mutationFn: (id: string) => shiftsApi.acknowledge(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shifts"] }); toast.success("Dienst quittiert"); },
+    onError:   () => toast.error("Quittieren fehlgeschlagen"),
+  });
+
   const { data: shiftTypes = [] } = useQuery({
     queryKey: ["shift-types"],
     queryFn: () => shiftTypesApi.list().then(r => r.data),
@@ -1125,6 +1131,11 @@ export default function ShiftsPage() {
                                   ✓ {format(parseISO(shift.confirmed_at), "d.M. HH:mm")}
                                 </span>
                               )}
+                              {shift.acknowledged_at && (
+                                <span className="text-xs shrink-0 flex items-center gap-1" style={{ color: "rgb(var(--ctp-blue))" }}>
+                                  <ThumbsUp size={10} /> Quittiert
+                                </span>
+                              )}
                               <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 sm:hidden"
                                 style={STATUS_STYLE[shift.status] ?? STATUS_STYLE.planned}>
                                 {STATUS_LABELS[shift.status] ?? shift.status}
@@ -1138,6 +1149,15 @@ export default function ShiftsPage() {
                                 className="p-2.5 rounded hover:bg-accent transition-colors"
                                 style={{ color: "rgb(var(--ctp-green))" }}>
                                 <UserCheck size={14} />
+                              </button>
+                            )}
+                            {!isPrivileged && !isParentViewer && ownProfile && shift.employee_id === ownProfile.id &&
+                              !shift.acknowledged_at && (shift.status === "planned" || shift.status === "confirmed") && (
+                              <button onClick={() => acknowledgeMutation.mutate(shift.id)} title="Dienst quittieren (gesehen/komme)"
+                                disabled={acknowledgeMutation.isPending}
+                                className="p-2.5 rounded hover:bg-accent transition-colors"
+                                style={{ color: "rgb(var(--ctp-blue))" }}>
+                                <ThumbsUp size={14} />
                               </button>
                             )}
                             {isPrivileged && shift.status === "planned" && !shift.employee_id && (

@@ -277,6 +277,9 @@ async def update_shift(shift_id: uuid.UUID, payload: ShiftUpdate, current_user: 
             else:
                 changed = [f for f in ("start_time", "end_time", "location") if f in payload_keys]
                 if changed:
+                    if shift.acknowledged_at is not None:
+                        shift.acknowledged_at = None
+                        await db.commit()
                     await notify_shift_changed(shift, emp, changed, db)
     # Webhook: shift.updated or shift.cancelled
     event = "shift.cancelled" if shift.status in ("cancelled", "cancelled_absence") else "shift.updated"
@@ -367,6 +370,37 @@ async def claim_shift(shift_id: uuid.UUID, current_user: CurrentUser, db: DB):
     claiming_emp = await db.get(Employee, own_id)
     if claiming_emp:
         await notify_shift_claimed(shift, claiming_emp, db)
+
+    return shift
+
+
+@shifts_router.post("/{shift_id}/acknowledge", response_model=ShiftOut)
+async def acknowledge_shift(shift_id: uuid.UUID, current_user: CurrentUser, db: DB):
+    """Employee bestätigt einen ihm zugewiesenen Dienst ('gesehen/komme'). Idempotent."""
+    if current_user.role in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Nur zugewiesene Mitarbeiter können Dienste quittieren")
+
+    own_id = await _own_employee_id(current_user, db)
+    if own_id is None:
+        raise HTTPException(status_code=403, detail="Kein Mitarbeiterprofil verknüpft")
+
+    result = await db.execute(
+        select(Shift).where(Shift.id == shift_id, Shift.tenant_id == current_user.tenant_id)
+    )
+    shift = result.scalar_one_or_none()
+    if not shift:
+        raise HTTPException(status_code=404, detail="Dienst nicht gefunden")
+
+    if shift.employee_id != own_id:
+        raise HTTPException(status_code=403, detail="Dieser Dienst ist dir nicht zugewiesen")
+
+    if shift.status not in ("planned", "confirmed"):
+        raise HTTPException(status_code=400, detail=f"Dienst kann im Status '{shift.status}' nicht quittiert werden")
+
+    if shift.acknowledged_at is None:
+        shift.acknowledged_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(shift)
 
     return shift
 

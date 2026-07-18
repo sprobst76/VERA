@@ -279,6 +279,105 @@ async def test_claim_shift_admin_forbidden(client, admin_token, admin_user, tena
     assert resp.status_code == 403
 
 
+# ── POST /shifts/{id}/acknowledge ────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_acknowledge_own_shift(client, admin_token, employee_token,
+                                      admin_user, employee_user, employee_with_profile, tenant):
+    """Mitarbeiter quittiert den eigenen zugewiesenen Dienst."""
+    payload = {**SHIFT_PAYLOAD, "employee_id": str(employee_with_profile.id)}
+    create = await client.post(SHIFTS_URL, json=payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+    assert create.json()["acknowledged_at"] is None
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/acknowledge", headers=auth_headers(employee_token))
+    assert resp.status_code == 200
+    assert resp.json()["acknowledged_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_acknowledge_is_idempotent(client, admin_token, employee_token,
+                                          admin_user, employee_user, employee_with_profile, tenant):
+    """Zweimaliges Quittieren überschreibt den Zeitstempel nicht."""
+    payload = {**SHIFT_PAYLOAD, "employee_id": str(employee_with_profile.id)}
+    create = await client.post(SHIFTS_URL, json=payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    first = await client.post(f"{SHIFTS_URL}/{shift_id}/acknowledge", headers=auth_headers(employee_token))
+    second = await client.post(f"{SHIFTS_URL}/{shift_id}/acknowledge", headers=auth_headers(employee_token))
+    assert first.json()["acknowledged_at"] == second.json()["acknowledged_at"]
+
+
+@pytest.mark.asyncio
+async def test_acknowledge_other_employees_shift_forbidden(client, admin_token, employee_token,
+                                                            admin_user, employee_user,
+                                                            employee_with_profile, db, tenant):
+    """Mitarbeiter darf fremden Dienst nicht quittieren."""
+    other_emp = Employee(
+        tenant_id=tenant.id,
+        first_name="Andere",
+        last_name="Person",
+        contract_type="minijob",
+        hourly_rate=13.0,
+        vacation_days=0,
+        is_active=True,
+    )
+    db.add(other_emp)
+    await db.commit()
+    await db.refresh(other_emp)
+
+    payload = {**SHIFT_PAYLOAD, "employee_id": str(other_emp.id)}
+    create = await client.post(SHIFTS_URL, json=payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/acknowledge", headers=auth_headers(employee_token))
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_acknowledge_unassigned_shift_forbidden(client, admin_token, employee_token,
+                                                        admin_user, employee_user,
+                                                        employee_with_profile, tenant):
+    """Ein noch offener (nicht zugewiesener) Dienst kann nicht quittiert werden."""
+    create = await client.post(SHIFTS_URL, json=SHIFT_PAYLOAD, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/acknowledge", headers=auth_headers(employee_token))
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_acknowledge_admin_forbidden(client, admin_token, admin_user, employee_with_profile, tenant):
+    """Admin/Manager quittieren nicht (das ist eine Mitarbeiter-Handlung)."""
+    payload = {**SHIFT_PAYLOAD, "employee_id": str(employee_with_profile.id)}
+    create = await client.post(SHIFTS_URL, json=payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/acknowledge", headers=auth_headers(admin_token))
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_shift_time_change_resets_acknowledgement(client, admin_token, employee_token,
+                                                          admin_user, employee_user,
+                                                          employee_with_profile, tenant):
+    """Ändert der Admin Zeit/Ort eines quittierten Dienstes, wird die Quittierung zurückgesetzt."""
+    payload = {**SHIFT_PAYLOAD, "employee_id": str(employee_with_profile.id)}
+    create = await client.post(SHIFTS_URL, json=payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    ack = await client.post(f"{SHIFTS_URL}/{shift_id}/acknowledge", headers=auth_headers(employee_token))
+    assert ack.json()["acknowledged_at"] is not None
+
+    update = await client.put(
+        f"{SHIFTS_URL}/{shift_id}",
+        json={"start_time": "09:00:00"},
+        headers=auth_headers(admin_token),
+    )
+    assert update.status_code == 200
+    assert update.json()["acknowledged_at"] is None
+
+
 @pytest.mark.asyncio
 async def test_employee_sees_open_shifts_in_list(client, admin_token, employee_token,
                                                    admin_user, employee_user,

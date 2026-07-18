@@ -69,6 +69,9 @@ class Shift(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confirmation_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Employee acknowledgement ("gesehen/komme") of an assigned shift
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Compliance flags (auto-computed)
     is_holiday: Mapped[bool] = mapped_column(Boolean, default=False)
     is_weekend: Mapped[bool] = mapped_column(Boolean, default=False)
