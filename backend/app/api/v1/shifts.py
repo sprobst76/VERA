@@ -267,11 +267,23 @@ async def update_shift(shift_id: uuid.UUID, payload: ShiftUpdate, current_user: 
     await db.commit()
     await db.refresh(shift)
     await _run_compliance(shift, db)
+
+    # System-Hook: aktives Tauschangebot ist hinfällig, wenn der Dienst storniert
+    # oder zeitlich/örtlich geändert wird (Geschäftsgrundlage des Angebots entfällt).
+    payload_keys = set(payload.model_dump(exclude_unset=True).keys())
+    if shift.status in ("cancelled", "cancelled_absence") and old_values.get("status") not in ("cancelled", "cancelled_absence"):
+        from app.api.v1.shift_swaps import cancel_active_offers_for_shifts
+        await cancel_active_offers_for_shifts([shift.id], db, "shift_cancelled")
+        await db.commit()
+    elif any(f in payload_keys for f in ("start_time", "end_time", "location")):
+        from app.api.v1.shift_swaps import cancel_active_offers_for_shifts
+        await cancel_active_offers_for_shifts([shift.id], db, "shift_changed")
+        await db.commit()
+
     # Notification: Zuweisung oder Zeitänderung
     if shift.employee_id:
         emp = await db.get(Employee, shift.employee_id)
         if emp:
-            payload_keys = set(payload.model_dump(exclude_unset=True).keys())
             if "employee_id" in payload_keys and old_values.get("employee_id") in ("None", None):
                 await notify_shift_assigned(shift, emp, db)
             else:
@@ -547,6 +559,10 @@ async def delete_shift(shift_id: uuid.UUID, current_user: ManagerOrAdmin, db: DB
     await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
                                entity_type="shift", entity_id=shift_id, action="delete",
                                old_values=old_values)
+
+    from app.api.v1.shift_swaps import cancel_active_offers_for_shifts
+    await cancel_active_offers_for_shifts([shift.id], db, "shift_deleted")
+
     await db.delete(shift)
     await db.commit()
 

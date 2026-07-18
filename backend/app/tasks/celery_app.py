@@ -7,7 +7,7 @@ celery_app = Celery(
     "vera",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.tasks.reminder_tasks", "app.tasks.payroll_tasks"],
+    include=["app.tasks.reminder_tasks", "app.tasks.payroll_tasks", "app.tasks.swap_tasks"],
 )
 
 celery_app.conf.update(
@@ -31,6 +31,11 @@ celery_app.conf.update(
         "monthly-payroll": {
             "task": "app.tasks.payroll_tasks.create_monthly_payrolls",
             "schedule": crontab(hour=7, minute=0, day_of_month=1),
+        },
+        # Alle 15 Minuten: abgelaufene Tauschangebote markieren
+        "expire-swap-offers": {
+            "task": "app.tasks.swap_tasks.expire_swap_offers",
+            "schedule": crontab(minute="*/15"),
         },
     },
 )

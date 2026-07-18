@@ -123,8 +123,14 @@ async def update_absence(absence_id: uuid.UUID, payload: EmployeeAbsenceUpdate, 
                 )
             )
         )
+        cancelled_shift_ids = []
         for shift in shifts_result.scalars().all():
             shift.status = "cancelled_absence"
+            cancelled_shift_ids.append(shift.id)
+
+        if cancelled_shift_ids:
+            from app.api.v1.shift_swaps import cancel_active_offers_for_shifts
+            await cancel_active_offers_for_shifts(cancelled_shift_ids, db, "absence_approved")
 
     # When rejected: re-open previously cancelled_absence shifts
     if payload.status == "rejected":

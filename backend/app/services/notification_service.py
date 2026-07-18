@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from app.models.employee import Employee
     from app.models.shift import Shift
     from app.models.absence import EmployeeAbsence
+    from app.models.shift_swap import ShiftSwapOffer
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -34,6 +35,13 @@ EVENT_SHIFT_CLAIMED     = "shift_claimed"
 EVENT_MINIJOB_LIMIT_80  = "minijob_limit_80"
 EVENT_MINIJOB_LIMIT_95  = "minijob_limit_95"
 EVENT_AVAILABILITY_CHANGED = "availability_changed"
+EVENT_SWAP_OFFER_OPEN        = "swap_offer_open"
+EVENT_SWAP_OFFER_CREATED     = "swap_offer_created"
+EVENT_SWAP_ACCEPTED          = "swap_accepted"
+EVENT_SWAP_PENDING_APPROVAL  = "swap_pending_approval"
+EVENT_SWAP_APPROVED          = "swap_approved"
+EVENT_SWAP_DENIED            = "swap_denied"
+EVENT_SWAP_CANCELLED         = "swap_cancelled"
 
 
 def _is_quiet_now(employee: "Employee") -> bool:
@@ -597,3 +605,255 @@ async def notify_availability_changed(
             )
         except Exception:
             pass
+
+
+# ── Schichttausch (Dienst-Abgabe) ────────────────────────────────────────────
+
+def _shift_line(shift: "Shift") -> str:
+    wday = _WEEKDAYS[shift.date.weekday()]
+    line = (
+        f"Datum:  {wday}, {shift.date.strftime('%d.%m.%Y')}\n"
+        f"Zeit:   {shift.start_time.strftime('%H:%M')} – {shift.end_time.strftime('%H:%M')} Uhr\n"
+    )
+    if shift.location:
+        line += f"Ort:    {shift.location}\n"
+    return line
+
+
+async def _get_admin_manager_employees(tenant_id, exclude_employee_id, db) -> list["Employee"]:
+    """Liefert die Employee-Profile aller aktiven Admin/Manager-User des Tenants."""
+    from sqlalchemy import select
+    from app.models.employee import Employee
+    from app.models.user import User
+
+    result = await db.execute(
+        select(Employee).where(
+            Employee.tenant_id == tenant_id,
+            Employee.is_active == True,
+            Employee.user_id.isnot(None),
+        )
+    )
+    candidates = [e for e in result.scalars().all() if e.id != exclude_employee_id]
+    if not candidates:
+        return []
+    user_result = await db.execute(
+        select(User).where(
+            User.id.in_([e.user_id for e in candidates]),
+            User.role.in_(("admin", "manager")),
+            User.is_active == True,
+        )
+    )
+    admin_user_ids = {u.id for u in user_result.scalars().all()}
+    return [e for e in candidates if e.user_id in admin_user_ids]
+
+
+async def notify_swap_offer_open(
+    offer: "ShiftSwapOffer", shift: "Shift", offering_employee: "Employee", db: "AsyncSession"
+) -> None:
+    """Benachrichtigt alle anderen aktiven Mitarbeiter über einen neu angebotenen Dienst."""
+    from sqlalchemy import select
+    from app.models.employee import Employee
+
+    result = await db.execute(
+        select(Employee).where(
+            Employee.tenant_id == shift.tenant_id,
+            Employee.is_active == True,
+            Employee.id != offering_employee.id,
+        )
+    )
+    svc = NotificationService(db)
+    for emp in result.scalars().all():
+        prefs  = emp.notification_prefs or {}
+        events = prefs.get("events", {})
+        if not events.get(EVENT_SWAP_OFFER_OPEN, True):
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"{offering_employee.first_name} {offering_employee.last_name} bietet folgenden "
+            f"Dienst zur Übernahme an:\n{_shift_line(shift)}"
+        )
+        if offer.note:
+            msg += f"Notiz:  {offer.note}\n"
+        msg += "\nMelde dich in VERA an, um den Dienst zu übernehmen.\nVERA Schichtplanner"
+        try:
+            await svc.dispatch(
+                employee=emp, event_type=EVENT_SWAP_OFFER_OPEN, message=msg,
+                subject=f"Dienst zum Tausch angeboten: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_swap_offer_created(
+    offer: "ShiftSwapOffer", shift: "Shift", offering_employee: "Employee", db: "AsyncSession"
+) -> None:
+    """Info an Admin/Manager: ein neues Tauschangebot wurde erstellt."""
+    svc = NotificationService(db)
+    for emp in await _get_admin_manager_employees(shift.tenant_id, offering_employee.id, db):
+        prefs  = emp.notification_prefs or {}
+        events = prefs.get("events", {})
+        if not events.get(EVENT_SWAP_OFFER_CREATED, True):
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"{offering_employee.first_name} {offering_employee.last_name} hat folgenden Dienst "
+            f"zur Übernahme angeboten:\n{_shift_line(shift)}\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=emp, event_type=EVENT_SWAP_OFFER_CREATED, message=msg,
+                subject=f"Neues Tauschangebot von {offering_employee.first_name} {offering_employee.last_name}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_swap_accepted(
+    offer: "ShiftSwapOffer", shift: "Shift", offering_employee: "Employee",
+    accepting_employee: "Employee", db: "AsyncSession"
+) -> None:
+    """Dienst sofort wirksam übernommen: Anbieter + Admin/Manager informieren."""
+    svc = NotificationService(db)
+
+    prefs  = offering_employee.notification_prefs or {}
+    events = prefs.get("events", {})
+    if events.get(EVENT_SWAP_ACCEPTED, True):
+        msg = (
+            f"Hallo {offering_employee.first_name},\n\n"
+            f"{accepting_employee.first_name} {accepting_employee.last_name} hat deinen Dienst "
+            f"übernommen:\n{_shift_line(shift)}\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=offering_employee, event_type=EVENT_SWAP_ACCEPTED, message=msg,
+                subject=f"Dienst übernommen: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+    for emp in await _get_admin_manager_employees(shift.tenant_id, None, db):
+        a_events = (emp.notification_prefs or {}).get("events", {})
+        if not a_events.get(EVENT_SWAP_ACCEPTED, True):
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"{accepting_employee.first_name} {accepting_employee.last_name} hat den Dienst von "
+            f"{offering_employee.first_name} {offering_employee.last_name} übernommen:\n"
+            f"{_shift_line(shift)}\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=emp, event_type=EVENT_SWAP_ACCEPTED, message=msg,
+                subject=f"Dienst getauscht: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_swap_pending_approval(offer: "ShiftSwapOffer", shift: "Shift", db: "AsyncSession") -> None:
+    """Admin/Manager: ein Tausch wartet auf Genehmigung (bereits bestätigter Dienst)."""
+    svc = NotificationService(db)
+    for emp in await _get_admin_manager_employees(shift.tenant_id, None, db):
+        events = (emp.notification_prefs or {}).get("events", {})
+        if not events.get(EVENT_SWAP_PENDING_APPROVAL, True):
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"Ein Tauschangebot für folgenden (bereits bestätigten) Dienst wartet auf deine "
+            f"Genehmigung:\n{_shift_line(shift)}\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=emp, event_type=EVENT_SWAP_PENDING_APPROVAL, message=msg,
+                subject=f"Tausch wartet auf Genehmigung: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_swap_approved(
+    offer: "ShiftSwapOffer", shift: "Shift", offering_employee: "Employee",
+    accepting_employee: "Employee", db: "AsyncSession"
+) -> None:
+    """Admin hat den Tausch genehmigt: Anbieter + Übernehmer informieren."""
+    svc = NotificationService(db)
+    for emp in (offering_employee, accepting_employee):
+        events = (emp.notification_prefs or {}).get("events", {})
+        if not events.get(EVENT_SWAP_APPROVED, True):
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"Der Tausch für folgenden Dienst wurde genehmigt:\n{_shift_line(shift)}\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=emp, event_type=EVENT_SWAP_APPROVED, message=msg,
+                subject=f"Tausch genehmigt: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_swap_denied(
+    offer: "ShiftSwapOffer", shift: "Shift", offering_employee: "Employee",
+    accepting_employee: "Employee", db: "AsyncSession"
+) -> None:
+    """Admin hat den Tausch abgelehnt: Anbieter + Übernehmer informieren (nicht abschaltbar)."""
+    svc = NotificationService(db)
+    reason = f"\nGrund: {offer.review_note}\n" if offer.review_note else ""
+    for emp in (offering_employee, accepting_employee):
+        if not emp:
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"Der Tausch für folgenden Dienst wurde abgelehnt:\n{_shift_line(shift)}{reason}\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=emp, event_type=EVENT_SWAP_DENIED, message=msg,
+                subject=f"Tausch abgelehnt: {shift.date.strftime('%d.%m.%Y')}",
+                tenant_id=shift.tenant_id,
+            )
+        except Exception:
+            pass
+
+
+async def notify_swap_cancelled(offer: "ShiftSwapOffer", reason: str, db: "AsyncSession") -> None:
+    """System-Hook (Dienst storniert/geändert/gelöscht, Abwesenheit genehmigt): Anbieter
+    informieren. Nicht über Event-Prefs abschaltbar — der Anbieter muss wissen, dass
+    sein Angebot hinfällig ist und der Dienst bei ihm bleibt."""
+    from app.models.employee import Employee
+    from app.models.shift import Shift
+
+    offering_emp = await db.get(Employee, offer.offering_employee_id)
+    if not offering_emp:
+        return
+    shift = await db.get(Shift, offer.shift_id)
+
+    reason_labels = {
+        "shift_cancelled": "Der Dienst wurde storniert.",
+        "shift_deleted": "Der Dienst wurde gelöscht.",
+        "shift_changed": "Der Dienst wurde zeitlich/örtlich geändert.",
+        "absence_approved": "Für den Zeitraum wurde eine Abwesenheit genehmigt.",
+    }
+    label = reason_labels.get(reason, reason)
+
+    msg = f"Hallo {offering_emp.first_name},\n\ndein Tauschangebot wurde automatisch storniert: {label}\n"
+    if shift:
+        msg += f"\n{_shift_line(shift)}"
+    msg += "\nVERA Schichtplanner"
+
+    svc = NotificationService(db)
+    try:
+        await svc.dispatch(
+            employee=offering_emp, event_type=EVENT_SWAP_CANCELLED, message=msg,
+            subject="Tauschangebot storniert", tenant_id=offer.tenant_id,
+        )
+    except Exception:
+        pass

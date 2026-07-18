@@ -15,6 +15,7 @@ from app.models.contract_history import ContractHistory
 from app.models.contract_type_history import ContractTypeHistory
 from app.models.employee_contract_type_membership import EmployeeContractTypeMembership
 from app.models.shift_type import ShiftType
+from app.models.shift_swap import ShiftSwapOffer
 
 __all__ = [
     "SuperAdmin",
@@ -42,4 +43,5 @@ __all__ = [
     "EmployeeContractTypeMembership",
     "ShiftType",
     "ContractType",
+    "ShiftSwapOffer",
 ]
