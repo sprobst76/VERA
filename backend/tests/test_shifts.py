@@ -279,6 +279,72 @@ async def test_claim_shift_admin_forbidden(client, admin_token, admin_user, tena
     assert resp.status_code == 403
 
 
+# ── Claim-Compliance-Pre-Check (Minijob-Grenze / Ruhezeit) ──────────────────────
+
+@pytest.mark.asyncio
+async def test_claim_blocked_over_minijob_annual_limit(client, admin_token, employee_token,
+                                                        admin_user, employee_user,
+                                                        employee_with_profile, db, tenant):
+    """Claim wird blockiert, wenn der Mitarbeiter die Minijob-Jahresgrenze bereits gerissen hat."""
+    from datetime import date
+    from decimal import Decimal
+    from app.models.contract_history import ContractHistory
+    from app.models.payroll import PayrollEntry
+
+    db.add(ContractHistory(
+        tenant_id=tenant.id,
+        employee_id=employee_with_profile.id,
+        valid_from=date(2025, 1, 1),
+        valid_to=None,
+        contract_type="minijob",
+        hourly_rate=13.0,
+    ))
+    db.add(PayrollEntry(
+        tenant_id=tenant.id,
+        employee_id=employee_with_profile.id,
+        month=date(2025, 6, 1),
+        actual_hours=40.0,
+        paid_hours=40.0,
+        base_wage=Decimal("7000.00"),
+        total_gross=Decimal("7000.00"),  # bereits über der 6.672€-Jahresgrenze
+        status="approved",
+    ))
+    await db.commit()
+
+    payload = {**SHIFT_PAYLOAD, "date": "2025-09-01"}
+    create = await client.post(SHIFTS_URL, json=payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/claim", headers=auth_headers(employee_token))
+    assert resp.status_code == 409
+    assert "Minijob-Jahresgrenze" in resp.json()["detail"]
+
+    check = await client.get(f"{SHIFTS_URL}/{shift_id}", headers=auth_headers(admin_token))
+    assert check.json()["employee_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_claim_blocked_by_rest_period_violation(client, admin_token, employee_token,
+                                                        admin_user, employee_user,
+                                                        employee_with_profile, tenant):
+    """Claim wird blockiert, wenn er die 11h-Ruhezeit zum vorherigen Dienst unterschreiten würde."""
+    # Vorheriger, bereits zugewiesener Dienst bis 22:00
+    prev_payload = {
+        "date": "2025-09-01", "start_time": "14:00:00", "end_time": "22:00:00",
+        "break_minutes": 30, "employee_id": str(employee_with_profile.id),
+    }
+    await client.post(SHIFTS_URL, json=prev_payload, headers=auth_headers(admin_token))
+
+    # Offener Dienst am Folgetag ab 06:00 → nur 8h Ruhezeit
+    open_payload = {"date": "2025-09-02", "start_time": "06:00:00", "end_time": "14:00:00", "break_minutes": 30}
+    create = await client.post(SHIFTS_URL, json=open_payload, headers=auth_headers(admin_token))
+    shift_id = create.json()["id"]
+
+    resp = await client.post(f"{SHIFTS_URL}/{shift_id}/claim", headers=auth_headers(employee_token))
+    assert resp.status_code == 409
+    assert "Ruhezeit" in resp.json()["detail"]
+
+
 # ── POST /shifts/{id}/acknowledge ────────────────────────────────────────────
 
 @pytest.mark.asyncio

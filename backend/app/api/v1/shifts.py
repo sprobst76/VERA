@@ -356,6 +356,24 @@ async def claim_shift(shift_id: uuid.UUID, current_user: CurrentUser, db: DB):
     if shift.status != "planned":
         raise HTTPException(status_code=400, detail="Nur geplante Dienste können angenommen werden")
 
+    claiming_emp = await db.get(Employee, own_id)
+    if not claiming_emp:
+        raise HTTPException(status_code=403, detail="Kein Mitarbeiterprofil verknüpft")
+
+    # Compliance-Vorabprüfung: nur die beiden Verstöße blocken, die die Annahme
+    # selbst auslösen würde (Ruhezeit hängt von den ANDEREN Diensten des
+    # annehmenden Mitarbeiters ab, Minijob-Jahresgrenze von seinem YTD-Verdienst).
+    # Pausen-/Feiertagsprüfungen betreffen den Dienst selbst und liegen in der
+    # Verantwortung der Admin-Planung, nicht der Annahme.
+    compliance = ComplianceService(db)
+    cr = await compliance.check_shift(shift, claiming_emp)
+    blocking = [v for v in cr.violations if "Ruhezeit" in v or "Minijob-Jahresgrenze" in v]
+    if blocking:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Dienst kann nicht angenommen werden: {'; '.join(blocking)}",
+        )
+
     shift.employee_id = own_id
 
     await audit_service.write(db, tenant_id=current_user.tenant_id, user_id=current_user.id,
@@ -367,9 +385,7 @@ async def claim_shift(shift_id: uuid.UUID, current_user: CurrentUser, db: DB):
     await db.refresh(shift)
 
     # Admin/Manager über Dienstannahme informieren
-    claiming_emp = await db.get(Employee, own_id)
-    if claiming_emp:
-        await notify_shift_claimed(shift, claiming_emp, db)
+    await notify_shift_claimed(shift, claiming_emp, db)
 
     return shift
 

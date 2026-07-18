@@ -872,7 +872,10 @@ export default function ShiftsPage() {
   const claimMutation = useMutation({
     mutationFn: (id: string) => shiftsApi.claim(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shifts"] }); toast.success("Dienst angenommen!"); },
-    onError:   () => toast.error("Dienst konnte nicht angenommen werden"),
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Dienst konnte nicht angenommen werden");
+    },
   });
 
   const acknowledgeMutation = useMutation({
