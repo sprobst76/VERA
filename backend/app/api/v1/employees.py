@@ -119,10 +119,19 @@ async def update_own_employee(payload: EmployeeSelfUpdate, current_user: Current
         employee.phone = payload.phone or None
     if payload.email is not None:
         employee.email = payload.email or None
+
+    old_availability_prefs = None
     if payload.availability_prefs is not None:
+        old_availability_prefs = dict(employee.availability_prefs or {})
         employee.availability_prefs = payload.availability_prefs
+
     await db.commit()
     await db.refresh(employee)
+
+    if old_availability_prefs is not None:
+        from app.services.notification_service import notify_availability_changed
+        await notify_availability_changed(employee, old_availability_prefs, payload.availability_prefs, db)
+
     return employee
 
 

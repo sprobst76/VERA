@@ -4,6 +4,7 @@ GET /me, ContractHistory-Endpoints.
 """
 import uuid
 import pytest
+from sqlalchemy import select
 from tests.conftest import auth_headers
 
 EMPLOYEES_URL = "/api/v1/employees"
@@ -160,6 +161,99 @@ async def test_get_own_employee_linked(client, admin_token, employee_token,
     data = resp.json()
     assert data["first_name"] == "Own"
     assert "hourly_rate" in data  # Employee sieht eigene Gehaltsdaten
+
+
+# ── PUT /employees/me (availability_prefs → Admin-Notification) ─────────────────
+
+@pytest.mark.asyncio
+async def test_availability_change_notifies_admin(client, admin_token, employee_token,
+                                                    admin_user, employee_user, db, tenant):
+    """Ändert ein Mitarbeiter seine Verfügbarkeiten, wird eine Admin-Benachrichtigung geloggt."""
+    from app.models.employee import Employee
+    from app.models.notification import NotificationLog
+
+    own_emp = Employee(
+        tenant_id=tenant.id,
+        user_id=employee_user.id,
+        first_name="Own",
+        last_name="Employee",
+        contract_type="minijob",
+        hourly_rate=13.0,
+        annual_salary_limit=6672.0,
+        vacation_days=0,
+        availability_prefs={"0": {"available": True, "from_time": "08:00", "to_time": "20:00"}},
+    )
+    admin_emp = Employee(
+        tenant_id=tenant.id,
+        user_id=admin_user.id,
+        first_name="Chef",
+        last_name="Admin",
+        email="admin-recipient@example.com",
+        contract_type="full_time",
+        hourly_rate=20.0,
+        vacation_days=0,
+    )
+    db.add_all([own_emp, admin_emp])
+    await db.commit()
+    admin_emp_id = admin_emp.id
+
+    resp = await client.put(
+        f"{EMPLOYEES_URL}/me",
+        json={"availability_prefs": {"0": {"available": False, "from_time": "08:00", "to_time": "20:00"}}},
+        headers=auth_headers(employee_token),
+    )
+    assert resp.status_code == 200
+
+    db.expire_all()
+    log_result = await db.execute(select(NotificationLog).where(NotificationLog.event_type == "availability_changed"))
+    logs = log_result.scalars().all()
+    assert len(logs) == 1
+    assert logs[0].employee_id == admin_emp_id
+    assert "Mo" in logs[0].body
+
+
+@pytest.mark.asyncio
+async def test_availability_change_without_diff_does_not_notify(client, admin_token, employee_token,
+                                                                  admin_user, employee_user, db, tenant):
+    """Speichern identischer Verfügbarkeiten löst keine Benachrichtigung aus."""
+    from app.models.employee import Employee
+    from app.models.notification import NotificationLog
+
+    prefs = {"0": {"available": True, "from_time": "08:00", "to_time": "20:00"}}
+    own_emp = Employee(
+        tenant_id=tenant.id,
+        user_id=employee_user.id,
+        first_name="Own",
+        last_name="Employee",
+        contract_type="minijob",
+        hourly_rate=13.0,
+        annual_salary_limit=6672.0,
+        vacation_days=0,
+        availability_prefs=prefs,
+    )
+    admin_emp = Employee(
+        tenant_id=tenant.id,
+        user_id=admin_user.id,
+        first_name="Chef",
+        last_name="Admin",
+        email="admin-recipient@example.com",
+        contract_type="full_time",
+        hourly_rate=20.0,
+        vacation_days=0,
+    )
+    db.add_all([own_emp, admin_emp])
+    await db.commit()
+
+    resp = await client.put(
+        f"{EMPLOYEES_URL}/me",
+        json={"availability_prefs": dict(prefs)},
+        headers=auth_headers(employee_token),
+    )
+    assert resp.status_code == 200
+
+    db.expire_all()
+    log_result = await db.execute(select(NotificationLog).where(NotificationLog.event_type == "availability_changed"))
+    assert log_result.scalars().all() == []
 
 
 # ── GET /employees/vacation-balances ─────────────────────────────────────────

@@ -33,6 +33,7 @@ EVENT_POOL_SHIFT_OPEN   = "pool_shift_open"
 EVENT_SHIFT_CLAIMED     = "shift_claimed"
 EVENT_MINIJOB_LIMIT_80  = "minijob_limit_80"
 EVENT_MINIJOB_LIMIT_95  = "minijob_limit_95"
+EVENT_AVAILABILITY_CHANGED = "availability_changed"
 
 
 def _is_quiet_now(employee: "Employee") -> bool:
@@ -510,3 +511,89 @@ async def notify_minijob_limit(
         )
     except Exception:
         pass
+
+
+def _describe_availability_changes(old_prefs: dict | None, new_prefs: dict | None) -> list[str]:
+    """Baut eine Liste menschenlesbarer Zeilen für geänderte Wochentage (Keys '0'-'6')."""
+    old_prefs = old_prefs or {}
+    new_prefs = new_prefs or {}
+    lines: list[str] = []
+    for key in sorted(set(old_prefs) | set(new_prefs), key=lambda k: int(k)):
+        old_day = old_prefs.get(key, {})
+        new_day = new_prefs.get(key, {})
+        if old_day == new_day:
+            continue
+        wday = _WEEKDAYS[int(key)]
+        if not new_day.get("available", True):
+            lines.append(f"{wday}: nicht mehr verfügbar")
+        elif not old_day.get("available", True):
+            lines.append(
+                f"{wday}: jetzt verfügbar ({new_day.get('from_time', '')}–{new_day.get('to_time', '')})"
+            )
+        else:
+            lines.append(
+                f"{wday}: {old_day.get('from_time', '')}–{old_day.get('to_time', '')} "
+                f"→ {new_day.get('from_time', '')}–{new_day.get('to_time', '')}"
+            )
+    return lines
+
+
+async def notify_availability_changed(
+    employee: "Employee",
+    old_prefs: dict | None,
+    new_prefs: dict | None,
+    db: "AsyncSession",
+) -> None:
+    """Benachrichtigt Admin/Manager wenn ein Mitarbeiter seine Verfügbarkeiten ändert."""
+    from sqlalchemy import select
+    from app.models.employee import Employee as EmployeeModel
+    from app.models.user import User
+
+    changes = _describe_availability_changes(old_prefs, new_prefs)
+    if not changes:
+        return
+
+    result = await db.execute(
+        select(EmployeeModel).where(
+            EmployeeModel.tenant_id == employee.tenant_id,
+            EmployeeModel.is_active == True,
+            EmployeeModel.user_id.isnot(None),
+            EmployeeModel.id != employee.id,
+        )
+    )
+    candidates = result.scalars().all()
+    if not candidates:
+        return
+
+    user_result = await db.execute(
+        select(User).where(
+            User.id.in_([e.user_id for e in candidates]),
+            User.role.in_(("admin", "manager")),
+            User.is_active == True,
+        )
+    )
+    admin_user_ids = {u.id for u in user_result.scalars().all()}
+
+    msg = (
+        f"hat die Verfügbarkeiten geändert:\n\n"
+        + "\n".join(f"- {line}" for line in changes)
+        + "\n\nVERA Schichtplanner"
+    )
+    svc = NotificationService(db)
+    for emp in candidates:
+        if emp.user_id not in admin_user_ids:
+            continue
+        prefs  = emp.notification_prefs or {}
+        events = prefs.get("events", {})
+        if not events.get(EVENT_AVAILABILITY_CHANGED, True):
+            continue
+        try:
+            await svc.dispatch(
+                employee=emp,
+                event_type=EVENT_AVAILABILITY_CHANGED,
+                message=f"Hallo {emp.first_name},\n\n{employee.first_name} {employee.last_name} {msg}",
+                subject=f"Verfügbarkeit geändert: {employee.first_name} {employee.last_name}",
+                tenant_id=employee.tenant_id,
+            )
+        except Exception:
+            pass
