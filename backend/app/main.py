@@ -25,6 +25,7 @@ from app.api.v1.shift_types import router as shift_types_router
 from app.api.v1.contract_types import router as contract_types_router
 from app.api.v1.audit_log import router as audit_log_router
 from app.api.v1.shift_swaps import router as shift_swaps_router
+from app.api.v1.feedback import router as feedback_router
 
 
 @asynccontextmanager
@@ -79,6 +80,7 @@ app.include_router(shift_types_router, prefix=API_PREFIX)
 app.include_router(contract_types_router, prefix=API_PREFIX)
 app.include_router(audit_log_router, prefix=API_PREFIX)
 app.include_router(shift_swaps_router, prefix=API_PREFIX)
+app.include_router(feedback_router, prefix=API_PREFIX)
 app.include_router(calendar_router)  # public, no auth prefix
 
 

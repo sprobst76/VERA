@@ -135,6 +135,13 @@ export const shiftsApi = {
   }) => api.put(`/shifts/${id}/time-correction`, data),
 };
 
+// Feedback (Änderungswünsche/Bugs)
+export const feedbackApi = {
+  list: (params?: { status_filter?: string }) => api.get("/feedback", { params }),
+  create: (data: { category: string; title: string; description: string }) => api.post("/feedback", data),
+  update: (id: string, data: { status?: string; admin_note?: string }) => api.patch(`/feedback/${id}`, data),
+};
+
 // Schichttausch (Dienst-Abgabe)
 export const shiftSwapsApi = {
   list: (params?: { status?: string }) => api.get("/shift-swaps", { params }),

@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   UserCircle,
   ClipboardList,
+  HelpCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/reports",       label: "Berichte",           icon: BarChart3,    adminOnly: true,  parentViewerVisible: false },
   { href: "/audit-log",     label: "Audit-Log",          icon: ClipboardList, adminOnly: true, parentViewerVisible: false },
   { href: "/settings",      label: "Einstellungen",      icon: Settings,     adminOnly: false, parentViewerVisible: false },
+  { href: "/help",          label: "Hilfe",              icon: HelpCircle,   adminOnly: false, parentViewerVisible: false },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

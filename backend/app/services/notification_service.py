@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from app.models.shift import Shift
     from app.models.absence import EmployeeAbsence
     from app.models.shift_swap import ShiftSwapOffer
+    from app.models.feedback import Feedback
 
 _BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -42,6 +43,7 @@ EVENT_SWAP_PENDING_APPROVAL  = "swap_pending_approval"
 EVENT_SWAP_APPROVED          = "swap_approved"
 EVENT_SWAP_DENIED            = "swap_denied"
 EVENT_SWAP_CANCELLED         = "swap_cancelled"
+EVENT_FEEDBACK_SUBMITTED     = "feedback_submitted"
 
 
 def _is_quiet_now(employee: "Employee") -> bool:
@@ -857,3 +859,28 @@ async def notify_swap_cancelled(offer: "ShiftSwapOffer", reason: str, db: "Async
         )
     except Exception:
         pass
+
+
+async def notify_feedback_submitted(feedback: "Feedback", db: "AsyncSession") -> None:
+    """Info an Admin/Manager: eine neue Rückmeldung (Bug/Wunsch/Frage) wurde eingereicht."""
+    svc = NotificationService(db)
+    category_labels = {"bug": "Fehler", "wish": "Wunsch", "question": "Frage"}
+    label = category_labels.get(feedback.category, feedback.category)
+
+    for emp in await _get_admin_manager_employees(feedback.tenant_id, None, db):
+        events = (emp.notification_prefs or {}).get("events", {})
+        if not events.get(EVENT_FEEDBACK_SUBMITTED, True):
+            continue
+        msg = (
+            f"Hallo {emp.first_name},\n\n"
+            f"{feedback.reporter_name} hat eine neue Rückmeldung eingereicht ({label}):\n\n"
+            f"{feedback.title}\n{feedback.description}\n\nVERA Schichtplanner"
+        )
+        try:
+            await svc.dispatch(
+                employee=emp, event_type=EVENT_FEEDBACK_SUBMITTED, message=msg,
+                subject=f"Neue Rückmeldung: {feedback.title}",
+                tenant_id=feedback.tenant_id,
+            )
+        except Exception:
+            pass
