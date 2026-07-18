@@ -135,6 +135,17 @@ export const shiftsApi = {
   }) => api.put(`/shifts/${id}/time-correction`, data),
 };
 
+// Schichttausch (Dienst-Abgabe)
+export const shiftSwapsApi = {
+  list: (params?: { status?: string }) => api.get("/shift-swaps", { params }),
+  get: (id: string) => api.get(`/shift-swaps/${id}`),
+  create: (data: { shift_id: string; note?: string }) => api.post("/shift-swaps", data),
+  accept: (id: string) => api.post(`/shift-swaps/${id}/accept`, {}),
+  withdraw: (id: string) => api.post(`/shift-swaps/${id}/withdraw`, {}),
+  review: (id: string, data: { approved: boolean; note?: string }) =>
+    api.post(`/shift-swaps/${id}/review`, data),
+};
+
 // Shift Templates
 export const templatesApi = {
   list: () => api.get("/shift-templates"),

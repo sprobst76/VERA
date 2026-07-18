@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi, shiftTypesApi } from "@/lib/api";
+import { shiftsApi, employeesApi, templatesApi, recurringShiftsApi, holidayProfilesApi, shiftTypesApi, shiftSwapsApi } from "@/lib/api";
+import { ShiftSwapSection } from "@/components/shared/ShiftSwapSection";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck, ClockArrowUp, ThumbsUp } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle, AlertTriangle, X, Check, Clock, Pencil, RepeatIcon, Sparkles, UserCheck, ClockArrowUp, ThumbsUp, ArrowLeftRight, Loader2 } from "lucide-react";
 import { TimeInput } from "@/components/shared/TimeInput";
 import { useSwipe } from "@/hooks/useSwipe";
 import toast from "react-hot-toast";
@@ -884,6 +885,31 @@ export default function ShiftsPage() {
     onError:   () => toast.error("Quittieren fehlgeschlagen"),
   });
 
+  const { data: swapOffers = [] } = useQuery<{ shift_id: string; status: string }[]>({
+    queryKey: ["shift-swap-offers"],
+    queryFn: () => shiftSwapsApi.list().then((r) => r.data),
+    enabled: !isPrivileged && !isParentViewer,
+  });
+  const shiftsWithActiveOffer = new Set(
+    swapOffers.filter((o) => ["open", "pending_approval"].includes(o.status)).map((o) => o.shift_id)
+  );
+
+  const [offerShift, setOfferShift] = useState<any>(null);
+  const [offerNote, setOfferNote] = useState("");
+  const createOfferMutation = useMutation({
+    mutationFn: () => shiftSwapsApi.create({ shift_id: offerShift.id, note: offerNote || undefined }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shift-swap-offers"] });
+      toast.success("Dienst zur Übernahme angeboten");
+      setOfferShift(null);
+      setOfferNote("");
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Anbieten fehlgeschlagen");
+    },
+  });
+
   const { data: shiftTypes = [] } = useQuery({
     queryKey: ["shift-types"],
     queryFn: () => shiftTypesApi.list().then(r => r.data),
@@ -1009,6 +1035,10 @@ export default function ShiftsPage() {
               </button>
             ))}
           </div>
+
+          {!isParentViewer && (
+            <ShiftSwapSection ownEmployeeId={ownProfile?.id ?? null} isPrivileged={isPrivileged} />
+          )}
 
           {/* Summary bar */}
           <div className="flex gap-4 text-sm">
@@ -1139,6 +1169,11 @@ export default function ShiftsPage() {
                                   <ThumbsUp size={10} /> Quittiert
                                 </span>
                               )}
+                              {shiftsWithActiveOffer.has(shift.id) && (
+                                <span className="text-xs shrink-0 flex items-center gap-1" style={{ color: "rgb(var(--ctp-mauve))" }}>
+                                  <ArrowLeftRight size={10} /> Zum Tausch angeboten
+                                </span>
+                              )}
                               <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 sm:hidden"
                                 style={STATUS_STYLE[shift.status] ?? STATUS_STYLE.planned}>
                                 {STATUS_LABELS[shift.status] ?? shift.status}
@@ -1161,6 +1196,15 @@ export default function ShiftsPage() {
                                 className="p-2.5 rounded hover:bg-accent transition-colors"
                                 style={{ color: "rgb(var(--ctp-blue))" }}>
                                 <ThumbsUp size={14} />
+                              </button>
+                            )}
+                            {!isPrivileged && !isParentViewer && ownProfile && shift.employee_id === ownProfile.id &&
+                              (shift.status === "planned" || shift.status === "confirmed") &&
+                              !shiftsWithActiveOffer.has(shift.id) && (
+                              <button onClick={() => setOfferShift(shift)} title="Dienst zur Übernahme anbieten"
+                                className="p-2.5 rounded hover:bg-accent transition-colors"
+                                style={{ color: "rgb(var(--ctp-mauve))" }}>
+                                <ArrowLeftRight size={14} />
                               </button>
                             )}
                             {isPrivileged && shift.status === "planned" && !shift.employee_id && (
@@ -1239,6 +1283,50 @@ export default function ShiftsPage() {
       {correctionShift && <TimeCorrectionModal shift={correctionShift} onClose={() => setCorrectionShift(null)} onDone={handleCorrectionDone} />}
       {reviewShift && <TimeCorrectionReviewModal shift={reviewShift} onClose={() => setReviewShift(null)} onDone={handleReviewDone} />}
       {suggestShift && <SuggestionsModal shift={suggestShift} onClose={() => setSuggestShift(null)} onAssigned={() => setSuggestShift(null)} />}
+      {offerShift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-2xl border border-border w-full max-w-sm p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-foreground">Dienst zur Übernahme anbieten</h3>
+              <button onClick={() => setOfferShift(null)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {format(parseISO(offerShift.date), "EEEE, d. MMMM", { locale: de })} ·{" "}
+              {offerShift.start_time.slice(0, 5)}–{offerShift.end_time.slice(0, 5)} Uhr
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Notiz (optional)</label>
+              <input
+                type="text"
+                value={offerNote}
+                onChange={(e) => setOfferNote(e.target.value)}
+                placeholder="z.B. Zahnarzttermin"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Jede:r Kolleg:in kann diesen Dienst übernehmen. Das Angebot läuft automatisch ab, falls
+              niemand annimmt.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setOfferShift(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted text-muted-foreground">
+                Abbrechen
+              </button>
+              <button
+                onClick={() => createOfferMutation.mutate()}
+                disabled={createOfferMutation.isPending}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {createOfferMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+                Anbieten
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
