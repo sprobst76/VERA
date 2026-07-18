@@ -48,6 +48,7 @@ class ApiKey(Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    key_prefix: Mapped[str | None] = mapped_column(String(20), nullable=True)
     scopes: Mapped[list] = mapped_column(JSON, default=lambda: ["read"])
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

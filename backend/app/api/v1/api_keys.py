@@ -54,22 +54,19 @@ async def list_api_keys(current_user: AdminUser, db: DB):
     )
     keys = result.scalars().all()
 
-    # key_prefix aus key_hash ableiten (erste 12 Zeichen des gespeicherten Prefix-Feldes fehlen
-    # im Modell – wir rekonstruieren es aus key_hash[:12] als Platzhalter oder verwenden
-    # den tatsächlich gespeicherten key_hash-Wert in gekürzter Form)
-    out = []
-    for k in keys:
-        out.append(ApiKeyOut(
+    return [
+        ApiKeyOut(
             id=k.id,
             name=k.name,
-            key_prefix=k.key_hash[:12] + "…",
+            key_prefix=k.key_prefix or "…",
             scopes=k.scopes or ["read"],
             is_active=k.is_active,
             expires_at=k.expires_at,
             created_at=k.created_at,
             last_used_at=k.last_used_at,
-        ))
-    return out
+        )
+        for k in keys
+    ]
 
 
 @router.post("", response_model=ApiKeyCreatedOut, status_code=status.HTTP_201_CREATED)
@@ -86,6 +83,7 @@ async def create_api_key(payload: ApiKeyCreate, current_user: AdminUser, db: DB)
         tenant_id=current_user.tenant_id,
         name=payload.name,
         key_hash=key_hash,
+        key_prefix=key_prefix,
         scopes=payload.scopes,
         is_active=True,
         expires_at=payload.expires_at,
