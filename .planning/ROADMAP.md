@@ -14,9 +14,9 @@
 - [x] **Phase 1: Security Foundation + Deploy Fix** — Fix live CVE, deploy race, API key scopes, JWT revocation
 - [x] **Phase 2: Payroll Correctness** — Eliminate ContractHistory mirror divergence before audit wires up
 - [x] **Phase 3: Audit Trail** — Immutable append-only audit log with admin UI
-- [ ] **Phase 4: Employee Self-Service (Core)** — Absence requests, availability self-update, shift acknowledgment
+- [x] **Phase 4: Employee Self-Service (Core)** — Absence requests, availability self-update, shift acknowledgment (delivered 2026-07-18; ESS-05 audit-log gap open, see STATE.md Pending Todos)
 - [ ] **Phase 5: PWA + Mobile** — Installable app, offline calendar, mobile UX
-- [ ] **Phase 6: Shift Swap** — Multi-party swap workflow with compliance pre-check
+- [x] **Phase 6: Shift Swap** — Delivered 2026-07-18 as giveaway-only (no directed 1:1 swap — Stefan declined that scope); see STATE.md for the actual design (conditional UPDATE instead of SELECT FOR UPDATE, hybrid approval by shift status)
 - [ ] **Phase 7: RBAC Audit + Cleanup** — Systematic endpoint review, demo isolation, Pydantic strict mode
 
 ---
@@ -147,9 +147,9 @@ Plans:
 | 1. Security Foundation + Deploy Fix | 3/3 | Complete | 2026-03-27 |
 | 2. Payroll Correctness | 3/3 | Complete | 2026-03-28 |
 | 3. Audit Trail | 1/3 | In Progress|  |
-| 4. Employee Self-Service (Core) | 0/TBD | Not started | - |
+| 4. Employee Self-Service (Core) | delivered outside /gsd flow | Complete (ESS-05 gap) | 2026-07-18 |
 | 5. PWA + Mobile | 0/TBD | Not started | - |
-| 6. Shift Swap | 0/TBD | Not started | - |
+| 6. Shift Swap | delivered outside /gsd flow | Complete (giveaway-only, scoped down) | 2026-07-18 |
 | 7. RBAC Audit + Cleanup | 0/TBD | Not started | - |
 
 ---

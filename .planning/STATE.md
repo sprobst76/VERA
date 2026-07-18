@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-03-PLAN.md (Phase 3 complete, verified)
-last_updated: "2026-07-06T05:30:00.000Z"
-last_activity: 2026-07-06
+stopped_at: Phase 4 + Phase 6 delivered outside formal /gsd plan flow (direct implementation), verified + deployed 2026-07-18
+last_updated: "2026-07-18T16:00:00.000Z"
+last_activity: 2026-07-18
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 5
   total_plans: 9
   completed_plans: 9
-  percent: 43
+  percent: 71
 ---
 
 # Project State
@@ -21,18 +21,39 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Korrekte, rechtssichere Lohnabrechnung fur das PAB-Arbeitgebermodell
-**Current focus:** Phase 4 — Employee Self-Service (Core), next up
+**Current focus:** Phase 5 (PWA/Mobile) und Phase 7 (RBAC-Audit) sind die letzten offenen Phasen
 
 ## Current Position
 
-Phase: 3 (audit-trail) — COMPLETE (2026-07-06)
-Plan: 3 of 3 — done; human-verify checkpoint closed via automated Playwright
-walkthrough (16 checks) after merging worktree branch `worktree-agent-a715c3c9`
-(df9bd26, 455c500) to main (merge 1477409)
-Status: Phase 4 ready to plan
-Last activity: 2026-07-06
+Phase: 4 (Employee Self-Service) + Phase 6 (Shift Swap) — DELIVERED 2026-07-18
+(nicht über den formalen /gsd:plan-phase-Flow, sondern direkt implementiert und
+verifiziert nach einem Fable-5-Projektreview + priorisierter Umsetzungsliste;
+siehe Memory `vera-milestone-push-pending` für die volle Erzählung).
 
-Progress: [████░░░░░░] 43%
+Phase 4 (ESS): shift acknowledgment (ESS-03), availability-change notification
+(ESS-02) und Minijob-Grenze-Sichtbarkeit für Mitarbeiter selbst umgesetzt.
+**Lücke: ESS-05 (Audit-Log für ESS-Aktionen) nicht erfüllt** — weder
+`POST /shifts/{id}/acknowledge` noch die Verfügbarkeits-Änderung in
+`PUT /employees/me` schreiben einen `audit_service.write()`-Eintrag. Nachtrag
+offen (siehe Pending Todos).
+
+Phase 6 (Shift Swap): bewusst NUR als Dienst-Abgabe (giveaway) umgesetzt, kein
+gerichteter 1:1-Tausch — Stefan hat das explizit abgelehnt ("Dienste sind nicht
+vergleichbar"). Damit weicht die gelieferte Phase 6 vom ursprünglichen
+ROADMAP.md-Success-Criteria-Text ab (der einen Peer-zu-Peer-Tausch beschreibt);
+ROADMAP.md-Phase-6-Text sollte bei Gelegenheit an den tatsächlichen Scope
+angepasst werden.
+
+Zusätzlich (nicht in der ursprünglichen Roadmap): Reminder-Pipeline-Bugfix
+(Celery lief seit jeher fehlerhaft in Prod), Claim-Compliance-Pre-Check,
+Superadmin-/Notification-/api_keys-Testabdeckung (52 Tests) + ein API-Key-
+Prefix-Bugfix, sowie ein neuer `/help`+Feedback-Bereich (nicht in ROADMAP.md
+verortet, ähnlich Phase 4 aber eigenständig).
+
+Status: Phase 5 (PWA/Mobile) und Phase 7 (RBAC-Audit + Cleanup) offen
+Last activity: 2026-07-18
+
+Progress: [███████░░░] 71% (5 von 7 Phasen inhaltlich erledigt, Zählung informell)
 
 ## Performance Metrics
 
@@ -93,10 +114,19 @@ Recent decisions affecting current work:
 - [Phase 03-audit-trail]: audit write on delete_shift staged before db.delete() — entity data must still be accessible for old_values capture
 - [Phase 03-audit-trail]: calculate_payroll: create vs update audit distinguished by checking for existing draft before deletion (existing_old_values is not None)
 - [Phase 03-audit-trail]: update_absence audit placed before mid-function db.commit() (before notification block) to maintain atomicity
+- [Phase 04-ess / 2026-07-18]: Shift acknowledgment ist idempotent (zweiter Aufruf ändert `acknowledged_at` nicht) und wird bei Zeit-/Ortsänderung durch `update_shift` zurückgesetzt
+- [Phase 04-ess / 2026-07-18]: Availability-Change-Notification an Admin/Manager nutzt denselben "Diff der geänderten Wochentage"-Ansatz statt einer reinen "geändert"-Meldung
+- [Phase 06-shift-swap / 2026-07-18]: Scope-Entscheidung (Stefan): NUR Dienst-Abgabe (giveaway), kein gerichteter 1:1-Tausch — Dienste sind nicht vergleichbar genug
+- [Phase 06-shift-swap / 2026-07-18]: Hybrid-Genehmigung nach Ausgangsstatus: `planned`-Dienste sofort wirksam (Compliance-Vorabprüfung wie Claim), `confirmed`-Dienste brauchen Admin/Manager-Review — konsistent mit der bestehenden Regel, dass bestätigte Dienste nur Admin/Manager ändern
+- [Phase 06-shift-swap / 2026-07-18]: Nebenläufigkeits-Absicherung via bedingtem `UPDATE ... WHERE status='open'` statt `SELECT FOR UPDATE` (Roadmap-Text nannte ursprünglich `.with_for_update()`) — funktioniert identisch auf SQLite (Tests) und Postgres (Prod)
+- [Infra / 2026-07-18]: Celery-Tasks brauchen eine eigene `TaskSessionLocal`/`task_engine` mit `NullPool` (in `app/core/database.py`) statt der von FastAPI genutzten gepoolten `AsyncSessionLocal` — asyncpg-Connections sind an die Event-Loop gebunden, in der sie erzeugt wurden, und jeder Celery-Task startet mit `asyncio.run()` seine eigene Loop. Zusätzlich `--pool=threads` statt prefork (Fork korrumpiert die Connection zusätzlich)
 
 ### Pending Todos
 
-None yet.
+- **ESS-05 nachtragen**: `POST /shifts/{id}/acknowledge` (shifts.py) und die availability_prefs-Änderung in `PUT /employees/me` (employees.py) schreiben aktuell KEINEN `audit_service.write()`-Eintrag. Roadmap-Kriterium "All three actions appear in the Audit Log" ist damit nur für den Abwesenheits-Workflow erfüllt, nicht für Shift-Acknowledgment und Availability-Update.
+- **ROADMAP.md Phase 6 Success Criteria anpassen**: Text beschreibt noch einen gerichteten Peer-zu-Peer-Tausch mit Ablehnungs-Flow; tatsächlich umgesetzt (und von Stefan gewünscht) ist nur Dienst-Abgabe (giveaway) ohne Gegenstück.
+- **Off-Site-Backup**: Hetzner Storage Box muss von Stefan noch bestellt werden (Hetzner Robot-Konsole, BX11); danach SSH-Key-Setup + `backup.sh`-rsync-Erweiterung.
+- **Telegram-Verifikation ausstehend**: Kein Mitarbeiter hat aktuell eine `telegram_chat_id` hinterlegt — Telegram-Kanal der neuen Notification-Events (availability_changed, swap_*, feedback_submitted) ist nur über E-Mail/Push verifiziert, nicht end-to-end über Telegram.
 
 ### Blockers/Concerns
 
@@ -134,6 +164,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-06
-Stopped at: Phase 3 complete (03-03 checkpoint verified, worktree branch merged)
-Resume file: None
+Last session: 2026-07-18
+Stopped at: Phase 4 + Phase 6 delivered and deployed (backend HEAD migration
+`p0q1r2s3t4u5`); 448 backend tests passing; all changes verified on prod
+(6/6 containers healthy) via SSH + Playwright across admin/employee roles.
+Resume file: None — next open work is Phase 5 (PWA/Mobile) or Phase 7
+(RBAC-Audit), plus the Pending Todos above.
