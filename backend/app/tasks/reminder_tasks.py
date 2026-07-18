@@ -46,7 +46,7 @@ async def _run_type_reminders():
     from datetime import datetime, timezone, timedelta, date as date_type
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import TaskSessionLocal as AsyncSessionLocal
     from app.models.shift import Shift
     from app.models.shift_type import ShiftType
     from app.core.redis import get_redis
@@ -128,7 +128,7 @@ async def _run_type_reminders():
 
 async def _send_reminders_for_date(target_date, hours_before: int = 24):
     from sqlalchemy import select
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import TaskSessionLocal as AsyncSessionLocal
     from app.models.shift import Shift
 
     try:
@@ -160,7 +160,7 @@ async def _do_send_reminder(shift_id: str, hours_before: float, shift_type_name:
     import uuid
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import TaskSessionLocal as AsyncSessionLocal
     from app.models.shift import Shift
     from app.services.notification_service import NotificationService, EVENT_SHIFT_REMINDER
 

@@ -15,7 +15,7 @@ async def _create_payrolls():
     from datetime import date
     from dateutil.relativedelta import relativedelta
     from sqlalchemy import select
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import TaskSessionLocal as AsyncSessionLocal
     from app.models.employee import Employee
     from app.models.payroll import PayrollEntry
     from app.services.payroll_service import PayrollService

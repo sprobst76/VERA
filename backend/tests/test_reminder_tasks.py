@@ -18,7 +18,7 @@ from app.tasks.reminder_tasks import _do_send_reminder
 @pytest.mark.asyncio
 async def test_reminder_skipped_when_preference_off(monkeypatch, engine, db, tenant):
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    monkeypatch.setattr("app.core.database.AsyncSessionLocal", session_factory)
+    monkeypatch.setattr("app.core.database.TaskSessionLocal", session_factory)
 
     emp = Employee(
         tenant_id=tenant.id,
@@ -55,7 +55,7 @@ async def test_reminder_skipped_when_preference_off(monkeypatch, engine, db, ten
 @pytest.mark.asyncio
 async def test_reminder_dispatches_when_enabled(monkeypatch, engine, db, tenant):
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    monkeypatch.setattr("app.core.database.AsyncSessionLocal", session_factory)
+    monkeypatch.setattr("app.core.database.TaskSessionLocal", session_factory)
 
     emp = Employee(
         tenant_id=tenant.id,
@@ -95,7 +95,7 @@ async def test_reminder_dispatches_when_enabled(monkeypatch, engine, db, tenant)
 @pytest.mark.asyncio
 async def test_reminder_noop_for_shift_without_employee(monkeypatch, engine, db, tenant):
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    monkeypatch.setattr("app.core.database.AsyncSessionLocal", session_factory)
+    monkeypatch.setattr("app.core.database.TaskSessionLocal", session_factory)
 
     shift = Shift(
         tenant_id=tenant.id,
