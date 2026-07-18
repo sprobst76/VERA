@@ -834,6 +834,15 @@ export default function PayrollPage() {
     enabled: isPrivileged,
   });
 
+  const { data: ownProfile } = useQuery<Employee>({
+    queryKey: ["employees", "me"],
+    queryFn: async () => {
+      const res = await employeesApi.me();
+      return res.data;
+    },
+    enabled: isEmployee,
+  });
+
   const empMap = Object.fromEntries(employees.map((e) => [e.id, e]));
 
   const { data: annualData = [], isLoading: annualLoading } = useQuery<AnnualEmployeeRow[]>({
@@ -905,6 +914,10 @@ export default function PayrollPage() {
   if (isEmployee) {
     // Employee self-service: own payslips, read-only with download
     const ownEntry = entries[0] ?? null;
+    const isOwnMinijob = ownProfile?.contract_type === "minijob";
+    const ownYtdPct = ownEntry?.ytd_gross != null ? Math.min((ownEntry.ytd_gross / MINIJOB_ANNUAL) * 100, 120) : 0;
+    const ownOverLimit = (ownEntry?.ytd_gross ?? 0) > MINIJOB_ANNUAL;
+    const ownNearLimit = !ownOverLimit && (ownEntry?.ytd_gross ?? 0) > MINIJOB_ANNUAL * 0.9;
     return (
       <div className="space-y-5">
         {/* Header with month nav */}
@@ -1044,6 +1057,45 @@ export default function PayrollPage() {
                 </div>
               );
             })()}
+
+            {/* Minijob Jahresgrenze (eigene Ansicht) */}
+            {isOwnMinijob && ownEntry.ytd_gross != null && (
+              <div>
+                <div className="text-sm font-medium text-foreground mb-2">Minijob-Jahresgrenze 2025</div>
+                {(ownOverLimit || ownNearLimit) && (
+                  <div
+                    className="flex items-start gap-2 p-3 rounded-lg text-sm mb-3"
+                    style={
+                      ownOverLimit
+                        ? { backgroundColor: "rgb(var(--ctp-red) / 0.12)", color: "rgb(var(--ctp-red))" }
+                        : { backgroundColor: "rgb(var(--ctp-peach) / 0.12)", color: "rgb(var(--ctp-peach))" }
+                    }
+                  >
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    <span>
+                      {ownOverLimit
+                        ? `Jahresgrenze überschritten! Brutto YTD: ${eur(ownEntry.ytd_gross)} (Limit: ${eur(MINIJOB_ANNUAL)})`
+                        : `Jahresgrenze fast erreicht. Noch ${eur(ownEntry.annual_limit_remaining ?? 0)} verfügbar.`}
+                    </span>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>YTD: {eur(ownEntry.ytd_gross)}</span>
+                    <span>Limit: {eur(MINIJOB_ANNUAL)}</span>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${ownOverLimit ? "bg-red-500" : ownNearLimit ? "bg-amber-400" : "bg-emerald-500"}`}
+                      style={{ width: `${Math.min(ownYtdPct, 100)}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {fmt(ownYtdPct, 0)}% ausgeschöpft · {eur(ownEntry.annual_limit_remaining)} verbleibend
+                  </div>
+                </div>
+              </div>
+            )}
 
             {ownEntry.notes && (
               <div>
