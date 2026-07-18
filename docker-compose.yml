@@ -41,7 +41,9 @@ services:
 
   celery:
     build: ./backend
-    command: celery -A app.tasks.celery_app worker --loglevel=info
+    # --pool=threads: SQLAlchemy async (asyncpg) Connections sind nicht fork-sicher,
+    # prefork (Celery-Default) korrumpiert sie beim Fork nach dem DB-Engine-Import.
+    command: celery -A app.tasks.celery_app worker --loglevel=info --pool=threads
     env_file: .env
     depends_on:
       - redis
@@ -51,7 +53,11 @@ services:
 
   celery-beat:
     build: ./backend
-    command: celery -A app.tasks.celery_app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    # Default-Scheduler (PersistentScheduler, nutzt celerybeat-schedule-Datei).
+    # django_celery_beat.schedulers:DatabaseScheduler existiert hier nicht (kein
+    # Django/kein entsprechendes Paket) - der Beat-Container wäre damit sofort
+    # gecrasht, sobald ihn jemand tatsächlich mit docker-compose gestartet hätte.
+    command: celery -A app.tasks.celery_app beat --loglevel=info
     env_file: .env
     depends_on:
       - redis

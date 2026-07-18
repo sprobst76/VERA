@@ -175,6 +175,11 @@ async def _do_send_reminder(shift_id: str, hours_before: float, shift_type_name:
             return
 
         emp = shift.employee
+        prefs  = emp.notification_prefs or {}
+        events = prefs.get("events", {})
+        if not events.get(EVENT_SHIFT_REMINDER, True):
+            return
+
         weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
         wday = weekdays[shift.date.weekday()]
 

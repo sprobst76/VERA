@@ -112,7 +112,12 @@ services:
   # ── Celery Worker ────────────────────────────────────────────────────────────
   vera-celery-worker:
     image: ghcr.io/sprobst76/vera-backend:latest
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    # --pool=threads statt prefork: die App nutzt SQLAlchemy async (asyncpg), dessen
+    # Connections nicht fork-sicher sind. Mit prefork (Default) korrumpiert der fork()
+    # nach dem Import der DB-Engine die asyncpg-Verbindung ("another operation is in
+    # progress" bei jedem Task-Lauf, Fehler wurde von try/except verschluckt und
+    # Celery meldete "succeeded" obwohl nie etwas verschickt wurde).
+    command: celery -A app.tasks.celery_app worker --loglevel=info --pool=threads --concurrency=2
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://vera:${POSTGRES_PASSWORD}@vera-db:5432/vera
