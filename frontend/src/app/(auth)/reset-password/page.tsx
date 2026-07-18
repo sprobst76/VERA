@@ -56,7 +56,7 @@ function ResetPasswordForm() {
         {tokenValid === false && (
           <div className="text-center space-y-4">
             <p className="text-ctp-red font-medium">Link ungültig oder abgelaufen</p>
-            <a href="/auth/forgot-password" className="text-ctp-blue hover:underline text-sm block">
+            <a href="/forgot-password" className="text-ctp-blue hover:underline text-sm block">
               Neuen Reset-Link anfordern
             </a>
           </div>

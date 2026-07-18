@@ -93,7 +93,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 flex flex-col items-center gap-1 text-sm text-muted-foreground">
-            <a href="/auth/forgot-password" className="text-ctp-blue hover:underline">
+            <a href="/forgot-password" className="text-ctp-blue hover:underline">
               Passwort vergessen?
             </a>
             <span>Kein Zugang? Wende dich an deinen Administrator.</span>
