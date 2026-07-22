@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Urlaubs- & Schlussabrechnungsrechner · Schulbegleitung</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root{
+    --ink:#1c2b2a; --ink-soft:#3f5352; --paper:#f6f4ee; --card:#fffdf8;
+    --line:#d9d3c4; --line-strong:#c2bba8;
+    --sage:#5b7f6f; --sage-deep:#3d5a4d; --sage-tint:#e9f0eb;
+    --clay:#b5623f; --clay-tint:#f4e5dd;
+    --gold:#c9a24b; --gold-tint:#f6eecf;
+    --alert:#a8412e; --alert-tint:#f6e2dc;
+    --shadow:0 1px 2px rgba(28,43,42,.05),0 8px 24px rgba(28,43,42,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,-apple-system,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+  header.top{border-bottom:2px solid var(--ink);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--sage);margin-bottom:10px}
+  h1{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:clamp(28px,5vw,44px);line-height:1.05;letter-spacing:-.01em}
+  .sub{color:var(--ink-soft);font-size:15px;margin-top:10px;max-width:62ch}
+  .pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 8px;border-radius:99px;background:var(--sage-tint);color:var(--sage-deep);border:1px solid var(--sage);margin-left:8px;letter-spacing:.08em;vertical-align:middle}
+  /* saved config bar */
+  .savebar{background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);padding:14px 18px;margin-bottom:22px}
+  .savebar .sh{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--clay);margin-bottom:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:7px 8px 7px 13px;border:1px solid var(--line-strong);background:#fff;border-radius:99px;font-size:13px;cursor:pointer;transition:all .13s}
+  .chip:hover{border-color:var(--sage);background:var(--sage-tint)}
+  .chip.active{background:var(--sage);color:#fff;border-color:var(--sage)}
+  .chip .del{width:18px;height:18px;border-radius:50%;border:none;background:transparent;color:inherit;cursor:pointer;font-size:15px;line-height:1;opacity:.5;display:flex;align-items:center;justify-content:center}
+  .chip .del:hover{opacity:1;background:rgba(168,65,46,.15);color:var(--alert)}
+  .chip.active .del:hover{background:rgba(255,255,255,.25);color:#fff}
+  .chip .tabmark{font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.55;font-weight:600}
+  .saveact{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+  .saveact input[type=text]{flex:1;min-width:160px;padding:8px 11px;border:1px solid var(--line-strong);border-radius:4px;font-family:'Inter',sans-serif;font-size:13px;background:#fff}
+  .saveact input:focus{outline:none;border-color:var(--sage);box-shadow:0 0 0 3px var(--sage-tint)}
+  .btn{padding:8px 14px;border-radius:4px;border:1px solid var(--sage);background:var(--sage);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.03em;cursor:pointer;transition:all .13s;white-space:nowrap}
+  .btn:hover{background:var(--sage-deep);border-color:var(--sage-deep)}
+  .btn.ghost{background:#fff;color:var(--ink-soft)}
+  .btn.ghost:hover{background:var(--sage-tint);color:var(--ink)}
+  .savemsg{font-size:12px;color:var(--sage-deep);margin-top:8px;min-height:16px}
+  .savemsg.warn{color:var(--alert)}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:24px}
+  .tab{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;padding:11px 16px;border:1px solid var(--line-strong);background:var(--card);color:var(--ink-soft);cursor:pointer;border-radius:2px;transition:all .15s;display:flex;gap:9px;align-items:center}
+  .tab:hover{border-color:var(--sage);color:var(--ink)}
+  .tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tab .n{opacity:.55;font-weight:500}
+  .tab.active .n{opacity:.7}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);overflow:hidden}
+  .card-h{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .card-h h2{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:19px}
+  .card-h .tag{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--sage);border:1px solid var(--sage);padding:3px 7px;border-radius:2px;white-space:nowrap}
+  .card-b{padding:18px 20px}
+  .subhead{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--clay);margin:20px 0 10px;padding-bottom:5px;border-bottom:1px dashed var(--line-strong)}
+  .subhead:first-child{margin-top:0}
+  .field{margin-bottom:15px}
+  .field:last-child{margin-bottom:0}
+  label.lb{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:5px}
+  .hint{font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.4}
+  input[type=number],select{width:100%;padding:9px 11px;border:1px solid var(--line-strong);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:14px;background:#fff;color:var(--ink);transition:border .15s}
+  select{cursor:pointer}
+  input:focus,select:focus{outline:none;border-color:var(--sage);box-shadow:0 0 0 3px var(--sage-tint)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .seg{display:flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden}
+  .seg button{flex:1;padding:9px 6px;background:#fff;border:none;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:pointer;color:var(--ink-soft);border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--sage);color:#fff}
+  .wd{display:flex;gap:5px;flex-wrap:wrap}
+  .wd button{width:40px;height:40px;border:1px solid var(--line-strong);background:#fff;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:pointer;color:var(--ink-soft);transition:all .12s}
+  .wd button.on{background:var(--sage);color:#fff;border-color:var(--sage)}
+  .res-card{background:linear-gradient(180deg,var(--sage-tint),var(--card));border-color:var(--line-strong)}
+  .big{display:flex;align-items:baseline;gap:10px;padding:6px 0 14px;border-bottom:1px dashed var(--line-strong);margin-bottom:14px}
+  .big .num{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:46px;line-height:1;color:var(--sage-deep);font-variant-numeric:tabular-nums}
+  .big .unit{font-size:14px;color:var(--ink-soft);font-weight:500}
+  .line{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;font-size:14px;border-bottom:1px solid var(--line)}
+  .line:last-child{border-bottom:none}
+  .line .k{color:var(--ink-soft)}
+  .line .v{font-family:'IBM Plex Mono',monospace;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .line.sub2 .k{padding-left:12px;font-size:12.5px;color:var(--line-strong)}
+  .line.sub2 .v{font-size:12.5px;color:var(--ink-soft)}
+  .line.total{margin-top:6px;padding-top:12px;border-top:2px solid var(--ink);border-bottom:none}
+  .line.total .k{font-weight:700;color:var(--ink);font-size:15px}
+  .line.total .v{font-size:17px;font-weight:600;color:var(--sage-deep)}
+  .line.neg .v{color:var(--alert)}
+  .block{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+  .formula{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--sage-deep);background:var(--sage-tint);border-left:3px solid var(--sage);padding:9px 12px;border-radius:0 4px 4px 0;margin-top:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  .note{border-radius:4px;padding:12px 14px;font-size:13px;line-height:1.5;margin-top:14px}
+  .note.law{background:var(--gold-tint);border:1px solid var(--gold)}
+  .note.warn{background:var(--alert-tint);border:1px solid var(--alert)}
+  .note.info{background:var(--sage-tint);border:1px solid var(--sage)}
+  .note b{font-weight:700}
+  .note .nh{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:5px;color:var(--sage-deep)}
+  .note.warn .nh{color:var(--alert)}
+  .note.law .nh{color:#8a6d1f}
+  .legal{margin-top:36px;border-top:2px solid var(--ink);padding-top:24px}
+  .legal h3{font-family:'Fraunces',Georgia,serif;font-weight:500;font-size:22px;margin-bottom:4px}
+  .legal .lead{color:var(--ink-soft);font-size:14px;margin-bottom:20px}
+  .cite{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 18px;margin-bottom:12px}
+  .cite .az{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay);font-weight:500;margin-bottom:5px}
+  .cite .ct{font-weight:600;font-size:14px;margin-bottom:4px}
+  .cite p{font-size:13px;color:var(--ink-soft);line-height:1.5}
+  details.acc{border:1px solid var(--line);border-radius:6px;margin-bottom:10px;background:var(--card);overflow:hidden}
+  details.acc summary{padding:14px 18px;cursor:pointer;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+  details.acc summary::-webkit-details-marker{display:none}
+  details.acc summary::after{content:'+';font-family:'IBM Plex Mono',monospace;color:var(--sage);font-size:18px}
+  details.acc[open] summary::after{content:'\2013'}
+  details.acc .body{padding:0 18px 16px;font-size:13.5px;color:var(--ink-soft);line-height:1.6}
+  details.acc .body ul{margin:8px 0 8px 18px}
+  details.acc .body li{margin-bottom:5px}
+  .disc{margin-top:28px;font-size:12px;color:var(--ink-soft);background:var(--clay-tint);border:1px solid var(--clay);border-radius:6px;padding:14px 16px;line-height:1.55}
+  .foot{margin-top:24px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--line-strong);letter-spacing:.05em;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Schulbegleitung · private Arbeitgeber</div>
+    <h1>Urlaubs- &amp; Schlussabrechnung<span class="pill">3 Fallmodelle</span></h1>
+    <p class="sub">Berechnet Urlaubsanspruch, Resturlaub, Arbeitszeitkonto und Auszahlung. Speichere pro Mitarbeiterin eine Konfiguration und rufe sie mit einem Klick wieder auf. Kranken- und Urlaubstage werden getrennt erfasst; empfohlen wird die tagesgenaue Erfassung (siehe Hinweise).</p>
+  </header>
+
+  <div class="savebar" id="savebar"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="panel"></div>
+
+  <section class="legal">
+    <h3>Rechtsprechung &amp; gesetzliche Grundlagen</h3>
+    <p class="lead">Zwei getrennte Ebenen: Der <b>Urlaubsanspruch</b> zählt nur Tage mit Arbeitspflicht. Die <b>Vergütung</b> von Urlaubs- und Kranktagen folgt dem Lohnausfallprinzip – der Tag wird mit seinen konkret geplanten Stunden bezahlt.</p>
+
+    <div class="cite">
+      <div class="az">BAG, 19.08.2025 – 9 AZR 216/24</div>
+      <div class="ct">Urlaub wird auf Grundlage der Arbeitstage berechnet</div>
+      <p>Maßgeblich ist die Verteilung der Arbeitszeit auf die Wochentage. Grundlage können nur Tage sein, an denen Arbeitspflicht besteht – nicht die Stundenzahl. Standardformel bei fester Tageszahl: Vollzeiturlaub ÷ 5 × tatsächliche Arbeitstage/Woche.</p>
+    </div>
+    <div class="cite">
+      <div class="az">§ 4 Abs. 1 EFZG &amp; § 11 BUrlG – Lohnausfallprinzip</div>
+      <div class="ct">Kranken- und Urlaubstage: der konkrete Tag zählt</div>
+      <p>Bei Krankheit ist die Vergütung fortzuzahlen, die ohne Ausfall an diesem Tag angefallen wäre (§ 4 EFZG). Für die Urlaubsvergütung gilt derselbe Gedanke (§ 11 BUrlG). Deshalb ist die tagesgenaue Zuordnung der geplanten Stunden – nicht ein Durchschnitt – der rechtlich saubere Weg, wo die Tage bekannt sind.</p>
+    </div>
+    <div class="cite">
+      <div class="az">BAG, 21.07.2015 – 9 AZR 145/14</div>
+      <div class="ct">Nachtschicht zählt als zwei Arbeitstage</div>
+      <p>Erstreckt sich eine Schicht über zwei Kalendertage (Nachtdienst), sind für die Urlaubsberechnung zwei Arbeitstage anzusetzen. So bleibt der Urlaub gegenüber Beschäftigten ohne Nachtschicht gleichwertig.</p>
+    </div>
+    <div class="cite">
+      <div class="az">BAG, 22.10.1991 – 9 AZR 621/90</div>
+      <div class="ct">Umrechnung über längeren Zeitraum bei unregelmäßiger Verteilung</div>
+      <p>Ist die Arbeitszeit nicht auf eine feste Kalenderwoche verteilt, ist auf den repräsentativen Zeitabschnitt abzustellen, in dem im Durchschnitt die regelmäßige Arbeitszeit erreicht wird – ggf. das ganze Kalenderjahr.</p>
+    </div>
+
+    <details class="acc"><summary>Empfehlung: tagesgenau statt Durchschnitt</summary>
+      <div class="body">Bei ungleich langen Tagen (z. B. langer Donnerstag) unterschätzt oder überschätzt ein Ø-Wert die Vergütung, je nachdem welche Tage ausfallen. Rechtlich sauber nach § 4 EFZG / § 11 BUrlG: jeden Urlaubs-/Kranktag mit seinen konkret geplanten Stunden ansetzen. Praktisch im Rechner: diese Stunden direkt in „geleistete Stunden" mit aufnehmen und die Tage-Felder auf 0 lassen – oder den Ø nur als Vereinfachung nutzen, wenn Ausfälle sich gleichmäßig über lange und kurze Tage verteilen.</div>
+    </details>
+    <details class="acc"><summary>§ 5 BUrlG – Teilurlaub &amp; Zwölftelung</summary>
+      <div class="body">
+        <ul>
+          <li>Austritt in der 2. Jahreshälfte nach erfüllter Wartezeit: pro vollem Monat 1/12 des Jahresurlaubs (§ 5 Abs. 1c). Austritt zum 1.8. = 7 volle Monate (Jan–Jul).</li>
+          <li>Bruchteile ≥ ½ Tag werden beim gesetzlichen Teilurlaub aufgerundet (§ 5 Abs. 2). Für vertraglichen Mehrurlaub kann davon abgewichen werden.</li>
+        </ul>
+      </div>
+    </details>
+    <details class="acc"><summary>§ 7 Abs. 4 BUrlG – Urlaubsabgeltung bei Austritt</summary>
+      <div class="body">Kann Resturlaub wegen Beendigung nicht mehr genommen werden, ist er abzugelten. Höhe = Resturlaubstage × durchschnittliche Tagesvergütung (Ø Stunden/Tag × Stundenlohn).</div>
+    </details>
+    <details class="acc"><summary>Arbeitszeitkonto: Betriebsrisiko (§ 615 BGB)</summary>
+      <div class="body">Kann der Arbeitgeber keine Arbeit anbieten (Kind in Klinik/Reha, Klassenfahrt, Familienurlaub, Schulausfall), trägt er das Risiko: keine Minusstunden zulasten der Mitarbeiterin. Minusstunden nur bei selbst verursachten Ausfällen. Deshalb das getrennte Feld „abzurechnende Minusstunden".</div>
+    </details>
+
+    <div class="disc">
+      <b>Kein Ersatz für Rechtsberatung.</b> Der Rechner bildet die BAG-Grundsätze nach und liefert gut vertretbare Werte. Bei streitigen Beträgen oder Widerspruch der Mitarbeiterin sollte vor der Schlussabrechnung eine Fachkraft für Arbeitsrecht (Fachanwalt / Lohnbüro) gegenprüfen.
+    </div>
+  </section>
+
+  <div class="foot">Urlaubs- &amp; Schlussabrechnungsrechner · Stand Rechtsprechung 2026 · Speicherung nur lokal im Browser</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var WD = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  var MON = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  function num(n){ return isFinite(n)?n:0; }
+  function eur(n){ return num(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' \u20AC'; }
+  function d1(n){ return num(n).toLocaleString('de-DE',{minimumFractionDigits:0,maximumFractionDigits:1}); }
+  function d2(n){ return num(n).toLocaleString('de-DE',{minimumFractionDigits:0,maximumFractionDigits:2}); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ---- Default-States ----
+  function defA(){ return {vzUrlaub:30, vzTage:5, tage:[false,false,true,true,true,false,false], austrittAktiv:true, austrittMonat:8, genommen:0, kranktage:0, jahresSoll:624, geleistet:0, minusAbz:0, lohn:18.5, stdTag:6.5}; }
+  function defB(){ return {vzUrlaub:30, modus:'woche', zyklusWochen:3, tageImZyklus:7, istTageJahr:120, moeglichJahr:260, austrittAktiv:true, austrittMonat:8, genommen:0, kranktage:0, jahresSoll:624, geleistet:0, minusAbz:0, lohn:18.5, stdTag:6.5}; }
+  function defC(){ return {vzUrlaub:30, tagS:60, nachtS:80, moeglichJahr:261, nacht2:true, austrittAktiv:true, austrittMonat:8, genommen:0, kranktage:0, jahresSoll:624, geleistet:0, minusAbz:0, lohn:18.5, stdTag:8}; }
+
+  var A = defA(), B = defB(), C = defC();
+  var activeTab = 0;
+  var currentConfig = null; // Name der aktuell geladenen Konfig
+
+  // ---- Speicher (localStorage mit Fallback) ----
+  var STORE_KEY = 'schulbegleitung_configs_v1';
+  var memStore = null; // Fallback, falls localStorage nicht verfügbar (z.B. Vorschau)
+  function storageOK(){ try{ var k='__t';localStorage.setItem(k,'1');localStorage.removeItem(k);return true; }catch(e){ return false; } }
+  var hasLS = storageOK();
+
+  function loadConfigs(){
+    if(hasLS){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }catch(e){ return []; } }
+    return memStore || [];
+  }
+  function saveConfigs(list){
+    if(hasLS){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(list)); }catch(e){} }
+    else { memStore = list; }
+  }
+
+  // Vordefinierte Profile bei erstem Start anlegen
+  function seedDefaults(){
+    var list = loadConfigs();
+    if(list.length>0) return;
+    // 1) Mo/Di
+    var s1 = defA(); s1.tage=[true,true,false,false,false,false,false]; s1.stdTag=6.25;
+    // 2) Di/Mi/Do 7:30-13:30 (6h), jeder 2. Do bis 17:30 (10h) -> Ø (5*6+1*10)/6 = 6.667
+    var s2 = defA(); s2.tage=[false,true,true,true,false,false,false]; s2.stdTag=6.67;
+    // 3) Nachtdienst / kein Muster
+    var s3 = defC();
+    list = [
+      {name:'MA 1 · Mo+Di', tab:0, state:s1},
+      {name:'MA 2 · Di/Mi/Do', tab:0, state:s2},
+      {name:'MA 3 · Nachtdienst', tab:2, state:s3}
+    ];
+    saveConfigs(list);
+  }
+
+  function currentState(){ return [A,B,C][activeTab]; }
+  function setStateForTab(tab, st){
+    if(tab===0){ A = st; } else if(tab===1){ B = st; } else { C = st; }
+  }
+  function cloneState(st){ return JSON.parse(JSON.stringify(st)); }
+
+  // ---- Berechnung ----
+  function monate(s){ return s.austrittAktiv ? Math.max(0, s.austrittMonat - 1) : 12; }
+  function calcCommon(ju, s){
+    var m = monate(s);
+    var anteilig = ju * m/12;
+    var resturlaub = anteilig - s.genommen;
+    var sollBis = s.jahresSoll * m/12;
+    var gutUrlaub = s.genommen * s.stdTag;
+    var gutKrank = s.kranktage * s.stdTag;
+    var gutschrift = gutUrlaub + gutKrank;
+    var istGesamt = s.geleistet + gutschrift;
+    var saldo = istGesamt - sollBis;
+    var auszUrlaub = Math.max(resturlaub,0)*s.stdTag*s.lohn;
+    var auszPlus = Math.max(saldo,0)*s.lohn;
+    var abzugMinus = -s.minusAbz*s.lohn;
+    return {jahresurlaub:ju, monate:m, anteilig:anteilig, resturlaub:resturlaub, sollBis:sollBis,
+            gutUrlaub:gutUrlaub, gutKrank:gutKrank, gutschrift:gutschrift, istGesamt:istGesamt, saldo:saldo,
+            auszUrlaub:auszUrlaub, auszPlus:auszPlus, abzugMinus:abzugMinus, gesamt:auszUrlaub+auszPlus+abzugMinus};
+  }
+  function calcA(){
+    var arb = A.tage.filter(Boolean).length;
+    var ju = A.vzTage>0 ? A.vzUrlaub/A.vzTage*arb : 0;
+    var r = calcCommon(ju, A); r.arb = arb;
+    r.formula = A.vzUrlaub+' \u00F7 '+A.vzTage+' \u00D7 '+arb+' = '+d2(ju)+' Tage/Jahr\n(Vollzeiturlaub \u00F7 VZ-Tage/Woche \u00D7 tats\u00E4chliche Tage/Woche)';
+    return r;
+  }
+  function calcB(){
+    var ju, formula;
+    if(B.modus==='woche'){
+      var pw = B.zyklusWochen>0 ? B.tageImZyklus/B.zyklusWochen : 0;
+      ju = B.vzUrlaub/5*pw;
+      formula = '\u00D8 '+d2(pw)+' Tage/Woche  ('+B.tageImZyklus+' Tage in '+B.zyklusWochen+' Wochen)\n'+B.vzUrlaub+' \u00F7 5 \u00D7 '+d2(pw)+' = '+d2(ju)+' Tage/Jahr';
+    } else {
+      ju = B.moeglichJahr>0 ? B.vzUrlaub/B.moeglichJahr*B.istTageJahr : 0;
+      formula = B.vzUrlaub+' \u00F7 '+B.moeglichJahr+' \u00D7 '+B.istTageJahr+' = '+d2(ju)+' Tage/Jahr\n(Vollzeiturlaub \u00F7 m\u00F6gliche AT/Jahr \u00D7 tats\u00E4chliche AT/Jahr)';
+    }
+    var r = calcCommon(ju, B); r.formula = formula; return r;
+  }
+  function calcC(){
+    var ist = C.tagS + C.nachtS*(C.nacht2?2:1);
+    var ju = C.moeglichJahr>0 ? C.vzUrlaub/C.moeglichJahr*ist : 0;
+    var r = calcCommon(ju, C); r.istTage = ist;
+    r.formula = 'Arbeitstage = '+C.tagS+' Tag- + '+C.nachtS+' Nacht'+(C.nacht2?' \u00D7 2':'')+' = '+ist+'\n'+C.vzUrlaub+' \u00F7 '+C.moeglichJahr+' \u00D7 '+ist+' = '+d2(ju)+' Tage/Jahr';
+    return r;
+  }
+
+  function ergebnisHTML(r, s, extraNote){
+    var austrTxt = '1. '+MON[s.austrittMonat-1];
+    var h = '<div class="card res-card"><div class="card-h"><h2>Ergebnis</h2><span class="tag">automatisch</span></div><div class="card-b">';
+    h += '<div class="big"><span class="num">'+d2(r.jahresurlaub)+'</span><span class="unit">Urlaubstage / Jahr (Vollanspruch)</span></div>';
+    h += '<div class="formula">'+esc(r.formula)+'</div>';
+    h += '<div class="block">';
+    if(s.austrittAktiv){
+      h += '<div class="line"><span class="k">Austritt zum '+austrTxt+' \u2192 volle Monate</span><span class="v">'+r.monate+'</span></div>';
+      h += '<div class="line"><span class="k">Anteilig ('+r.monate+'/12)</span><span class="v">'+d2(r.anteilig)+' Tage</span></div>';
+    } else {
+      h += '<div class="line"><span class="k">Kein Austritt \u2192 voller Jahresanspruch</span><span class="v">'+d2(r.anteilig)+' Tage</span></div>';
+    }
+    h += '<div class="line"><span class="k">Bereits genommen</span><span class="v">\u2212 '+d2(s.genommen)+' Tage</span></div>';
+    h += '<div class="line total'+(r.resturlaub<0?' neg':'')+'"><span class="k">'+(s.austrittAktiv?'Resturlaub':'Verbleibender Urlaub')+'</span><span class="v">'+d2(r.resturlaub)+' Tage</span></div>';
+    h += '</div><div class="block">';
+    h += '<div class="line"><span class="k">Soll-Stunden '+(s.austrittAktiv?'bis Austritt':'Jahr')+'</span><span class="v">'+d1(r.sollBis)+' h</span></div>';
+    h += '<div class="line"><span class="k">Geleistete Stunden</span><span class="v">'+d1(s.geleistet)+' h</span></div>';
+    h += '<div class="line sub2"><span class="k">+ Gutschrift Urlaub ('+d1(s.genommen)+' \u00D7 '+d1(s.stdTag)+' h)</span><span class="v">'+d1(r.gutUrlaub)+' h</span></div>';
+    h += '<div class="line sub2"><span class="k">+ Gutschrift Krankheit ('+d1(s.kranktage)+' \u00D7 '+d1(s.stdTag)+' h)</span><span class="v">'+d1(r.gutKrank)+' h</span></div>';
+    h += '<div class="line"><span class="k">Ist-Stunden gesamt</span><span class="v">'+d1(r.istGesamt)+' h</span></div>';
+    h += '<div class="line total'+(r.saldo<0?' neg':'')+'"><span class="k">Saldo Arbeitszeitkonto</span><span class="v">'+(r.saldo>=0?'+':'')+d1(r.saldo)+' h</span></div>';
+    h += '</div><div class="block">';
+    h += '<div class="line"><span class="k">Auszahlung Resturlaub</span><span class="v">'+eur(r.auszUrlaub)+'</span></div>';
+    h += '<div class="line"><span class="k">Auszahlung Plusstunden</span><span class="v">'+eur(r.auszPlus)+'</span></div>';
+    if(r.abzugMinus<0) h += '<div class="line neg"><span class="k">Abzug Minusstunden</span><span class="v">'+eur(r.abzugMinus)+'</span></div>';
+    h += '<div class="line total"><span class="k">Auszahlung gesamt (brutto)</span><span class="v">'+eur(r.gesamt)+'</span></div>';
+    h += '</div>'+(extraNote||'')+'</div></div>';
+    return h;
+  }
+
+  function fNum(label, key, opts){
+    opts = opts||{};
+    var step = opts.step||1;
+    var hint = opts.hint? '<div class="hint">'+opts.hint+'</div>':'';
+    return '<div class="field"><label class="lb">'+label+'</label><input type="number" data-k="'+key+'" step="'+step+'" min="0">'+hint+'</div>';
+  }
+  function fAustritt(s){
+    var seg = '<div class="seg"><button data-austr="1" class="'+(s.austrittAktiv?'on':'')+'">Austritt in diesem Jahr</button>'+
+              '<button data-austr="0" class="'+(!s.austrittAktiv?'on':'')+'">Kein Austritt (volles Jahr)</button></div>';
+    var h = '<div class="field"><label class="lb">Endet das Arbeitsverh\u00E4ltnis?</label>'+seg+
+      '<div class="hint">\u201EKein Austritt\u201C rechnet mit vollem Jahresanspruch (12/12) \u2013 f\u00FCr laufende Mitarbeiterinnen oder Zwischenst\u00E4nde.</div></div>';
+    if(s.austrittAktiv){
+      var opt='';
+      for(var m=1;m<=12;m++){ opt += '<option value="'+m+'">1. '+MON[m-1]+' ('+(m-1)+' volle Monate)</option>'; }
+      h += '<div class="field"><label class="lb">Austritt zum Monatsanfang</label>'+
+        '<select data-sel="austrittMonat">'+opt+'</select>'+
+        '<div class="hint">Letzter Arbeitstag ist der Vormonatsletzte. \u00A7 5 BUrlG: 1/12 je vollem Monat. Austritt zum 1. August = 7 volle Monate.</div></div>';
+    }
+    return h;
+  }
+  function feldGruppen(s){
+    return '<div class="subhead">Zeitraum</div>'+ fAustritt(s)+
+      '<div class="subhead">Urlaub &amp; Krankheit</div>'+
+      '<div class="row2">'+
+        fNum('Genommene Urlaubstage','genommen',{step:0.5,hint:'in eigenen Arbeitstagen'})+
+        fNum('Kranktage (Anzahl)','kranktage',{step:0.5,hint:'geplante Tage, an denen krank'})+
+      '</div>'+
+      fNum('\u00D8 Stunden je Arbeitstag','stdTag',{step:0.25,hint:'Schnitt der geplanten Tagesstunden. Bei ungleichen Tagen: tagesgenau ist genauer \u2013 siehe Hinweis unten.'})+
+      '<div class="subhead">Arbeitszeitkonto</div>'+
+      '<div class="row2">'+
+        fNum('Jahres-Soll (Stunden)','jahresSoll',{hint:'z. B. 624 h'})+
+        fNum('Tats. geleistete Stunden','geleistet',{step:0.5,hint:'ohne Url./Krank. \u2013 oder tagesgenau inkl.'})+
+      '</div>'+
+      fNum('Abzurechnende Minusstunden','minusAbz',{step:0.5,hint:'nur selbst verursachte; 0 bei Betriebsrisiko AG'})+
+      '<div class="subhead">Verg\u00FCtung</div>'+
+      fNum('Stundenlohn (brutto \u20AC)','lohn',{step:0.5});
+  }
+
+  var tagesNote = '<div class="note law"><span class="nh">Empfehlung</span>Bei <b>ungleich langen Tagen</b> (z. B. langer Do) ist nach <b>\u00A7 4 EFZG / \u00A7 11 BUrlG</b> die <b>tagesgenaue</b> Zuordnung sauberer als ein \u00D8. Trage dann die konkret geplanten Stunden der Url./Kranktage direkt in \u201Egeleistete Stunden\u201C ein und lass die Tage-Felder auf 0. Der \u00D8-Weg ist die zul\u00E4ssige Vereinfachung bei gleichm\u00E4\u00DFiger Verteilung.</div>';
+
+  function panelA(){
+    var r = calcA();
+    var wd = '<div class="wd">';
+    for(var i=0;i<7;i++){ wd += '<button data-wd="'+i+'" class="'+(A.tage[i]?'on':'')+'">'+WD[i]+'</button>'; }
+    wd += '</div><div class="hint" style="margin-top:6px">Ausgew\u00E4hlt: <b>'+r.arb+'</b> Tag(e)/Woche</div>';
+    var note = '<div class="note info"><span class="nh">Rechtsgrundlage</span>Bei <b>regelm\u00E4\u00DFig gleicher Tageszahl</b>: Vollzeiturlaub \u00F7 5 \u00D7 Arbeitstage/Woche (<b>BAG 19.08.2025 \u2013 9 AZR 216/24</b>). Nur Tage z\u00E4hlen, nicht Stunden.</div>'+tagesNote;
+    var left = '<div class="card"><div class="card-h"><h2>Eingaben</h2><span class="tag">Fall A \u00B7 feste Tage</span></div><div class="card-b">'+
+      '<div class="subhead">Arbeitstage</div>'+
+      '<div class="field"><label class="lb">Regelm\u00E4\u00DFige Arbeitstage in der Woche</label>'+wd+
+      '<div class="hint">Nur fest wiederkehrende Tage anklicken.</div></div>'+
+      '<div class="row2">'+fNum('Vollzeit-Urlaub (Tage/Jahr)','vzUrlaub')+fNum('Vollzeit-Woche (Tage)','vzTage',{hint:'i. d. R. 5'})+'</div>'+
+      feldGruppen(A)+'</div></div>';
+    return '<div class="grid">'+left+ergebnisHTML(r,A,note)+'</div>';
+  }
+  function panelB(){
+    var r = calcB();
+    var seg = '<div class="seg"><button data-seg="woche" class="'+(B.modus==='woche'?'on':'')+'">Zyklus (Wochen)</button>'+
+              '<button data-seg="jahr" class="'+(B.modus==='jahr'?'on':'')+'">Jahresbezug</button></div>';
+    var erkl = B.modus==='woche'
+      ? '<div class="hint" style="margin-top:6px"><b>Zyklus:</b> Muster \u00FCber mehrere Wochen. Bsp. Wo1=2, Wo2=3, Wo3=2 \u2192 <b>7 Tage in 3 Wochen</b>.</div>'
+      : '<div class="hint" style="margin-top:6px"><b>Jahresbezug:</b> kein Muster \u2013 alle Einsatztage im Jahr z\u00E4hlen.</div>';
+    var seg2 = B.modus==='woche'
+      ? '<div class="row2">'+fNum('Arbeitstage im Zyklus','tageImZyklus',{hint:'Summe, z. B. 2+3+2 = 7'})+fNum('L\u00E4nge des Zyklus (Wochen)','zyklusWochen',{hint:'bis Muster sich wiederholt'})+'</div>'
+      : '<div class="row2">'+fNum('Tats\u00E4chliche Arbeitstage / Jahr','istTageJahr',{hint:'lt. Dienstplan'})+fNum('M\u00F6gliche Arbeitstage / Jahr','moeglichJahr',{hint:'260 (5-Tg) / 312 (6-Tg)'})+'</div>';
+    var note = '<div class="note info"><span class="nh">Wann Fall B?</span>Nur f\u00FCr <b>wechselnde, aber wiederkehrende</b> Muster. Feste Wochentage \u2192 Fall A. Nachtdienste ohne Muster \u2192 Fall C.</div>'+
+      '<div class="note law"><span class="nh">Rechtsgrundlage</span>Nicht gleichm\u00E4\u00DFig auf jede Woche verteilt \u2192 repr\u00E4sentativer Zeitabschnitt oder Kalenderjahr (<b>BAG 22.10.1991 \u2013 9 AZR 621/90</b>).</div>'+tagesNote;
+    var left = '<div class="card"><div class="card-h"><h2>Eingaben</h2><span class="tag">Fall B \u00B7 Rhythmus</span></div><div class="card-b">'+
+      '<div class="subhead">Berechnungsweg</div>'+
+      '<div class="field"><label class="lb">Wie ist die Arbeit verteilt?</label>'+seg+erkl+'</div>'+seg2+
+      fNum('Vollzeit-Urlaub (Tage/Jahr)','vzUrlaub')+feldGruppen(B)+'</div></div>';
+    return '<div class="grid">'+left+ergebnisHTML(r,B,note)+'</div>';
+  }
+  function panelC(){
+    var r = calcC();
+    var seg = '<div class="seg"><button data-nacht="1" class="'+(C.nacht2?'on':'')+'">An \u00B7 2 Tage</button>'+
+              '<button data-nacht="0" class="'+(!C.nacht2?'on':'')+'">Aus \u00B7 1 Tag</button></div>';
+    var note = '<div class="note law"><span class="nh">Leiturteil</span><b>BAG 21.07.2015 \u2013 9 AZR 145/14:</b> tages\u00FCbergreifende Nachtschichten = <b>zwei Arbeitstage</b>. Der Anspruch kann \u00FCber 30 Tage steigen.</div>'+
+      '<div class="note warn"><span class="nh">Bei Urlaubsantritt</span>Arbeitet die Nacht in den ersten Urlaubstag hinein, wird dieser Kalendertag <b>nicht</b> als Urlaubstag verbraucht.</div>';
+    var left = '<div class="card"><div class="card-h"><h2>Eingaben</h2><span class="tag">Fall C \u00B7 Nachtdienst</span></div><div class="card-b">'+
+      '<div class="note info" style="margin-top:0;margin-bottom:15px"><span class="nh">Kernidee</span>Ohne Rhythmus z\u00E4hlt der <b>Jahresbezug</b>. Nachtschicht \u00FCber Mitternacht = <b>zwei Kalendertage</b> = zwei Arbeitstage.</div>'+
+      '<div class="subhead">Schichten pro Jahr</div>'+
+      '<div class="row2">'+fNum('Reine Tagschichten / Jahr','tagS',{hint:'in einem Kalendertag'})+fNum('Nachtschichten / Jahr','nachtS',{hint:'\u00FCber Mitternacht'})+'</div>'+
+      '<div class="field"><label class="lb">Nachtschicht = 2 Arbeitstage?</label>'+seg+
+      '<div class="hint">An (BAG 9 AZR 145/14). Aus = konservativ.</div></div>'+
+      '<div class="row2">'+fNum('M\u00F6gliche Arbeitstage / Jahr','moeglichJahr',{hint:'5-Tage \u2248 261'})+fNum('Vollzeit-Urlaub (Tage/Jahr)','vzUrlaub')+'</div>'+
+      feldGruppen(C)+'</div></div>';
+    return '<div class="grid">'+left+ergebnisHTML(r,C,note)+'</div>';
+  }
+
+  var tabs = [
+    {n:'A', t:'Feste Wochentage', panel:panelA},
+    {n:'B', t:'Rhythmus / \u00D8-Woche', panel:panelB},
+    {n:'C', t:'Nachtdienst / kein Muster', panel:panelC}
+  ];
+
+  // ---- Savebar ----
+  function renderSavebar(){
+    var list = loadConfigs();
+    var h = '<div class="sh">Gespeicherte Konfigurationen \u00B7 pro Mitarbeiterin</div>';
+    h += '<div class="chips">';
+    if(list.length===0){ h += '<span class="hint">Noch keine \u2013 unten Namen eingeben und speichern.</span>'; }
+    for(var i=0;i<list.length;i++){
+      var c = list[i];
+      var act = (currentConfig===c.name) ? ' active':'';
+      h += '<span class="chip'+act+'" data-load="'+i+'"><span class="tabmark">'+tabs[c.tab].n+'</span>'+esc(c.name)+
+           '<button class="del" data-del="'+i+'" title="L\u00F6schen">\u00D7</button></span>';
+    }
+    h += '</div>';
+    if(!hasLS){ h += '<div class="savemsg warn">Hinweis: In der Vorschau wird nur w\u00E4hrend der Sitzung gespeichert. In der heruntergeladenen Datei bleibt alles dauerhaft im Browser.</div>'; }
+    h += '<div class="saveact">'+
+         '<input type="text" id="cfgName" placeholder="Name, z. B. \u201EMA 2 \u00B7 Di/Mi/Do\u201C" value="'+(currentConfig?esc(currentConfig):'')+'">'+
+         '<button class="btn" id="btnSave">Aktuelle Werte speichern</button>'+
+         '<button class="btn ghost" id="btnNew">Zur\u00FCcksetzen</button>'+
+         '</div>';
+    h += '<div class="savemsg" id="saveMsg"></div>';
+    document.getElementById('savebar').innerHTML = h;
+  }
+  function flash(msg, warn){
+    var el = document.getElementById('saveMsg');
+    if(el){ el.textContent = msg; el.className = 'savemsg'+(warn?' warn':''); setTimeout(function(){ if(el){el.textContent='';} },2600); }
+  }
+
+  function fillInputs(){
+    var st = currentState();
+    var inputs = document.querySelectorAll('#panel input[data-k]');
+    for(var i=0;i<inputs.length;i++){ var k=inputs[i].getAttribute('data-k'); if(st[k]!==undefined) inputs[i].value = st[k]; }
+    var sels = document.querySelectorAll('#panel select[data-sel]');
+    for(var j=0;j<sels.length;j++){ var sk=sels[j].getAttribute('data-sel'); if(st[sk]!==undefined) sels[j].value = st[sk]; }
+  }
+  function renderTabs(){
+    var h='';
+    for(var i=0;i<tabs.length;i++){ h += '<button class="tab'+(activeTab===i?' active':'')+'" data-tab="'+i+'"><span class="n">'+tabs[i].n+'</span>'+tabs[i].t+'</button>'; }
+    document.getElementById('tabs').innerHTML = h;
+  }
+  function renderPanel(){ document.getElementById('panel').innerHTML = tabs[activeTab].panel(); fillInputs(); }
+  function renderAll(){ renderSavebar(); renderTabs(); renderPanel(); }
+  function refreshResultOnly(){
+    var grid = document.querySelector('#panel .grid');
+    if(grid){
+      var tmp = document.createElement('div'); tmp.innerHTML = tabs[activeTab].panel();
+      var newRes = tmp.querySelector('.res-card');
+      var oldRes = grid.querySelector('.res-card');
+      if(newRes && oldRes){ oldRes.parentNode.replaceChild(newRes, oldRes); }
+    }
+  }
+
+  // ---- Events ----
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    // Konfig löschen
+    if(t.hasAttribute && t.hasAttribute('data-del')){
+      e.stopPropagation();
+      var di = parseInt(t.getAttribute('data-del'),10);
+      var list = loadConfigs(); var nm = list[di] && list[di].name;
+      if(nm && confirm('Konfiguration \u201E'+nm+'\u201C l\u00F6schen?')){
+        list.splice(di,1); saveConfigs(list);
+        if(currentConfig===nm) currentConfig=null;
+        renderSavebar();
+      }
+      return;
+    }
+    // Konfig laden
+    var chip = t.closest ? t.closest('.chip') : null;
+    if(chip && chip.hasAttribute('data-load')){
+      var li = parseInt(chip.getAttribute('data-load'),10);
+      var lst = loadConfigs(); var c = lst[li];
+      if(c){ activeTab = c.tab; setStateForTab(c.tab, cloneState(c.state)); currentConfig = c.name; renderAll(); }
+      return;
+    }
+    // Speichern
+    if(t.id==='btnSave'){
+      var inp = document.getElementById('cfgName');
+      var name = (inp && inp.value.trim()) || '';
+      if(!name){ flash('Bitte einen Namen eingeben.', true); return; }
+      var list2 = loadConfigs();
+      var entry = {name:name, tab:activeTab, state:cloneState(currentState())};
+      var idx=-1; for(var i=0;i<list2.length;i++){ if(list2[i].name===name){ idx=i; break; } }
+      if(idx>=0){ list2[idx]=entry; } else { list2.push(entry); }
+      saveConfigs(list2); currentConfig=name; renderSavebar();
+      flash('Gespeichert: \u201E'+name+'\u201C');
+      return;
+    }
+    // Zurücksetzen
+    if(t.id==='btnNew'){
+      setStateForTab(activeTab, [defA,defB,defC][activeTab]());
+      currentConfig=null; renderAll(); flash('Auf Standardwerte zur\u00FCckgesetzt.');
+      return;
+    }
+    // Tab wechseln
+    var tab = t.closest ? t.closest('.tab') : null;
+    if(tab && tab.hasAttribute('data-tab')){ activeTab = parseInt(tab.getAttribute('data-tab'),10); renderTabs(); renderPanel(); return; }
+    // Wochentage / Segmente
+    if(t.hasAttribute && t.hasAttribute('data-austr')){ currentState().austrittAktiv=(t.getAttribute('data-austr')==='1'); renderPanel(); return; }
+    if(t.hasAttribute && t.hasAttribute('data-wd')){ var idx2=parseInt(t.getAttribute('data-wd'),10); A.tage[idx2]=!A.tage[idx2]; renderPanel(); return; }
+    if(t.hasAttribute && t.hasAttribute('data-seg')){ B.modus=t.getAttribute('data-seg'); renderPanel(); return; }
+    if(t.hasAttribute && t.hasAttribute('data-nacht')){ C.nacht2=(t.getAttribute('data-nacht')==='1'); renderPanel(); return; }
+  });
+
+  document.addEventListener('change', function(e){
+    var t = e.target;
+    if(t.tagName==='SELECT' && t.hasAttribute('data-sel')){
+      currentState()[t.getAttribute('data-sel')] = parseInt(t.value,10);
+      refreshResultOnly();
+    }
+  });
+  document.addEventListener('input', function(e){
+    var t = e.target;
+    if(t.tagName==='INPUT' && t.hasAttribute('data-k')){
+      var val = t.value===''? 0 : parseFloat(t.value);
+      if(isNaN(val)) val = 0;
+      currentState()[t.getAttribute('data-k')] = val;
+      refreshResultOnly();
+    }
+  });
+
+  seedDefaults();
+  renderAll();
+})();
+</script>
+</body>
+</html>

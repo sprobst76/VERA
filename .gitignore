@@ -41,3 +41,6 @@ deploy/data/
 # Misc
 .DS_Store
 Thumbs.db
+
+# Local Claude Code settings (per-user, not shared)
+.claude/
