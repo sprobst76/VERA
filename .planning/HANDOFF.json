@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-18T16:15:00.000Z",
+  "timestamp": "2026-07-22T04:51:42.000Z",
   "phase": "04+06",
   "phase_name": "Employee Self-Service (Core) + Shift Swap",
   "phase_dir": null,
@@ -9,38 +9,148 @@
   "total_tasks": null,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Fable-5 project review + user-story catalog (~40 stories, 6 roles); discovered undocumented parent_viewer role", "status": "done", "commit": null},
-    {"id": 2, "name": "Fix dead 'Passwort vergessen?' links (login + reset-password pages)", "status": "done", "commit": "0a7f81c"},
-    {"id": 3, "name": "Minijob annual-limit widget in employee's own 'Meine Abrechnung'", "status": "done", "commit": "fd985ff"},
-    {"id": 4, "name": "Admin/manager notification on employee availability change (ESS-02)", "status": "done", "commit": "903dfd7"},
-    {"id": 5, "name": "Shift acknowledgment endpoint + UI badge (ESS-03)", "status": "done", "commit": "79cb813"},
-    {"id": 6, "name": "Celery reminder pipeline bugfix: --pool=threads + NullPool TaskSessionLocal (was silently failing every run in prod)", "status": "done", "commit": "34f62b2 + 2a96d1c"},
-    {"id": 7, "name": "Claim compliance pre-check: block claim on rest-period or Minijob-annual-limit violation", "status": "done", "commit": "ff663b3"},
-    {"id": 8, "name": "Shift-swap MVP (Phase 6): ShiftSwapOffer model, giveaway-only per Stefan's decision, hybrid approval (planned=immediate, confirmed=admin review), conditional-UPDATE concurrency guard, system hooks, celery expiry task", "status": "done", "commit": "a4c9a19"},
-    {"id": 9, "name": "Shift-swap frontend: Tauschbörse section + 'Abgeben' action", "status": "done", "commit": "8871fcd"},
-    {"id": 10, "name": "Security test coverage: test_superadmin.py, test_notifications.py, test_api_keys.py (52 tests) + api_key key_prefix bugfix", "status": "done", "commit": "5d2da5f"},
-    {"id": 11, "name": "/help page (role-filtered guidance) + Feedback module (bug/wish/question submission + admin triage)", "status": "done", "commit": "8ccb104"},
-    {"id": 12, "name": "Update .planning/STATE.md + ROADMAP.md to reflect Phase 4 + Phase 6 delivery and open gaps", "status": "done", "commit": "6c383f9"}
+    {
+      "id": 1,
+      "name": "Fable-5 project review + user-story catalog (~40 stories, 6 roles); discovered undocumented parent_viewer role",
+      "status": "done",
+      "commit": null
+    },
+    {
+      "id": 2,
+      "name": "Fix dead 'Passwort vergessen?' links (login + reset-password pages)",
+      "status": "done",
+      "commit": "0a7f81c"
+    },
+    {
+      "id": 3,
+      "name": "Minijob annual-limit widget in employee's own 'Meine Abrechnung'",
+      "status": "done",
+      "commit": "fd985ff"
+    },
+    {
+      "id": 4,
+      "name": "Admin/manager notification on employee availability change (ESS-02)",
+      "status": "done",
+      "commit": "903dfd7"
+    },
+    {
+      "id": 5,
+      "name": "Shift acknowledgment endpoint + UI badge (ESS-03)",
+      "status": "done",
+      "commit": "79cb813"
+    },
+    {
+      "id": 6,
+      "name": "Celery reminder pipeline bugfix: --pool=threads + NullPool TaskSessionLocal (was silently failing every run in prod)",
+      "status": "done",
+      "commit": "34f62b2 + 2a96d1c"
+    },
+    {
+      "id": 7,
+      "name": "Claim compliance pre-check: block claim on rest-period or Minijob-annual-limit violation",
+      "status": "done",
+      "commit": "ff663b3"
+    },
+    {
+      "id": 8,
+      "name": "Shift-swap MVP (Phase 6): ShiftSwapOffer model, giveaway-only per Stefan's decision, hybrid approval (planned=immediate, confirmed=admin review), conditional-UPDATE concurrency guard, system hooks, celery expiry task",
+      "status": "done",
+      "commit": "a4c9a19"
+    },
+    {
+      "id": 9,
+      "name": "Shift-swap frontend: Tauschbörse section + 'Abgeben' action",
+      "status": "done",
+      "commit": "8871fcd"
+    },
+    {
+      "id": 10,
+      "name": "Security test coverage: test_superadmin.py, test_notifications.py, test_api_keys.py (52 tests) + api_key key_prefix bugfix",
+      "status": "done",
+      "commit": "5d2da5f"
+    },
+    {
+      "id": 11,
+      "name": "/help page (role-filtered guidance) + Feedback module (bug/wish/question submission + admin triage)",
+      "status": "done",
+      "commit": "8ccb104"
+    },
+    {
+      "id": 12,
+      "name": "Update .planning/STATE.md + ROADMAP.md to reflect Phase 4 + Phase 6 delivery and open gaps",
+      "status": "done",
+      "commit": "6c383f9"
+    }
   ],
   "remaining_tasks": [
-    {"id": 13, "name": "ESS-05 gap: add audit_service.write() calls to POST /shifts/{id}/acknowledge and the availability_prefs branch of PUT /employees/me", "status": "not_started"},
-    {"id": 14, "name": "Update ROADMAP.md Phase 6 success-criteria text to match the actual delivered scope (giveaway-only, no directed 1:1 swap, conditional-UPDATE instead of SELECT FOR UPDATE)", "status": "not_started"},
-    {"id": 15, "name": "Phase 5 (PWA + Mobile) — not started", "status": "not_started"},
-    {"id": 16, "name": "Phase 7 (RBAC Audit + Cleanup) — not started", "status": "not_started"},
-    {"id": 17, "name": "Verify Telegram channel end-to-end for the new notification events (availability_changed, swap_*, feedback_submitted) — no employee currently has a telegram_chat_id set", "status": "not_started"}
+    {
+      "id": 13,
+      "name": "ESS-05 gap: add audit_service.write() calls to POST /shifts/{id}/acknowledge and the availability_prefs branch of PUT /employees/me",
+      "status": "not_started"
+    },
+    {
+      "id": 14,
+      "name": "Update ROADMAP.md Phase 6 success-criteria text to match the actual delivered scope (giveaway-only, no directed 1:1 swap, conditional-UPDATE instead of SELECT FOR UPDATE)",
+      "status": "not_started"
+    },
+    {
+      "id": 15,
+      "name": "Phase 5 (PWA + Mobile) — not started",
+      "status": "not_started"
+    },
+    {
+      "id": 16,
+      "name": "Phase 7 (RBAC Audit + Cleanup) — not started",
+      "status": "not_started"
+    },
+    {
+      "id": 17,
+      "name": "Verify Telegram channel end-to-end for the new notification events (availability_changed, swap_*, feedback_submitted) — no employee currently has a telegram_chat_id set",
+      "status": "not_started"
+    }
   ],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Order a Hetzner Storage Box (BX11, ~1TB) via Hetzner Robot console for off-site backup copy", "why": "development-homeserver is unreliable (was offline 97+ days); Stefan chose Storage Box as the new off-site target and said he'd order it himself later"},
-    {"action": "Link a Telegram chat_id under Einstellungen → Benachrichtigungen to enable end-to-end Telegram verification of new notification events", "why": "Requires a real Telegram account/device action, can't be done by the assistant"}
+    {
+      "action": "Order a Hetzner Storage Box (BX11, ~1TB) via Hetzner Robot console for off-site backup copy",
+      "why": "development-homeserver is unreliable (was offline 97+ days); Stefan chose Storage Box as the new off-site target and said he'd order it himself later"
+    },
+    {
+      "action": "Link a Telegram chat_id under Einstellungen → Benachrichtigungen to enable end-to-end Telegram verification of new notification events",
+      "why": "Requires a real Telegram account/device action, can't be done by the assistant"
+    }
   ],
   "decisions": [
-    {"decision": "Shift swap MVP is giveaway-only, no directed 1:1 swap", "rationale": "Stefan explicitly declined 1:1 swap — shifts aren't comparable enough to trade directly", "phase": "06"},
-    {"decision": "Hybrid approval by shift status: planned=immediate (compliance pre-check only), confirmed=admin/manager review required", "rationale": "Consistent with the existing rule that confirmed shifts can only be changed by admin/manager; avoids making Stefan a bottleneck for routine planned-shift handoffs", "phase": "06"},
-    {"decision": "Concurrency guard via conditional UPDATE (WHERE status='open') inside the same transaction as the compliance check, not SELECT FOR UPDATE", "rationale": "Simpler, works identically on SQLite (tests) and Postgres (prod) via row locking during the uncommitted transaction", "phase": "06"},
-    {"decision": "Celery tasks use a separate TaskSessionLocal/task_engine with NullPool + --pool=threads instead of the FastAPI app's pooled AsyncSessionLocal", "rationale": "asyncpg connections are bound to the event loop they were created on; each Celery task call starts its own asyncio.run() loop, and the default prefork pool additionally corrupts the connection via fork() — this was silently breaking every reminder task in production", "phase": "infra"},
-    {"decision": "Money/Decimal rounding: verified already fixed in a prior session (money() helper + Numeric(10,2) columns + test_money_rounding.py) — did not do a redundant full Decimal migration", "rationale": "The real bug (rounding correctness) was already resolved; a full type migration would be pure churn with real risk (Decimal/float mixing, JSON serialization) for no remaining correctness benefit", "phase": "n/a"},
-    {"decision": "Developer-/Hilfe-Bereich scoped down to /help + Feedback module only, skipped the SuperAdmin-only versioned story-catalog tier from the original Fable concept", "rationale": "CLAUDE.md + the assistant's memory system already serve that role for developer-facing docs; an in-app YAML catalog would need constant upkeep for comparatively little ongoing value at VERA's scale", "phase": "n/a"}
+    {
+      "decision": "Shift swap MVP is giveaway-only, no directed 1:1 swap",
+      "rationale": "Stefan explicitly declined 1:1 swap — shifts aren't comparable enough to trade directly",
+      "phase": "06"
+    },
+    {
+      "decision": "Hybrid approval by shift status: planned=immediate (compliance pre-check only), confirmed=admin/manager review required",
+      "rationale": "Consistent with the existing rule that confirmed shifts can only be changed by admin/manager; avoids making Stefan a bottleneck for routine planned-shift handoffs",
+      "phase": "06"
+    },
+    {
+      "decision": "Concurrency guard via conditional UPDATE (WHERE status='open') inside the same transaction as the compliance check, not SELECT FOR UPDATE",
+      "rationale": "Simpler, works identically on SQLite (tests) and Postgres (prod) via row locking during the uncommitted transaction",
+      "phase": "06"
+    },
+    {
+      "decision": "Celery tasks use a separate TaskSessionLocal/task_engine with NullPool + --pool=threads instead of the FastAPI app's pooled AsyncSessionLocal",
+      "rationale": "asyncpg connections are bound to the event loop they were created on; each Celery task call starts its own asyncio.run() loop, and the default prefork pool additionally corrupts the connection via fork() — this was silently breaking every reminder task in production",
+      "phase": "infra"
+    },
+    {
+      "decision": "Money/Decimal rounding: verified already fixed in a prior session (money() helper + Numeric(10,2) columns + test_money_rounding.py) — did not do a redundant full Decimal migration",
+      "rationale": "The real bug (rounding correctness) was already resolved; a full type migration would be pure churn with real risk (Decimal/float mixing, JSON serialization) for no remaining correctness benefit",
+      "phase": "n/a"
+    },
+    {
+      "decision": "Developer-/Hilfe-Bereich scoped down to /help + Feedback module only, skipped the SuperAdmin-only versioned story-catalog tier from the original Fable concept",
+      "rationale": "CLAUDE.md + the assistant's memory system already serve that role for developer-facing docs; an in-app YAML catalog would need constant upkeep for comparatively little ongoing value at VERA's scale",
+      "phase": "n/a"
+    }
   ],
   "uncommitted_files": [
     "frontend/next-env.d.ts, frontend/tsconfig.tsbuildinfo (auto-generated build artifacts, dirty since before this session)",
